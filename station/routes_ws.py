@@ -14,7 +14,7 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def public_origin_allowed(origin: str) -> bool:
-    return bool(os.getenv("STATION_JUDGE_PASSWORD")) and origin.startswith("https://") and origin in {
+    return origin.startswith("https://") and origin in {
         value.strip() for value in os.getenv("STATION_HTTPS_ORIGINS", "").split(",")
     }
 
