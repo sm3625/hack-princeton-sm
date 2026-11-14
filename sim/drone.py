@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from common.contracts import DroneStatus, Route, World
+from common.deployment import DroneSpec
 from sim import world as worldmap
 from sim.clock import SimClock
 
@@ -62,6 +63,8 @@ class _Flight:
     battery_start: float
     observation: str
     gen: int
+    speed_mps: float = SPEED_MPS
+    pct_per_km: float = BATTERY_PCT_PER_KM
 
     @property
     def target(self) -> Point:
@@ -69,7 +72,7 @@ class _Flight:
 
     @property
     def arrive(self) -> float:
-        return self.depart + self.out_m / SPEED_MPS
+        return self.depart + self.out_m / self.speed_mps
 
     @property
     def leave(self) -> float:
@@ -77,7 +80,7 @@ class _Flight:
 
     @property
     def land(self) -> float:
-        return self.leave + self.back_m / SPEED_MPS
+        return self.leave + self.back_m / self.speed_mps
 
     def phase(self, t: float) -> str:
         if t < self.arrive:
@@ -90,17 +93,17 @@ class _Flight:
 
     def position(self, t: float) -> Point:
         if t < self.arrive:
-            return _along(self.out, (t - self.depart) * SPEED_MPS)
+            return _along(self.out, (t - self.depart) * self.speed_mps)
         if t < self.leave:
             return self.target
-        return _along(self.back, (t - self.leave) * SPEED_MPS)
+        return _along(self.back, (t - self.leave) * self.speed_mps)
 
     def used_pct(self, t: float) -> float:
-        flown = min(max(t - self.depart, 0.0) * SPEED_MPS, self.out_m)
+        flown = min(max(t - self.depart, 0.0) * self.speed_mps, self.out_m)
         hover = min(max(t - self.arrive, 0.0), HOVER_S) / HOVER_S if t > self.arrive else 0.0
         if t > self.leave:
-            flown += min((t - self.leave) * SPEED_MPS, self.back_m)
-        return flown / 1000.0 * BATTERY_PCT_PER_KM + hover * HOVER_PCT
+            flown += min((t - self.leave) * self.speed_mps, self.back_m)
+        return flown / 1000.0 * self.pct_per_km + hover * HOVER_PCT
 
 
 # ---------- geometry ----------
@@ -222,10 +225,17 @@ def shortest_path(
 
 
 class Drone:
-    def __init__(self, world: World, clock: SimClock) -> None:
+    def __init__(self, world: World, clock: SimClock, spec: DroneSpec | None = None, drone_id: str = "drone-1") -> None:
+        spec = spec or DroneSpec()
         self.world = world
         self.clock = clock
-        self.base: Point = (world.base_x_m, world.base_y_m)
+        self.id = drone_id
+        self.speed_mps = spec.speed_mps
+        self.pct_per_km = 100.0 / spec.range_km  # default spec: 10 km range = 10% per km
+        self.reserve_pct = spec.reserve_pct
+        bx = world.base_x_m if spec.base_x_m is None else spec.base_x_m
+        by = world.base_y_m if spec.base_y_m is None else spec.base_y_m
+        self.base: Point = (bx, by)
         self.zones: list[Rect] = [worldmap.sector_rect(world, s) for s in world.no_fly]
         self.bounds: Rect = (0.0, 0.0, world.width_m, world.height_m)
         self._lock = threading.RLock()
@@ -274,6 +284,7 @@ class Drone:
                 y_m=round(y, 1),
                 battery_pct=round(self._battery_at(t), 1),
                 flying=self._flight is not None,
+                id=self.id,
             )
 
     def message(self) -> dict:
@@ -282,6 +293,7 @@ class Drone:
             s = self.status()
             msg: dict = {
                 "type": "drone",
+                "id": self.id,
                 "x_m": s.x_m,
                 "y_m": s.y_m,
                 "battery_pct": s.battery_pct,
@@ -328,6 +340,7 @@ class Drone:
                     battery_needed_pct=0.0,
                     feasible=False,
                     reason=reason,
+                    drone_id=self.id,
                 )
 
             if self._flight is not None:
@@ -342,12 +355,12 @@ class Drone:
             if out is None or back is None:
                 return refuse("no route around the no-fly sectors")
             out_m, back_m = path_length(out), path_length(back)
-            needed = (out_m + back_m) / 1000.0 * BATTERY_PCT_PER_KM + HOVER_PCT
-            feasible = battery - needed >= RESERVE_PCT
+            needed = (out_m + back_m) / 1000.0 * self.pct_per_km + HOVER_PCT
+            feasible = battery - needed >= self.reserve_pct
             reason = (
                 ""
                 if feasible
-                else f"needs {needed:.0f}% plus {RESERVE_PCT:.0f}% reserve; battery is "
+                else f"needs {needed:.0f}% plus {self.reserve_pct:.0f}% reserve; battery is "
                 f"{battery:.0f}%"
             )
             return Route(
@@ -356,6 +369,7 @@ class Drone:
                 battery_needed_pct=round(needed, 1),
                 feasible=feasible,
                 reason=reason,
+                drone_id=self.id,
             )
 
     # ----- flying -----
@@ -382,6 +396,8 @@ class Drone:
                 battery_start=self._battery_at(t),
                 observation="",
                 gen=self._gen,
+                speed_mps=self.speed_mps,
+                pct_per_km=self.pct_per_km,
             )
             flight.observation = self.observation_at(flight.target, flight.arrive)
             self._flight = flight

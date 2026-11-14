@@ -31,6 +31,7 @@ from agent.incidents import (
     sound_name,
 )
 from common.contracts import ROOT, EventStore, Node, Sim, World
+from common.deployment import NO_AERIAL, Deployment, load_deployment
 
 AREA_RADIUS_M = 1500.0  # get_detections(sector) covers nodes this close to the sector centre
 MAX_NOTE = 500
@@ -75,6 +76,7 @@ class Services:
     files: AgentFiles
     wakes: WakeQueue
     verify: Verifier
+    deployment: Deployment = field(default_factory=load_deployment)
     gate: ApprovalGate = field(default_factory=ApprovalGate)
     publish: Callable[[dict], None] = lambda msg: None
     clips_root: Path = ROOT / "node_data"
@@ -174,7 +176,11 @@ def _bad_sector(sector: str) -> str:
 
 
 def make_tools(s: Services) -> dict[str, BaseTool]:
-    """Build every tool bound to these services. Agents pick subsets by name."""
+    """Build every tool bound to these services. Agents pick subsets by name.
+
+    Drone tools exist only when the deployment has a drone.
+    """
+    checks_set: dict[str, int] = {}  # schedule_check calls per incident (this process)
 
     @tool
     def get_detections(sector: str, config: RunnableConfig, window_s: int = 1800) -> str:
@@ -264,6 +270,13 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         inc = s.current(config)
         if inc is None or incident_id.strip() != inc.id:
             return f"Unknown incident '{incident_id}'. Use {inc.id if inc else 'the id in the wake-up'}."
+        cap = s.deployment.agent.max_followup_checks
+        if cap is not None and checks_set.get(inc.id, 0) >= cap:
+            return (
+                f"No more checks: this site allows {cap} per incident. "
+                "Use set_status closed, dismissed or watching instead."
+            )
+        checks_set[inc.id] = checks_set.get(inc.id, 0) + 1
         mins = max(1, min(int(minutes), 240))
         at = s.sim.now() + mins * 60
         s.wakes.schedule(inc.id, at, note=f"check set at {fmt_time(s.sim.now())}")
@@ -287,7 +300,10 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         if not s.gate.consume(inc.id):
             return "Refused: dispatch needs a ranger's approval. The station has not recorded one."
         now = s.sim.now()
-        entry = {"time": fmt_time(now), "sector": sec, "note": (note or "")[:MAX_NOTE]}
+        text = note or ""
+        if not s.deployment.has_drones and NO_AERIAL.lower() not in text.lower():
+            text = f"{NO_AERIAL} {text}"
+        entry = {"time": fmt_time(now), "sector": sec, "note": text[:MAX_NOTE]}
         s.incidents.update(
             inc.id,
             status="dispatched",
@@ -337,6 +353,16 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             return inc.x_m, inc.y_m  # the incident's estimated source location
         return s.sector_centre(sec)
 
+    multi = s.deployment.drones.count > 1
+
+    def _statuses() -> list:
+        many = getattr(s.sim, "drone_statuses", None)
+        return many() if many else [s.sim.drone_status()]
+
+    def _status_of(drone_id: str):
+        statuses = _statuses()
+        return next((st for st in statuses if st.id == drone_id), statuses[0])
+
     @tool
     def plan_route(sector: str, config: RunnableConfig) -> str:
         """Plan a drone flight to a sector and back: distance, battery, no-fly limits.
@@ -348,9 +374,10 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         if sec is None:
             return _bad_sector(sector)
         route = s.sim.plan_route(*_target(sec, config))
-        status = s.sim.drone_status()
+        status = _status_of(route.drone_id)
         return json.dumps(
             {
+                **({"drone": route.drone_id} if multi else {}),
                 "sector": sec,
                 "distance_km": round(route.distance_m / 1000, 2),
                 "battery_needed_pct": round(route.battery_needed_pct),
@@ -374,24 +401,29 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         if not route.feasible:
             return f"Not flown: {route.reason or 'route not feasible'}."
         seen = s.sim.fly(route)
-        status = s.sim.drone_status()
+        status = _status_of(route.drone_id)
         km = route.distance_m / 1000
+        who = f" {route.drone_id}" if multi and route.drone_id else ""
         inc = s.current(config)
         if inc is not None:
             s.files.append(
                 inc.folder + "drone_log.md",
-                f"## {fmt_time(s.sim.now())} flight to {sec}\n"
+                f"## {fmt_time(s.sim.now())}{who} flight to {sec}\n"
                 f"- distance {km:.1f} km, battery used {route.battery_needed_pct:.0f}%, "
                 f"now {status.battery_pct:.0f}%\n- camera: {seen}\n\n",
             )
-        return f"Flew {km:.1f} km to {sec}. Camera: {seen} Battery now {status.battery_pct:.0f}%."
+        done = f"Flew {km:.1f} km to {sec}. Camera: {seen} Battery now {status.battery_pct:.0f}%."
+        return done + (f" Drone: {route.drone_id}." if multi and route.drone_id else "")
 
     @tool
     def get_drone_status() -> str:
-        """Where the drone is, its battery, and whether it is flying."""
-        st = s.sim.drone_status()
-        where = s.world.sector_of(st.x_m, st.y_m)
-        return f"Drone in {where}, battery {st.battery_pct:.0f}%, {'flying' if st.flying else 'idle'}."
+        """Where each drone is, its battery, and whether it is flying."""
+        lines = []
+        for st in _statuses():
+            where = s.world.sector_of(st.x_m, st.y_m)
+            name = f"Drone {st.id}" if multi else "Drone"
+            lines.append(f"{name} in {where}, battery {st.battery_pct:.0f}%, {'flying' if st.flying else 'idle'}.")
+        return "\n".join(lines)
 
     @tool
     def verify_signature(node: str, seq: int) -> str:
@@ -424,11 +456,10 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         dispatch_rangers,
         set_status,
         remember,
-        plan_route,
-        fly_drone,
-        get_drone_status,
         verify_signature,
     ]
+    if s.deployment.has_drones:
+        all_tools += [plan_route, fly_drone, get_drone_status]
     return {t.name: t for t in all_tools}
 
 

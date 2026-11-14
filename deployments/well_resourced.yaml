@@ -1,0 +1,26 @@
+# A well-equipped site: three drones at two bases and several ranger teams.
+site:
+  name: Well-resourced reserve HQ
+  description: Reserve headquarters with a drone fleet and several ranger teams on standby.
+drones:
+  count: 3
+  spec:
+    speed_mps: 15
+    range_km: 20
+    reserve_pct: 20
+  units:
+    - id: scout-1
+    - id: scout-2
+      base_x_m: 3200
+      base_y_m: 1700
+    - id: heavy-1
+      speed_mps: 12
+      range_km: 30
+ranger_teams:
+  count: 4
+  response_min: 20
+connectivity: cellular
+approval:
+  approver: duty ranger
+agent:
+  check_interval_min: 20

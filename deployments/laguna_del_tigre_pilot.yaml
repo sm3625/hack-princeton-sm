@@ -1,0 +1,19 @@
+# Default. One drone, one ranger team: the Laguna del Tigre pilot block.
+site:
+  name: Laguna del Tigre pilot block
+  description: Maya Biosphere Reserve, Peten. One station, one drone, one ranger team.
+drones:
+  count: 1
+  spec:
+    speed_mps: 10
+    range_km: 10        # full battery covers 10 km out and back (10% per km)
+    reserve_pct: 15
+    # base_x_m / base_y_m omitted: the drone starts at the map base (scenarios/world.yaml)
+ranger_teams:
+  count: 1
+  response_min: 45
+connectivity: lora
+approval:
+  approver: duty ranger
+agent:
+  check_interval_min: 30

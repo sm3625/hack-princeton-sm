@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from common.contracts import DroneStatus, Route, Weather, World
+from common.deployment import Deployment, load_deployment
 from sim import audio as audiolib
 from sim import world as worldmap
 from sim.clock import SimClock
@@ -65,6 +66,7 @@ class SimEngine:
         publish: Callable[[dict], None] | None = None,
         scenario_dir: Path = SCENARIO_DIR,
         data_dir: Path = audiolib.DATA_DIR,
+        deployment: Deployment | None = None,
     ) -> None:
         self.world = world or worldmap.load()
         self.scenario_dir = scenario_dir
@@ -72,7 +74,10 @@ class SimEngine:
         self._target = publish or _bus_publish
         self.clock = SimClock()
         self.weather_model = WeatherModel(self.world, publish=self.publish)
-        self.drone = Drone(self.world, self.clock)
+        self.deployment = deployment or load_deployment()
+        # One Drone per profile entry. `self.drone` is the first (None at a site with no drone).
+        self.drones = [Drone(self.world, self.clock, spec, did) for did, spec in self.deployment.drone_specs()]
+        self.drone = self.drones[0] if self.drones else None
         self.demo = DemoFeed(self.world, self.clock.now, self.publish)
         self.scenario: Scenario | None = None
         self.runner: ScenarioRunner | None = None
@@ -134,10 +139,26 @@ class SimEngine:
         return self.weather_model.get(sector)
 
     def plan_route(self, target_x_m: float, target_y_m: float) -> Route:
-        return self.drone.plan_route(target_x_m, target_y_m)
+        """Route of the nearest idle drone with enough battery (route.drone_id says which).
+
+        With none able to fly, the nearest drone's refusal is returned so the reason is shown.
+        """
+        if not self.drones:
+            return Route([], 0.0, 0.0, False, "no drone at this site")
+        routes = [d.plan_route(target_x_m, target_y_m) for d in self.drones]
+        usable = [r for r in routes if r.feasible] or routes
+        return min(usable, key=lambda r: r.distance_m)
 
     def drone_status(self) -> DroneStatus:
+        if not self.drone:
+            return DroneStatus(self.world.base_x_m, self.world.base_y_m, 0.0, False, id="")
         return self.drone.status()
+
+    def drone_statuses(self) -> list[DroneStatus]:
+        return [d.status() for d in self.drones]
+
+    def _drone_for(self, route: Route) -> Drone | None:
+        return next((d for d in self.drones if d.id == route.drone_id), self.drone)
 
     def fly(self, route: Route, *, wait: bool = True) -> str:
         """Fly to route's target and return what the camera saw there.
@@ -146,26 +167,32 @@ class SimEngine:
         called from a worker thread. Called on an event-loop thread it returns at once, since
         blocking there would freeze the station; use fly_async from async code.
         """
-        flight, why = self.drone.launch(route)
+        drone = self._drone_for(route)
+        if drone is None:
+            return "Not flown: no drone at this site"
+        flight, why = drone.launch(route)
         if flight is None:
             return f"Not flown: {why}"
-        self.publish(self.drone.message())
+        self.publish(drone.message())
         if wait:
             if _in_event_loop():
                 log.warning("fly() called on the event loop; not waiting for arrival")
             else:
-                self.clock.block_until(flight.arrive, lambda: self.drone.cancelled(flight))
-        if self.drone.cancelled(flight):
+                self.clock.block_until(flight.arrive, lambda: drone.cancelled(flight))
+        if drone.cancelled(flight):
             return "Not completed: the simulation was reset"
         return flight.observation
 
     async def fly_async(self, route: Route) -> str:
-        flight, why = self.drone.launch(route)
+        drone = self._drone_for(route)
+        if drone is None:
+            return "Not flown: no drone at this site"
+        flight, why = drone.launch(route)
         if flight is None:
             return f"Not flown: {why}"
-        self.publish(self.drone.message())
+        self.publish(drone.message())
         await self.clock.sleep_until(flight.arrive)
-        if self.drone.cancelled(flight):
+        if drone.cancelled(flight):
             return "Not completed: the simulation was reset"
         return flight.observation
 
@@ -184,18 +211,18 @@ class SimEngine:
         self.clock.set_time(scenario.start + skip)
         self.clock.set_speed(speed if speed is not None else scenario.speed)
         self.weather_model.reset()
-        self.drone.reset(100.0)
-        self.drone.set_observations(
-            [
-                Observation(
-                    sector=s.sector,
-                    text=s.text,
-                    start=None if s.start is None else scenario.start + s.start,
-                    end=None if s.end is None else scenario.start + s.end,
-                )
-                for s in scenario.sightings
-            ]
-        )
+        sightings = [
+            Observation(
+                sector=s.sector,
+                text=s.text,
+                start=None if s.start is None else scenario.start + s.start,
+                end=None if s.end is None else scenario.start + s.end,
+            )
+            for s in scenario.sightings
+        ]
+        for drone in self.drones:
+            drone.reset(100.0)
+            drone.set_observations(sightings)
         self.demo.reset()
         self.scenario = scenario
         self.runner = ScenarioRunner(
@@ -222,9 +249,13 @@ class SimEngine:
         )
         self.clock.resume()
         self._run_task = asyncio.get_running_loop().create_task(self._run(self.runner))
-        self.publish(self.drone.message())
+        self._publish_drones()
         self.publish(self.clock_message())
         return self.state()
+
+    def _publish_drones(self) -> None:
+        for drone in self.drones:
+            self.publish(drone.message())
 
     async def _run(self, runner: ScenarioRunner) -> None:
         await runner.run()
@@ -267,7 +298,8 @@ class SimEngine:
             "title": sc.title if sc else None,
             "start": int(sc.start) if sc else None,
             "end": int(sc.end) if sc else None,
-            "drone": self.drone.message(),
+            "drone": self.drone.message() if self.drone else None,
+            "drones": [d.message() for d in self.drones],
             "weather": self.weather_model.snapshot(),
             "scenarios": list_scenarios(self.scenario_dir, self.world),
         }
@@ -278,9 +310,9 @@ class SimEngine:
         was_flying = False
         while True:
             now = loop.time()
-            flying = self.drone.status().flying
+            flying = any(d.status().flying for d in self.drones)
             if flying or was_flying or now - last_drone >= _IDLE_DRONE_EVERY_S:
-                self.publish(self.drone.message())
+                self._publish_drones()
                 last_drone = now
             was_flying = flying
             if self._clock_dirty or now - last_clock >= _CLOCK_EVERY_S:

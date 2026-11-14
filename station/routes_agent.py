@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
                 verify=getattr(app.state, "verify_record", None),
                 fs_root=Path(os.getenv("AGENT_FS_DIR", ROOT / "agent_fs")),
                 db_path=Path(os.getenv("AGENT_DB", ROOT / "agent_state.sqlite")),
+                deployment=getattr(app.state, "deployment", None),
             )
             configure(started)
         except Exception:

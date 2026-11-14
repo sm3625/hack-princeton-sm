@@ -1,0 +1,15 @@
+# A remote post with no drone: the commander asks rangers to verify or approve dispatch directly.
+site:
+  name: Remote CONAP post
+  description: Remote post with no aerial capability and one slow ranger team.
+drones:
+  count: 0
+ranger_teams:
+  count: 1
+  response_min: 90
+connectivity: satellite
+approval:
+  approver: post chief
+agent:
+  max_followup_checks: 3
+  check_interval_min: 45

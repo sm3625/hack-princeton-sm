@@ -15,9 +15,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
+
+from agent.prompts import NO_DRONE_MARKER
+from common.deployment import NO_AERIAL
 
 THREATS = ("chainsaw", "axe", "gunshot")
 _REC = re.compile(r"\[([^\[\]#]+?) #(\d+)\] (\d\d:\d\d:\d\d) (\w+) ([\d.]+)")
@@ -165,12 +168,16 @@ def parse_verdict(text: str) -> Verdict:
     )
 
 
+def _no_drone(messages: list[BaseMessage]) -> bool:
+    return any(isinstance(m, SystemMessage) and NO_DRONE_MARKER in str(m.content) for m in messages)
+
+
 def commander(messages: list[BaseMessage]) -> list[tuple[str, dict]] | str:
     start, w = last_human(messages)
     d = Done(calls_since(messages, start + 1))
     kinds, status = w.kinds, w.get("status")
     if "new detections" in kinds:
-        return _follow_up(w, d) if status == "dispatched" else _triage_flow(w, d)
+        return _follow_up(w, d) if status == "dispatched" else _triage_flow(w, d, _no_drone(messages))
     if "scheduled check" in kinds:
         if status == "dispatched":
             return _dispatched_check(w, d)
@@ -182,7 +189,7 @@ def commander(messages: list[BaseMessage]) -> list[tuple[str, dict]] | str:
     return "No action needed."
 
 
-def _triage_flow(w: Brief, d: Done) -> list[tuple[str, dict]] | str:
+def _triage_flow(w: Brief, d: Done, no_drone: bool = False) -> list[tuple[str, dict]] | str:
     inc, sector, family = w.get("incident"), w.get("sector"), w.get("family")
     if d.count("write_file") == 0:
         return [_plan(w, [(False, "Triage: real or false alarm?"), (False, "Follow up if real")])]
@@ -200,7 +207,16 @@ def _triage_flow(w: Brief, d: Done) -> list[tuple[str, dict]] | str:
             return calls
         return f"Dismissed {inc}: {reason}"
     if v.verdict == "real" and family in ("logging", "poaching"):
-        if not d.has("task:drone-pilot"):
+        if no_drone:
+            if not d.has("dispatch_rangers"):
+                nodes = len({r["node"] for r in w.records})
+                what = "illegal logging" if family == "logging" else "poaching"
+                note = f"{NO_AERIAL} Likely {what} in sector {sector}. {nodes} nodes agree."
+                return [
+                    _plan(w, [(True, "Triage: likely real"), (False, "Ask ranger to verify or dispatch")]),
+                    tc("dispatch_rangers", sector=sector, note=note[:480]),
+                ]
+        elif not d.has("task:drone-pilot"):
             return [
                 _plan(w, [(True, "Triage: likely real"), (False, "Drone check"), (False, "Ask ranger to dispatch")]),
                 task("drone-pilot", f"Incident: {inc}\nFly to sector {sector} and report what the camera sees."),

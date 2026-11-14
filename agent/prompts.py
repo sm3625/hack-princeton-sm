@@ -1,4 +1,10 @@
-"""System prompts. Short on purpose: small local models follow short prompts better."""
+"""System prompts. Short on purpose: small local models follow short prompts better.
+
+COMMANDER and EVIDENCE are written for a site with a drone (the default profile). The
+*_prompt(deployment) functions adapt them to the active deployment profile.
+"""
+
+from common.deployment import NO_AERIAL, Deployment
 
 COMMANDER = """You are the incident commander at a forest ranger station.
 Sensor nodes send signed sound detections. Code has already grouped them into the incident
@@ -64,3 +70,32 @@ DESCRIPTIONS = {
     "evidence": "Verifies every record's signature and writes case_file.md with a cited "
     "timeline. Use when an incident is ready to close.",
 }
+
+
+NO_DRONE_MARKER = "No drone at this site"  # also how the mock model knows to skip the drone step
+
+_DRONE_STEP = """3. Real chainsaw, axe or gunshot: ask the drone-pilot sub-agent to check the sector.
+   Then call dispatch_rangers(sector, note). A ranger must approve; the call waits for them."""
+_NO_DRONE_STEP = f"""3. Real chainsaw, axe or gunshot: {NO_DRONE_MARKER}, so there is no aerial check.
+   Call dispatch_rangers(sector, note) and start the note with "{NO_AERIAL}"
+   A ranger must approve; the call waits for them. If you are unsure, set_status("watching")
+   and schedule_check, or message a ranger to verify on the ground first."""
+
+
+def commander_prompt(dep: Deployment) -> str:
+    text = COMMANDER
+    if not dep.has_drones:
+        text = text.replace(_DRONE_STEP, _NO_DRONE_STEP)
+    text = text.replace("schedule_check(incident_id, 30)", f"schedule_check(incident_id, {dep.agent.check_interval_min})")
+    extra = [dep.resources_line()]
+    if dep.agent.max_followup_checks:
+        extra.append(f"Each incident allows at most {dep.agent.max_followup_checks} scheduled checks.")
+    return text + "\n\n" + " ".join(extra)
+
+
+def evidence_prompt(dep: Deployment) -> str:
+    if dep.has_drones:
+        return EVIDENCE
+    return EVIDENCE.replace("triage.md, drone_log.md and", "triage.md and").replace(
+        "Drone observations", "Aerial verification (state: none, no drone)"
+    )

@@ -4,7 +4,16 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from station import integration, routes_agent, routes_eval, routes_events, routes_sim, routes_ws
+from common.deployment import load_deployment
+from station import (
+    integration,
+    routes_agent,
+    routes_deployment,
+    routes_eval,
+    routes_events,
+    routes_sim,
+    routes_ws,
+)
 from station.config import ROOT, load_settings
 from station.receiver import get_receiver
 
@@ -14,6 +23,7 @@ UI_DIR = ROOT / "ui"
 def create_app() -> FastAPI:
     settings = load_settings()
     app = FastAPI(title="Forest Guardian", docs_url=None, redoc_url=None)
+    app.state.deployment = load_deployment()  # fail fast on a bad DEPLOYMENT
 
     @app.get("/api/health")
     def health() -> dict:
@@ -28,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_sim.router)
     app.include_router(routes_events.router)
     app.include_router(routes_eval.router)
+    app.include_router(routes_deployment.router)
     app.include_router(routes_agent.router)  # incident commander API + its startup (lifespan)
 
     # Integration: the commander reads verified records from the pipeline's store and

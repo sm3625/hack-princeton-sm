@@ -60,6 +60,7 @@ from agent.incidents import (
 from agent.llm import ROLES, get_chat_model
 from agent.tools import TOOLSETS, Services, make_tools
 from common.contracts import ROOT, Detection, EventStore, Sim, World, load_world
+from common.deployment import NO_AERIAL, Deployment, load_deployment
 
 log = logging.getLogger("agent.commander")
 
@@ -127,10 +128,15 @@ def _register_profile(model: BaseChatModel) -> None:
         )
 
 
-def _approval_question(tool_call: dict, state: Any, runtime: Any) -> str:
-    args = tool_call.get("args") or {}
-    note = " ".join(str(args.get("note", "")).split())[:MAX_NOTE]
-    return f"{note} Dispatch a team to sector {args.get('sector', '?')}?".strip()
+def _approval_question_for(dep: Deployment) -> Callable[[dict, Any, Any], str]:
+    def question(tool_call: dict, state: Any, runtime: Any) -> str:
+        args = tool_call.get("args") or {}
+        note = " ".join(str(args.get("note", "")).split())[:MAX_NOTE]
+        if not dep.has_drones and NO_AERIAL.lower() not in note.lower():
+            note = f"{NO_AERIAL} {note}"
+        return f"{note} Dispatch a team to sector {args.get('sector', '?')}?".strip()
+
+    return question
 
 
 def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any) -> Any:
@@ -144,6 +150,15 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
     def pick(role: str) -> list:
         return [tools[n] for n in TOOLSETS[role]]
 
+    dep = s.deployment
+    drone_pilot = {
+        "name": "drone-pilot",
+        "description": prompts.DESCRIPTIONS["drone-pilot"],
+        "system_prompt": prompts.DRONE_PILOT,
+        "tools": pick("drone-pilot") if dep.has_drones else [],
+        "model": models["drone-pilot"],
+        "middleware": [fs("read_file")],
+    }
     subagents = [
         {
             "name": "triage",
@@ -153,18 +168,11 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
             "model": models["triage"],
             "middleware": [fs("read_file", "write_file")],
         },
-        {
-            "name": "drone-pilot",
-            "description": prompts.DESCRIPTIONS["drone-pilot"],
-            "system_prompt": prompts.DRONE_PILOT,
-            "tools": pick("drone-pilot"),
-            "model": models["drone-pilot"],
-            "middleware": [fs("read_file")],
-        },
+        *([drone_pilot] if dep.has_drones else []),
         {
             "name": "evidence",
             "description": prompts.DESCRIPTIONS["evidence"],
-            "system_prompt": prompts.EVIDENCE,
+            "system_prompt": prompts.evidence_prompt(dep),
             "tools": pick("evidence"),
             "model": models["evidence"],
             "middleware": [fs("ls", "read_file", "write_file")],
@@ -174,7 +182,7 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
     return create_deep_agent(
         model=models["commander"],
         tools=pick("commander"),
-        system_prompt=prompts.COMMANDER,
+        system_prompt=prompts.commander_prompt(dep),
         subagents=subagents,
         middleware=[
             fs("ls", "read_file", "write_file", "edit_file"),
@@ -184,7 +192,7 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
         interrupt_on={
             "dispatch_rangers": {
                 "allowed_decisions": ["approve", "edit", "reject"],
-                "description": _approval_question,
+                "description": _approval_question_for(dep),
             }
         },
         checkpointer=checkpointer,
@@ -386,7 +394,9 @@ class Commander:
         publish: Callable[[dict], None] | None = None,
         background: bool = True,
         clips_root: Path = ROOT / "node_data",
+        deployment: Deployment | None = None,
     ) -> None:
+        self.deployment = deployment or load_deployment()
         self.world = world or load_world()
         self.store = store if store is not None else MemoryEventStore()
         self.sim = sim if sim is not None else ClockSim(self.world)
@@ -409,6 +419,7 @@ class Commander:
             verify=verify or Ed25519Verifier(),
             publish=self.publish,
             clips_root=clips_root,
+            deployment=self.deployment,
         )
         models = models or {role: get_chat_model(role) for role in ROLES}
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
@@ -525,10 +536,15 @@ class Commander:
         path = inc.folder + "plan.md"
         if self.files.read(path):
             return
+        drone_item = (
+            "- [ ] If real: drone check of the estimated location\n"
+            if self.deployment.has_drones
+            else "- [ ] If real: ask a ranger to verify, or approve dispatch (no aerial verification)\n"
+        )
         markdown = (
             f"# {inc.title}\n\n"
             "- [ ] Triage: real threat or false alarm?\n"
-            "- [ ] If real: drone check of the estimated location\n"
+            f"{drone_item}"
             "- [ ] If confirmed: ask a ranger to approve dispatch\n"
             "- [ ] Follow up, then write the case file\n"
         )

@@ -88,7 +88,9 @@ class Nodes:
 class Harness:
     """A Commander wired to fakes, on mock models. Inline (no threads) unless background=True."""
 
-    def __init__(self, tmp: Path, models: dict | None = None, background: bool = False) -> None:
+    def __init__(
+        self, tmp: Path, models: dict | None = None, background: bool = False, deployment=None
+    ) -> None:
         self.world = load_world()
         self.sim = FakeSim(self.world)
         self.store = MemoryEventStore()
@@ -96,6 +98,7 @@ class Harness:
         self.messages: list[dict] = []
         self.tmp = tmp
         self.background = background
+        self.deployment = deployment
         self.models = models or {role: MockChatModel(role=role) for role in ROLES}
         self.commander = self.build()
 
@@ -111,6 +114,7 @@ class Harness:
             publish=self.messages.append,
             background=self.background,
             clips_root=self.tmp / "node_data",
+            deployment=self.deployment,
         )
 
     def hear(self, node: str, seq: int, hhmmss: str, sound: SoundClass, conf: float, verified: bool = True):

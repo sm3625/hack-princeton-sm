@@ -156,6 +156,7 @@ class Route:
     battery_needed_pct: float
     feasible: bool
     reason: str = ""
+    drone_id: str = ""  # which drone this route is for (empty: the only / first drone)
 
 
 @dataclass(frozen=True)
@@ -164,6 +165,7 @@ class DroneStatus:
     y_m: float
     battery_pct: float
     flying: bool
+    id: str = "drone-1"
 
 
 class Sim(Protocol):
@@ -178,6 +180,8 @@ class Sim(Protocol):
         """Fly the route (animates in UI); returns what the camera saw at the target."""
 
     def drone_status(self) -> DroneStatus: ...
+
+    # Optional: sims with several drones also offer drone_statuses() -> list[DroneStatus].
 
 
 # ---------- UI messages over WebSocket /ws (server -> browser) ----------
