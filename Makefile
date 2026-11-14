@@ -1,4 +1,4 @@
-.PHONY: setup keys dev test test-ollama test-haiku lint
+.PHONY: setup keys dev test test-ollama test-haiku test-e2e lint
 
 setup:
 	uv sync
@@ -21,6 +21,9 @@ test-ollama:
 
 test-haiku:
 	uv run pytest -q -m haiku
+
+test-e2e:
+	uv run pytest -q -m e2e
 
 lint:
 	uv run ruff check .

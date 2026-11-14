@@ -44,8 +44,9 @@ pythonpath = ["."]
 markers = [
     "ollama: needs a running local Ollama model",
     "haiku: calls the Claude API and costs money",
+    "e2e: starts the real station process and plays a scenario (slow, make test-e2e)",
 ]
-addopts = "-m 'not ollama and not haiku'"
+addopts = "-m 'not ollama and not haiku and not e2e'"
 
 [tool.ruff]
 line-length = 100
