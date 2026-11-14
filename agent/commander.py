@@ -559,9 +559,9 @@ class Commander:
             found = [d for d in self.store.query(node_ids=node_ids, verified_only=True) if (d.node_id, d.seq) in wanted]
             lines.append("New records:")
             lines += self.services.detection_lines(found)
-        names = sorted(self.world.node(n).name for n in inc.node_ids())
-        lines.append(f"Heard by {len(names)} node(s): {', '.join(names)}")
         lines.append(f"Estimated source: sector {inc.sector} ({inc.x_m:.0f} m E, {inc.y_m:.0f} m N)")
+        lines.append("All evidence so far (pass this to triage):")
+        lines.append(self.services.incident_evidence(inc))
         if wake.check_due:
             lines.append(f"Scheduled check due ({wake.check_note}).")
         for m in wake.messages:

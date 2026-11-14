@@ -26,11 +26,18 @@ Last updated: 2026-11-14.
 - Browser verification: 14 Playwright UI tests passed, including mobile and distinct live/waiting memory comparisons; inspected desktop/375px screenshots without horizontal overflow.
 - `--sim-waits` is pacing assistance, not deterministic lockstep: the clock runs during flights and arrivals can differ between runs. The evaluation still uses an oracle ranger and scores approved requests as catches; see the review before treating these numbers as field performance.
 
+## Local-model fixes (2026-11-14, user chose "option 1"; superagent plan is ON HOLD, do not start it)
+- `get_incident_evidence` tool (commander, triage, evidence): every verified record in the incident, code-counted independent nodes, "Corroborated: YES/NO", weather, valid node-name list. The same block is in every wake-up message.
+- `get_detections` reaches back to 5 min before the incident start while the incident is open/watching (slow model at 60x); after dispatch the plain window applies so "is it quiet now?" checks still work.
+- Triage prompt: call get_incident_evidence first, trust its counts, 2+ independent nodes = corroboration.
+- Tests: 2 new in tests/test_agent_tools.py; suite 376 passed. Re-run `eval.run --scenario night1 --mode ollama --sim-waits --max-minutes 45` (partial, hit cap; gunshot incident at 04:37 never reached): 15 requests, 1/2 caught (the logging, E4; baseline also only reached 1), 10 false, 782 s commander time per incident. Old result was 0 requests, 0/2.
+- New problems seen: (a) the agent re-requested dispatch for the rain incident B3 ~10 times after each ranger reject; (b) IncidentManager merged the real logging nodes (Creek Bend, Mossy Gap) into the rain incident at Low Marsh/Fern Hollow; (c) the '2+ nodes = real' prompt rule over-trusts rain-correlated nodes. Proposed next code fixes: block re-requests after a reject unless new evidence, a code-computed 'all corroborating nodes in rain' flag, don't merge into an incident across rain/dry or after long gaps.
+
 ## Next
 1. Run and inspect a bounded full local-model replay with corrected pacing:
    `uv run python -m eval.run --scenario night1 --mode ollama --sim-waits --max-minutes 20`
    Preserve the live result for comparison. Inspect partial status and missed incidents before proceeding to Night 2 fresh/carried runs. A passing walkthrough does not establish successful full-night reasoning.
-2. Improve the agent using `SUPERAGENT_IMPLEMENTATION_PLAN.md`, starting with evidence integrity and structured investigation. `WOLFRAM_AND_SUPERAGENT_REVIEW.md` documents the current limitations. These are plans, not implemented superagent features.
+2. (ON HOLD until the user says so) Improve the agent using `SUPERAGENT_IMPLEMENTATION_PLAN.md`, starting with evidence integrity and structured investigation. `WOLFRAM_AND_SUPERAGENT_REVIEW.md` documents the current limitations. These are plans, not implemented superagent features.
 3. **Phase 7 polish**: LangSmith trace only if credentials are available, outside-in security check, rehearse SPEC §6 demo script, record backup video. No paid calls or publishing without permission.
 4. Refresh the generated Graphify map when its tooling is available; the checked-in graph describes an older skeleton.
 

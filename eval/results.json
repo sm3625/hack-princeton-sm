@@ -569,40 +569,42 @@
       "speed": 60.0,
       "pace": "waits",
       "from": null,
-      "wall_s": 1200,
-      "partial": "stopped at the 20 min wall-time cap",
-      "finished_at": "2026-11-14T04:22:22",
+      "wall_s": 2700,
+      "partial": "stopped at the 45 min wall-time cap",
+      "finished_at": "2026-11-14T10:41:54",
       "real_incidents": [
         "logging-e4",
         "poaching-g2"
       ],
       "detections": {
-        "verified": 22,
+        "verified": 21,
         "events": 40
       },
       "baseline": {
-        "alerts": 22,
+        "alerts": 21,
         "real_caught": 1,
         "real_missed": 1,
-        "false_alerts": 15,
+        "false_alerts": 14,
         "caught": [
           "logging-e4"
         ]
       },
       "commander": {
-        "incidents": 4,
-        "requests": 0,
+        "incidents": 3,
+        "requests": 15,
         "real_detected": 1,
-        "real_caught": 0,
-        "real_missed": 2,
-        "false_requests": 0,
+        "real_caught": 1,
+        "real_missed": 1,
+        "false_requests": 10,
         "false_dispatches": 0,
-        "caught": [],
-        "triage_steps_total": 91,
-        "steps_total": 148,
-        "wall_s_total": 738.9,
-        "wall_s_per_incident": 184.7,
-        "wall_s_per_real_incident": 357.8,
+        "caught": [
+          "logging-e4"
+        ],
+        "triage_steps_total": 115,
+        "steps_total": 202,
+        "wall_s_total": 2345.1,
+        "wall_s_per_incident": 781.7,
+        "wall_s_per_real_incident": 1158.7,
         "noisy_node": {
           "node": "Low Marsh",
           "incidents": 0,
@@ -611,19 +613,6 @@
           "wall_s": 0.0
         },
         "per_incident": [
-          {
-            "id": "2026-11-15_B6",
-            "nodes": [
-              "Fern Hollow"
-            ],
-            "real": [],
-            "status": "open",
-            "approvals": 0,
-            "dispatched": false,
-            "wall_s": 0.0,
-            "steps": 0,
-            "triage_steps": 0
-          },
           {
             "id": "2026-11-15_B3",
             "nodes": [
@@ -635,27 +624,28 @@
             "real": [
               "logging-e4"
             ],
-            "status": "dismissed",
-            "approvals": 0,
-            "dispatched": false,
-            "wall_s": 654.62,
-            "steps": 125,
-            "triage_steps": 77
+            "status": "closed",
+            "approvals": 13,
+            "dispatched": true,
+            "wall_s": 2130.95,
+            "steps": 166,
+            "triage_steps": 96
           },
           {
             "id": "2026-11-15_F3",
             "nodes": [
+              "Creek Bend",
               "Logging Road"
             ],
             "real": [
               "logging-e4"
             ],
-            "status": "dismissed",
-            "approvals": 0,
-            "dispatched": false,
-            "wall_s": 60.96,
-            "steps": 16,
-            "triage_steps": 10
+            "status": "watching",
+            "approvals": 2,
+            "dispatched": true,
+            "wall_s": 186.46,
+            "steps": 27,
+            "triage_steps": 13
           },
           {
             "id": "2026-11-15_C1",
@@ -666,13 +656,13 @@
             "status": "dismissed",
             "approvals": 0,
             "dispatched": false,
-            "wall_s": 23.33,
-            "steps": 7,
-            "triage_steps": 4
+            "wall_s": 27.72,
+            "steps": 9,
+            "triage_steps": 6
           }
         ]
       }
     }
   },
-  "updated": "2026-11-14T04:22:22"
+  "updated": "2026-11-14T10:41:54"
 }

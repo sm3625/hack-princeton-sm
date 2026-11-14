@@ -34,6 +34,7 @@ from common.contracts import ROOT, EventStore, Node, Sim, World
 
 AREA_RADIUS_M = 1500.0  # get_detections(sector) covers nodes this close to the sector centre
 MAX_NOTE = 500
+INCIDENT_LOOKBACK_S = 300  # get_detections always reaches this far before the incident began
 _SECTOR = re.compile(r"^\s*([A-Za-z])\s*(\d{1,2})\s*$")
 
 
@@ -123,6 +124,43 @@ class Services:
         return lines
 
 
+    def incident_evidence(self, inc: Incident) -> str:
+        """Code-counted evidence so a small model does not have to count or search for it."""
+        wanted = {(int(n), int(q)) for n, q in inc.records}
+        node_ids = sorted({n for n, _ in wanted})
+        found = sorted(
+            (d for d in self.store.query(node_ids=node_ids, verified_only=True) if (d.node_id, d.seq) in wanted),
+            key=lambda d: (d.timestamp, d.node_id, d.seq),
+        )
+        out = [f"Incident {inc.id}, estimated sector {inc.sector}. {len(found)} verified record(s):"]
+        out += self.detection_lines(found)
+        by_node: dict[int, list] = {}
+        for d in found:
+            by_node.setdefault(d.node_id, []).append(d)
+        if found:
+            span = (found[-1].timestamp - found[0].timestamp) / 60
+            out.append(
+                f"Independent nodes: {len(by_node)} "
+                f"({', '.join(self.world.node(n).name for n in by_node)}), over {span:.0f} min."
+            )
+            out.append(
+                "Corroborated: YES, more than one node heard it." if len(by_node) > 1
+                else "Corroborated: NO, only one node heard it."
+            )
+        for n, ds in by_node.items():
+            node = self.world.node(n)
+            sounds = sorted({sound_name(d.sound) for d in ds})
+            past = sum(1 for i in self.incidents.all() if i.status == "dismissed" and n in i.node_ids())
+            out.append(
+                f"- {node.name} (sector {node.sector}): {len(ds)} record(s), {', '.join(sounds)}, "
+                f"max confidence {max(d.confidence for d in ds):.2f}, past dismissed incidents {past}"
+            )
+        w = self.sim.weather(inc.sector)
+        out.append(f"Weather in {inc.sector}: {'raining' if w.rain else 'dry'}, wind {w.wind_kph:.0f} kph.")
+        out.append(f"Valid node names (use only these): {self.node_names()}.")
+        return "\n".join(out)
+
+
 def _bad_sector(sector: str) -> str:
     return f"Unknown sector '{sector}'. Sectors run A1 to H8."
 
@@ -131,8 +169,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
     """Build every tool bound to these services. Agents pick subsets by name."""
 
     @tool
-    def get_detections(sector: str, window_s: int = 1800) -> str:
-        """Verified detections heard near a sector in the last window_s seconds.
+    def get_detections(sector: str, config: RunnableConfig, window_s: int = 1800) -> str:
+        """Verified detections heard near a sector in the last window_s seconds (always back to the incident start).
 
         Args:
             sector: Sector name like "E5".
@@ -143,12 +181,27 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             return _bad_sector(sector)
         window = max(60, min(int(window_s), 86400))
         now = s.sim.now()
+        since = now - window
+        inc = s.current(config)
+        # While triaging, a slow model at fast sim speed must not miss the incident's own records.
+        # After dispatch, follow-up checks ask "is it quiet now?", so the plain window applies.
+        if inc is not None and inc.status in ("open", "watching"):
+            since = min(since, inc.created_at - INCIDENT_LOOKBACK_S)
         x, y = s.sector_centre(sec)
         node_ids = [n.id for n in s.nodes_near(x, y)]
-        found = s.store.query(node_ids=node_ids, since=now - window, until=now, verified_only=True)
+        found = s.store.query(node_ids=node_ids, since=since, until=now, verified_only=True)
         lines = s.detection_lines(found)
-        head = f"{len(lines)} verified records near {sec} in the last {window // 60} min (now {fmt_time(now)})"
+        head = f"{len(lines)} verified records near {sec} from {fmt_time(since)} to {fmt_time(now)}"
         return head + (":\n" + "\n".join(lines) if lines else ".")
+
+    @tool
+    def get_incident_evidence(config: RunnableConfig) -> str:
+        """Every verified record in this incident, how many different nodes heard it, and the weather.
+        Call this first: it is the full evidence, already counted for you."""
+        inc = s.current(config)
+        if inc is None:
+            return "No active incident."
+        return s.incident_evidence(inc)
 
     @tool
     def get_node_info(node_name: str) -> str:
@@ -355,6 +408,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         return f"{tag}: signature valid, record unaltered. clip hash {det.clip_hash}"
 
     all_tools = [
+        get_incident_evidence,
         get_detections,
         get_node_info,
         get_weather,
@@ -372,6 +426,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
 TOOLSETS = {
     "commander": [
+        "get_incident_evidence",
         "get_detections",
         "get_node_info",
         "get_weather",
@@ -380,7 +435,7 @@ TOOLSETS = {
         "set_status",
         "remember",
     ],
-    "triage": ["get_detections", "get_node_info", "get_weather"],
+    "triage": ["get_incident_evidence", "get_detections", "get_node_info", "get_weather"],
     "drone-pilot": ["plan_route", "fly_drone", "get_drone_status"],
-    "evidence": ["verify_signature", "get_detections", "remember"],
+    "evidence": ["get_incident_evidence", "verify_signature", "get_detections", "remember"],
 }

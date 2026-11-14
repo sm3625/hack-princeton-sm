@@ -87,3 +87,25 @@ def test_verify_signature_rechecks_raw_bytes(env):
     assert "INVALID" in call("verify_signature", node="Creek Bend", seq=41)
     assert "INVALID" in call("verify_signature", node="Mossy Gap", seq=18)
     assert "no such record" in call("verify_signature", node="Creek Bend", seq=7)
+
+
+def test_incident_evidence_counts_independent_nodes(env):
+    _h, inc, call = env
+    out = call("get_incident_evidence")
+    assert "[Creek Bend #41] 02:14:05 chainsaw 0.91" in out and "[Mossy Gap #17]" in out
+    assert "#18" not in out  # unverified never becomes evidence
+    assert "Independent nodes: 2" in out and "Corroborated: YES" in out
+    assert "Valid node names (use only these):" in out
+    assert "node_id" not in out
+
+
+def test_get_detections_reaches_back_to_incident_start_while_triaging(env):
+    """A slow model at 60x asks for 'the last minute' long after the records arrived."""
+    h, inc, call = env
+    h.sim.t += 3 * 3600
+    out = call("get_detections", sector="E5", window_s=60)
+    assert "[Creek Bend #41]" in out
+    h.commander.services.gate.grant(inc.id)
+    call("dispatch_rangers", sector="E5", note="go")
+    out = call("get_detections", sector="E5", window_s=60)  # follow-up: is it quiet now?
+    assert out.startswith("0 verified records")

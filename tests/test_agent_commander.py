@@ -264,13 +264,13 @@ def test_agent_shape(tmp_path):
     h.tick("03:30:00")
     names = {role: sorted(t.name for t in tools) for role, tools in Recording.bound.items()}
     assert names["commander"] == sorted(
-        ["dispatch_rangers", "edit_file", "get_detections", "get_node_info", "get_weather", "ls",
+        ["dispatch_rangers", "edit_file", "get_detections", "get_incident_evidence", "get_node_info", "get_weather", "ls",
          "read_file", "remember", "schedule_check", "set_status", "task", "write_file"]
     )
     # sub-agent tools replace the parent's: no dispatch, no task (no nested delegation)
-    assert names["triage"] == ["get_detections", "get_node_info", "get_weather", "read_file", "write_file"]
+    assert names["triage"] == ["get_detections", "get_incident_evidence", "get_node_info", "get_weather", "read_file", "write_file"]
     assert names["drone-pilot"] == ["fly_drone", "get_drone_status", "plan_route", "read_file"]
-    assert names["evidence"] == ["get_detections", "ls", "read_file", "remember", "verify_signature", "write_file"]
+    assert names["evidence"] == ["get_detections", "get_incident_evidence", "ls", "read_file", "remember", "verify_signature", "write_file"]
     task = next(t for t in Recording.bound["commander"] if t.name == "task")
     listed = [ln.split(":")[0] for ln in task.description.splitlines() if ln.startswith("- ")]
     assert listed == ["- triage", "- drone-pilot", "- evidence"]  # no general-purpose sub-agent
