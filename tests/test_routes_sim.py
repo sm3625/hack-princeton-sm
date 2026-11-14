@@ -1,4 +1,5 @@
 import importlib
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,3 +106,16 @@ def test_stub_detection_reaches_the_websocket(client):
 def test_start_from_a_clock_time(client):
     state = client.post("/api/sim/scenario", json={"name": "night1", "from": "02:10"}).json()
     assert 0 <= state["sim_time"] - (state["start"] + 4 * 3600 + 10 * 60) < 60
+
+
+def test_scenario_stops_at_its_end(client, tmp_path):
+    (tmp_path / "short.yaml").write_text('start: "22:00"\nend: "22:00:30"\nevents: []\n')
+    client.post("/api/sim/scenario", json={"name": "short", "speed": 60})
+    for _ in range(60):
+        state = client.get("/api/sim/state").json()
+        if not state["running"]:
+            break
+        time.sleep(0.05)
+    assert state["running"] is False and state["paused"] is True
+    assert 0 <= state["sim_time"] - state["end"] <= 1
+    assert "type" not in state

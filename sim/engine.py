@@ -259,9 +259,11 @@ class SimEngine:
         }
 
     def state(self) -> dict:
+        """Snapshot for GET /api/sim/state (a page that just loaded has missed the bus)."""
         sc = self.scenario
+        clock = {k: v for k, v in self.clock_message().items() if k != "type"}
         return {
-            **self.clock_message(),
+            **clock,
             "title": sc.title if sc else None,
             "start": int(sc.start) if sc else None,
             "end": int(sc.end) if sc else None,
