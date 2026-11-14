@@ -72,8 +72,8 @@ def test_night1_shape():
     assert any(e.source == "branch_fall" for e in s.events)
 
     rain = [e for e in s.events if e.source == "rain"]
-    assert Counter(e.node for e in rain).most_common(1)[0][0] == "Low Marsh"
-    assert sum(e.node == "Low Marsh" for e in rain) > len(rain) / 2
+    assert Counter(e.node for e in rain).most_common(1)[0][0] == "El Bajo"
+    assert sum(e.node == "El Bajo" for e in rain) > len(rain) / 2
 
 
 def test_rain_alarms_happen_while_it_rains_there():
@@ -122,9 +122,9 @@ def test_clock_times_wrap_past_midnight_and_unquoted_times_are_safe(tmp_path):
 start: "22:00"
 end: "06:00"
 events:
-  - {at: 02:14, node: Low Marsh, sound: chainsaw}
-  - {at: "22:30:15", node: Creek Bend, sound: vehicle}
-  - {at: "+90", node: Creek Bend, sound: gunshot}
+  - {at: 02:14, node: El Bajo, sound: chainsaw}
+  - {at: "22:30:15", node: Arroyo Recodo, sound: vehicle}
+  - {at: "+90", node: Arroyo Recodo, sound: gunshot}
 """,
     )
     s = load_scenario("t", d)
@@ -135,9 +135,9 @@ events:
     "body",
     [
         "events: [{at: '23:00', node: Nowhere, sound: chainsaw}]",
-        "events: [{at: '23:00', node: Low Marsh, sound: banjo}]",
-        "events: [{at: '23:00', node: Low Marsh, sound: chainsaw, confidence: 3}]",
-        "events: [{at: 'soon', node: Low Marsh, sound: chainsaw}]",
+        "events: [{at: '23:00', node: El Bajo, sound: banjo}]",
+        "events: [{at: '23:00', node: El Bajo, sound: chainsaw, confidence: 3}]",
+        "events: [{at: 'soon', node: El Bajo, sound: chainsaw}]",
         "weather: [{at: '23:00', sectors: [Z9], rain: true}]",
     ],
 )
@@ -179,9 +179,9 @@ end: "22:10"
 weather:
   - {at: "22:01", sectors: "A1:C6", rain: true}
 events:
-  - {at: "22:01", node: Low Marsh, sound: chainsaw, duration: 2, clip: real.wav}
-  - {at: "22:00:30", node: Creek Bend, sound: vehicle, duration: 1.5}
-  - {at: "22:05", node: Mossy Gap, sound: gunshot, duration: 3, clip: missing.wav}
+  - {at: "22:01", node: El Bajo, sound: chainsaw, duration: 2, clip: real.wav}
+  - {at: "22:00:30", node: Arroyo Recodo, sound: vehicle, duration: 1.5}
+  - {at: "22:05", node: Paso Musgo, sound: gunshot, duration: 3, clip: missing.wav}
 """
 
 
@@ -203,9 +203,9 @@ def test_runner_fires_in_order_at_sim_times_with_audio(tmp_path):
     asyncio.run(runner.run())
 
     assert [(t, n) for t, n, *_ in fed] == [
-        (30, "Creek Bend"),
-        (60, "Low Marsh"),
-        (300, "Mossy Gap"),
+        (30, "Arroyo Recodo"),
+        (60, "El Bajo"),
+        (300, "Paso Musgo"),
     ]
     assert [length for _, _, length, _, _ in fed] == [24000, 32000, 48000]
     assert fed[1][3] is True  # weather applied before the event at the same instant
@@ -219,7 +219,7 @@ def test_runner_on_event_without_audio(tmp_path):
     seen = []
     runner = ScenarioRunner(WORLD, None, scenario=s, clock=FakeClock(s.start), on_event=seen.append)
     asyncio.run(runner.run())
-    assert [e.node for e in seen] == ["Creek Bend", "Low Marsh", "Mossy Gap"]
+    assert [e.node for e in seen] == ["Arroyo Recodo", "El Bajo", "Paso Musgo"]
     assert runner.synthetic == 0
 
 
@@ -231,8 +231,8 @@ def test_runner_in_real_time_at_60x(tmp_path):
 start: "22:00"
 end: "22:00:40"
 events:
-  - {at: "22:00:12", node: Low Marsh, sound: chainsaw}
-  - {at: "22:00:30", node: Creek Bend, sound: chainsaw}
+  - {at: "22:00:12", node: El Bajo, sound: chainsaw}
+  - {at: "22:00:30", node: Arroyo Recodo, sound: chainsaw}
 """,
     )
     s = load_scenario("quick", d)
@@ -266,5 +266,5 @@ def test_runner_can_start_part_way_through_the_night(tmp_path):
         skip_to=120,
     )
     asyncio.run(runner.run())
-    assert [e.node for e in seen] == ["Mossy Gap"]  # the 22:00:30 and 22:01 events are skipped
+    assert [e.node for e in seen] == ["Paso Musgo"]  # the 22:00:30 and 22:01 events are skipped
     assert weather.get("B3").rain  # but the 22:01 rain still applies

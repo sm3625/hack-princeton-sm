@@ -11,8 +11,8 @@ title: Quick
 start: "22:00"
 end: "22:05"
 events:
-  - {at: "22:00:03", node: Creek Bend, sound: chainsaw, confidence: 0.91}
-  - {at: "22:00:04", node: Creek Bend, sound: background}
+  - {at: "22:00:03", node: Arroyo Recodo, sound: chainsaw, confidence: 0.91}
+  - {at: "22:00:04", node: Arroyo Recodo, sound: background}
 """
 
 
@@ -39,7 +39,7 @@ def client(monkeypatch, tmp_path):
 def test_world_lists_named_nodes_no_fly_and_base(client):
     world = client.get("/api/world").json()
     assert len(world["nodes"]) == 12
-    assert {"Low Marsh", "Creek Bend", "Ridge North"} <= {n["name"] for n in world["nodes"]}
+    assert {"El Bajo", "Arroyo Recodo", "Loma Norte"} <= {n["name"] for n in world["nodes"]}
     assert world["no_fly"] == ["F2", "G6"]
     assert world["base"] == {"x_m": 200, "y_m": 200}
     assert world["cols"] == world["rows"] == 8

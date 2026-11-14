@@ -19,7 +19,7 @@ def test_provision_writes_private_and_public_keys(tmp_path):
         assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
         assert load_signing_key(node.id, tmp_path).verify_key.encode().hex() == public[node.id]
     data = json.loads((tmp_path / PUBLIC_FILE).read_text())
-    assert data["5"] == {"name": "Creek Bend", "public_key": public[5]}
+    assert data["5"] == {"name": "Arroyo Recodo", "public_key": public[5]}
     assert "private" not in (tmp_path / PUBLIC_FILE).read_text().lower()
 
 

@@ -20,9 +20,9 @@ def h(tmp_path):
 
 def logging_incident(h: Harness) -> str:
     """02:14: three nodes hear a chainsaw within seconds (the idea doc's walkthrough)."""
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
-    h.hear("Logging Road", 23, "02:14:12", S.CHAINSAW, 0.86)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Brecha Vieja", 23, "02:14:12", S.CHAINSAW, 0.86)
     h.tick("02:14:20")
     (inc,) = h.commander.incidents.all()
     return inc.id
@@ -53,7 +53,7 @@ def test_walkthrough_02_14_to_close(h):
     assert json.loads(h.file(inc_id, "approvals.jsonl").splitlines()[0])["decision"] == "approved"
 
     # 02:52 the same node hears a vehicle: it joins the incident and is logged as a follow-up
-    h.hear("Creek Bend", 42, "02:51:50", S.VEHICLE, 0.88)
+    h.hear("Arroyo Recodo", 42, "02:51:50", S.VEHICLE, 0.88)
     h.tick("02:52:00")
     assert len(h.commander.incidents.all()) == 1
     assert "Follow-up after dispatch" in h.file(inc_id, "plan.md")
@@ -64,7 +64,7 @@ def test_walkthrough_02_14_to_close(h):
     inc = h.commander.incidents.get(inc_id)
     assert inc.status == "closed"
     case = h.file(inc_id, "case_file.md")
-    for tag in ("[Creek Bend #41]", "[Mossy Gap #17]", "[Logging Road #23]", "[Creek Bend #42]"):
+    for tag in ("[Arroyo Recodo #41]", "[Paso Musgo #17]", "[Brecha Vieja #23]", "[Arroyo Recodo #42]"):
         assert tag in case
     assert "approved by ranger" in case
     report = h.commander.case_file(inc_id)
@@ -86,7 +86,7 @@ def test_dispatch_blocks_until_approved(h):
     assert a.interrupt_id in h.commander.pending_interrupt_ids(inc_id)
 
     # more sound while waiting: logged, but the agent is not re-run past the open interrupt
-    h.hear("Creek Bend", 43, "02:15:00", S.CHAINSAW, 0.9)
+    h.hear("Arroyo Recodo", 43, "02:15:00", S.CHAINSAW, 0.9)
     h.tick("02:16:00")
     h.tick("02:40:00")
     assert h.pending() == [a]
@@ -153,28 +153,28 @@ def test_decided_approval_cannot_be_reused(h):
 
 
 def test_unverified_records_never_reach_the_agent(h):
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 99, "02:14:07", S.CHAINSAW, 0.97, verified=False)  # bad signature
-    h.commander.on_verified(h.nodes.record("Kapok Stand", 5, 0, S.CHAINSAW, 0.9, verified=False)[0])
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 99, "02:14:07", S.CHAINSAW, 0.97, verified=False)  # bad signature
+    h.commander.on_verified(h.nodes.record("Ceibal", 5, 0, S.CHAINSAW, 0.9, verified=False)[0])
     (inc,) = h.commander.incidents.all()
-    assert [n for n, _ in inc.records] == [h.commander.services.node_by_name("Creek Bend").id]
+    assert [n for n, _ in inc.records] == [h.commander.services.node_by_name("Arroyo Recodo").id]
     h.tick("02:14:20")
     seen = json.dumps(h.messages)
-    assert "Mossy Gap #99" not in seen and "Kapok Stand #5" not in seen
-    assert "Mossy Gap #99" not in (h.file(inc.id, "detections.jsonl") or "")
-    assert "Mossy Gap #99" not in (h.file(inc.id, "triage.md") or "")
+    assert "Paso Musgo #99" not in seen and "Ceibal #5" not in seen
+    assert "Paso Musgo #99" not in (h.file(inc.id, "detections.jsonl") or "")
+    assert "Paso Musgo #99" not in (h.file(inc.id, "triage.md") or "")
 
 
 def test_tampered_record_is_excluded_from_the_case_file(h):
     inc_id = logging_incident(h)
     h.commander.decide(h.pending()[0].id, "approve")
-    h.tamper("Mossy Gap", 17)
+    h.tamper("Paso Musgo", 17)
     h.tick("03:30:00")
     case = h.file(inc_id, "case_file.md")
-    assert "[Mossy Gap #17]" not in case
-    assert "Failed verification" in case and "Mossy Gap #17" in case
+    assert "[Paso Musgo #17]" not in case
+    assert "Failed verification" in case and "Paso Musgo #17" in case
     report = h.commander.case_file(inc_id)
-    assert report["integrity"]["invalid"] == ["Mossy Gap #17"] and not report["integrity"]["ok"]
+    assert report["integrity"]["invalid"] == ["Paso Musgo #17"] and not report["integrity"]["ok"]
     assert report["citations"]["ok"]
 
 
@@ -182,30 +182,30 @@ def test_case_file_citations_must_exist(h):
     inc_id = logging_incident(h)
     h.commander.files.write(
         f"/incidents/{inc_id}/case_file.md",
-        "Saw it [Creek Bend #41]. Also [Creek Bend #999] and [Nowhere #1].",
+        "Saw it [Arroyo Recodo #41]. Also [Arroyo Recodo #999] and [Nowhere #1].",
     )
     report = h.commander.case_file(inc_id)
     assert not report["citations"]["ok"]
-    assert report["citations"]["unknown"] == ["Creek Bend #999", "Nowhere #1"]
+    assert report["citations"]["unknown"] == ["Arroyo Recodo #999", "Nowhere #1"]
 
 
 def test_rain_false_alarms_on_one_noisy_node_are_dismissed(h):
     h.sim.rain = {"B3"}
     times = ["03:00:00", "03:06:00", "03:12:00", "03:18:00", "03:24:00", "03:30:00"]
     for i, t in enumerate(times):
-        h.hear("Low Marsh", 5 + i, t, S.CHAINSAW, 0.82)
+        h.hear("El Bajo", 5 + i, t, S.CHAINSAW, 0.82)
         h.tick(t[:-2] + "15")
     (inc,) = h.commander.incidents.all()
     assert inc.status == "dismissed" and len(inc.records) == 6
     assert h.of_type("approval") == [] and inc.dispatches == [] and h.sim.flights == []
     nodes_memory = (h.commander.files.root / "memories" / "nodes.md").read_text()
-    assert nodes_memory.count("Low Marsh") == 1  # learned once, then reused
+    assert nodes_memory.count("El Bajo") == 1  # learned once, then reused
     assert "false-alarm history" in h.file(inc.id, "triage.md")
 
 
 def test_truck_heard_by_four_nodes_is_one_incident_and_not_dispatched(h):
-    for node, seq, t in [("Logging Road", 1, "04:10:00"), ("Kapok Stand", 1, "04:10:08"),
-                         ("Mossy Gap", 1, "04:10:12"), ("Creek Bend", 1, "04:10:20")]:
+    for node, seq, t in [("Brecha Vieja", 1, "04:10:00"), ("Ceibal", 1, "04:10:08"),
+                         ("Paso Musgo", 1, "04:10:12"), ("Arroyo Recodo", 1, "04:10:20")]:
         h.hear(node, seq, t, S.VEHICLE, 0.9)
     h.tick("04:10:30")
     (inc,) = h.commander.incidents.all()
@@ -245,7 +245,7 @@ def test_bus_messages_use_names_not_ids(h):
         assert "node_id" not in text and "thread_id" not in text and "incident-20" not in text
     inc_msgs = h.of_type("incident")
     assert inc_msgs and set(inc_msgs[-1]["incident"]) >= {"id", "sector", "status", "title", "updated_at"}
-    assert "Creek Bend" in inc_msgs[-1]["incident"]["nodes"]
+    assert "Arroyo Recodo" in inc_msgs[-1]["incident"]["nodes"]
 
 
 class Recording(MockChatModel):
@@ -310,18 +310,18 @@ def test_repeat_dispatch_after_reject_is_refused_by_code(h, monkeypatch):
     assert rows[1]["by"] == "station"
 
     # new evidence lifts the block: the next request goes to a ranger again
-    h.hear("Creek Bend", 42, "02:51:00", S.CHAINSAW, 0.95)
+    h.hear("Arroyo Recodo", 42, "02:51:00", S.CHAINSAW, 0.95)
     h.commander.message(inc_id, "and now?")
     h.tick("02:52:00")
     assert len(h.pending()) == 1
 
 
 def test_rain_incident_does_not_absorb_dry_detections(h):
-    """Night 1: rain false alarms at Low Marsh end at 01:33; real logging starts nearby at 02:14."""
+    """Night 1: rain false alarms at El Bajo end at 01:33; real logging starts nearby at 02:14."""
     h.sim.rain = {"B3"}
-    h.hear("Low Marsh", 1, "01:33:10", S.CHAINSAW, 0.80)
+    h.hear("El Bajo", 1, "01:33:10", S.CHAINSAW, 0.80)
     h.sim.rain = set()
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
     incs = h.commander.incidents.all()
     assert len(incs) == 2
     assert {i.in_rain for i in incs} == {True, False}
@@ -329,19 +329,19 @@ def test_rain_incident_does_not_absorb_dry_detections(h):
 
 def test_rain_starting_mid_event_does_not_split_the_incident(h):
     """Finding 5: weather changing during a real event must not split it into lone incidents."""
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.sim.rain = {"D4"}  # rain reaches Mossy Gap
-    h.hear("Mossy Gap", 17, "02:19:40", S.CHAINSAW, 0.84)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.sim.rain = {"D4"}  # rain reaches Paso Musgo
+    h.hear("Paso Musgo", 17, "02:19:40", S.CHAINSAW, 0.84)
     (inc,) = h.commander.incidents.all()
     assert inc.in_rain is False and len(inc.records) == 2
 
 
 def test_dry_detection_after_rain_only_incident_still_separates(h):
     h.sim.rain = {"B3"}
-    h.hear("Low Marsh", 1, "01:33:10", S.CHAINSAW, 0.80)
-    h.hear("Low Marsh", 2, "01:34:10", S.CHAINSAW, 0.81)
+    h.hear("El Bajo", 1, "01:33:10", S.CHAINSAW, 0.80)
+    h.hear("El Bajo", 2, "01:34:10", S.CHAINSAW, 0.81)
     h.sim.rain = set()
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
-    h.hear("Low Marsh", 3, "02:15:00", S.CHAINSAW, 0.82)  # now dry: joins neither rain-only incident
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("El Bajo", 3, "02:15:00", S.CHAINSAW, 0.82)  # now dry: joins neither rain-only incident
     rain_inc = next(i for i in h.commander.incidents.all() if i.in_rain)
     assert len(rain_inc.records) == 2

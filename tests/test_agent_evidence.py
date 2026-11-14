@@ -22,7 +22,7 @@ def test_verifier_accepts_only_untouched_records():
     world = load_world()
     nodes = Nodes(world)
     verify = Ed25519Verifier(nodes.public)
-    _det, raw = nodes.record("Creek Bend", 41, at("02:14:05"), S.CHAINSAW, 0.91)
+    _det, raw = nodes.record("Arroyo Recodo", 41, at("02:14:05"), S.CHAINSAW, 0.91)
     assert verify(5, 41, raw)
     assert not verify(5, 41, raw[:30] + bytes([raw[30] ^ 1]) + raw[31:])  # one flipped byte
     assert not verify(5, 40, raw)  # wrong seq
@@ -52,11 +52,11 @@ def test_clip_status(tmp_path):
 
 
 def test_citations():
-    text = "Heard [Creek Bend #41] and [Mossy Gap #17]; see [Creek Bend #41]."
-    assert citations(text) == [("Creek Bend", 41), ("Mossy Gap", 17), ("Creek Bend", 41)]
-    known = {("Creek Bend", 41), ("Mossy Gap", 17)}
+    text = "Heard [Arroyo Recodo #41] and [Paso Musgo #17]; see [Arroyo Recodo #41]."
+    assert citations(text) == [("Arroyo Recodo", 41), ("Paso Musgo", 17), ("Arroyo Recodo", 41)]
+    known = {("Arroyo Recodo", 41), ("Paso Musgo", 17)}
     assert check_citations(text, known) == {"ok": True, "cited": 2, "unknown": []}
-    assert check_citations(text + " [Old Cedar #3]", known)["unknown"] == ["Old Cedar #3"]
+    assert check_citations(text + " [Cedro Viejo #3]", known)["unknown"] == ["Cedro Viejo #3"]
     assert check_citations("no citations at all", known)["ok"] is False
 
 
@@ -77,11 +77,11 @@ def test_baseline_alerts_every_verified_detection_over_threshold():
     world = load_world()
     nodes = Nodes(world)
     dets = [
-        nodes.record("Low Marsh", 1, at("03:00:00"), S.CHAINSAW, 0.82)[0],
-        nodes.record("Low Marsh", 2, at("03:05:00"), S.CHAINSAW, 0.79)[0],
-        nodes.record("Low Marsh", 3, at("03:06:00"), S.BACKGROUND, 0.99)[0],
-        nodes.record("Creek Bend", 1, at("02:14:00"), S.CHAINSAW, 0.95, verified=False)[0],
-        nodes.record("Creek Bend", 2, at("02:14:05"), S.VEHICLE, 0.80)[0],
+        nodes.record("El Bajo", 1, at("03:00:00"), S.CHAINSAW, 0.82)[0],
+        nodes.record("El Bajo", 2, at("03:05:00"), S.CHAINSAW, 0.79)[0],
+        nodes.record("El Bajo", 3, at("03:06:00"), S.BACKGROUND, 0.99)[0],
+        nodes.record("Arroyo Recodo", 1, at("02:14:00"), S.CHAINSAW, 0.95, verified=False)[0],
+        nodes.record("Arroyo Recodo", 2, at("02:14:05"), S.VEHICLE, 0.80)[0],
     ]
     alerts = baseline_alerts(dets, world)
-    assert [(a.node, a.seq) for a in alerts] == [("Creek Bend", 2), ("Low Marsh", 1)]
+    assert [(a.node, a.seq) for a in alerts] == [("Arroyo Recodo", 2), ("El Bajo", 1)]

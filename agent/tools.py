@@ -216,7 +216,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         """Location, battery and false-alarm history of a sensor node.
 
         Args:
-            node_name: The node's name, like "Creek Bend".
+            node_name: The node's name, like "Arroyo Recodo".
         """
         node = s.node_by_name(node_name)
         if node is None:
@@ -317,7 +317,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
     @tool
     def remember(topic: Literal["nodes", "sectors"], note: str) -> str:
-        """Save a lasting lesson to station memory, e.g. "Low Marsh: false alarms in heavy rain".
+        """Save a lasting lesson to station memory, e.g. "El Bajo: false alarms in heavy rain".
 
         Args:
             topic: "nodes" for a sensor node, "sectors" for an area.
@@ -398,7 +398,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         """Re-check a record's Ed25519 signature from its stored raw bytes.
 
         Args:
-            node: The node's name, like "Creek Bend".
+            node: The node's name, like "Arroyo Recodo".
             seq: The record number.
         """
         n = s.node_by_name(node)

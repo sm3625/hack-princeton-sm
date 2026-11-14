@@ -26,8 +26,8 @@ def api(tmp_path):
 
 
 def raise_incident(h):
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
     h.tick("02:14:20")
     return h.commander.incidents.all()[0].id
 
@@ -41,7 +41,7 @@ def test_list_and_get_incident(api):
     view = client.get(f"/api/incidents/{inc_id}").json()
     assert view["pending_approval"]["action"] == "dispatch_rangers"
     assert "plan.md" in view["files"] and view["plan"]["html"].startswith("<h1>")
-    assert [r["record"] for r in view["records"]] == ["[Creek Bend #41]", "[Mossy Gap #17]"]
+    assert [r["record"] for r in view["records"]] == ["[Arroyo Recodo #41]", "[Paso Musgo #17]"]
     assert "node_id" not in str(view)
     assert client.get("/api/incidents/nope").status_code == 404
 
@@ -79,11 +79,11 @@ def test_case_file_html_is_sanitized(api):
     h.commander.files.write(
         f"/incidents/{inc_id}/case_file.md",
         "# Case\n\n<script>fetch('/api/approvals/x')</script>\n\n<img src=x onerror=alert(1)>\n\n"
-        "[Creek Bend #41] heard a chainsaw. [click](javascript:alert(1))\n",
+        "[Arroyo Recodo #41] heard a chainsaw. [click](javascript:alert(1))\n",
     )
     body = client.get(f"/api/incidents/{inc_id}/case_file").json()
     assert "<script" not in body["html"] and "onerror" not in body["html"] and "javascript:" not in body["html"]
-    assert "[Creek Bend #41] heard a chainsaw." in body["html"]
+    assert "[Arroyo Recodo #41] heard a chainsaw." in body["html"]
     assert body["citations"]["ok"] and body["integrity"]["valid"] == 2
 
 
@@ -119,11 +119,11 @@ def test_station_startup_wires_commander_into_receiver(monkeypatch, tmp_path):
     app.state.verify_record = Ed25519Verifier(nodes.public)
     with TestClient(app) as client:
         (hook,) = app.state.receiver.on_verified
-        det, raw = nodes.record("Creek Bend", 41, at("02:14:05"), S.CHAINSAW, 0.91)
+        det, raw = nodes.record("Arroyo Recodo", 41, at("02:14:05"), S.CHAINSAW, 0.91)
         app.state.event_store.add(det, raw)
         hook(det)
         (row,) = client.get("/api/incidents").json()["incidents"]
-        assert row["nodes"] == ["Creek Bend"]
+        assert row["nodes"] == ["Arroyo Recodo"]
     assert routes_agent._commander is None  # stopped and cleared on shutdown
     assert (tmp_path / "agent_fs" / "memories" / "nodes.md").exists()
 

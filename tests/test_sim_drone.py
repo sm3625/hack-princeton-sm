@@ -21,7 +21,7 @@ from sim.engine import SimEngine
 
 WORLD = worldmap.load()
 BASE = (WORLD.base_x_m, WORLD.base_y_m)
-E4 = (2167.0, 1700.0)  # between Creek Bend, Mossy Gap and Logging Road
+E4 = (2167.0, 1700.0)  # between Arroyo Recodo, Paso Musgo and Brecha Vieja
 G2 = (3200.0, 900.0)  # straight line from base crosses no-fly F2
 
 
@@ -41,7 +41,7 @@ def test_battery_covers_out_and_back_plus_hover():
 
 
 def test_far_corner_is_infeasible_because_of_reserve():
-    route = make_drone().plan_route(3200, 3600)  # Old Cedar: needs ~93% of 100%
+    route = make_drone().plan_route(3200, 3600)  # Cedro Viejo: needs ~93% of 100%
     assert not route.feasible
     assert 85 < route.battery_needed_pct < 100
     assert "reserve" in route.reason
@@ -54,7 +54,7 @@ def test_low_battery_makes_a_short_route_infeasible():
 
 def test_target_inside_no_fly_or_off_map_is_refused():
     drone = make_drone()
-    inside = drone.plan_route(3400, 2600)  # Stone Ford sits in no-fly G6
+    inside = drone.plan_route(3400, 2600)  # Vado de Piedra sits in no-fly G6
     assert not inside.feasible and "G6" in inside.reason
     off_map = drone.plan_route(5000, 100)
     assert not off_map.feasible and "outside" in off_map.reason

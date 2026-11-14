@@ -15,7 +15,7 @@ from common.contracts import Detection, SoundClass, World
 from sim.scenario import ScenarioEvent
 
 MATCH_WINDOW_S = 120  # a record belongs to the nearest scenario event on its node within this
-NOISY_NODE = "Low Marsh"  # rains false alarms all night in both scenarios
+NOISY_NODE = "El Bajo"  # rains false alarms all night in both scenarios
 DISPATCHED = ("approved", "edited")
 
 

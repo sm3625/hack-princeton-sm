@@ -19,10 +19,10 @@ def run_walkthrough(tmp_path, mode: str, monkeypatch) -> None:
     monkeypatch.setenv("LLM_MODE", mode)
     settings = load_settings()
     h = Harness(tmp_path, models={r: get_chat_model(r, settings) for r in ROLES})
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
-    h.hear("Logging Road", 23, "02:14:12", S.CHAINSAW, 0.86)
-    h.hear("Mossy Gap", 18, "02:14:10", S.CHAINSAW, 0.99, verified=False)  # must never be cited
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Brecha Vieja", 23, "02:14:12", S.CHAINSAW, 0.86)
+    h.hear("Paso Musgo", 18, "02:14:10", S.CHAINSAW, 0.99, verified=False)  # must never be cited
     h.tick("02:14:20")
     (inc,) = h.commander.incidents.all()
     assert h.file(inc.id, "plan.md"), "commander should write plan.md"
@@ -43,7 +43,7 @@ def run_walkthrough(tmp_path, mode: str, monkeypatch) -> None:
     if h.file(inc.id, "case_file.md") is not None:
         report = h.commander.case_file(inc.id)
         assert report["citations"]["unknown"] == [], report["citations"]
-        assert "Mossy Gap #18" not in h.file(inc.id, "case_file.md")
+        assert "Paso Musgo #18" not in h.file(inc.id, "case_file.md")
 
 
 @pytest.mark.ollama

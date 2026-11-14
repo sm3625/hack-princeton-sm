@@ -22,12 +22,12 @@ def event(at, node, sound="chainsaw", label="real", incident=None, source="chain
 
 
 EVENTS = [
-    event(100, "Creek Bend", incident="logging"),
-    event(130, "Mossy Gap", incident="logging"),
-    event(500, "South Gate", "gunshot", incident="poachers", source="gunshot"),
-    event(900, "Low Marsh", label="false_alarm", source="rain"),
-    event(1000, "Low Marsh", label="false_alarm", source="rain"),
-    event(1100, "Low Marsh", "vehicle", label="benign", source="truck"),
+    event(100, "Arroyo Recodo", incident="logging"),
+    event(130, "Paso Musgo", incident="logging"),
+    event(500, "Puesto Sur", "gunshot", incident="poachers", source="gunshot"),
+    event(900, "El Bajo", label="false_alarm", source="rain"),
+    event(1000, "El Bajo", label="false_alarm", source="rain"),
+    event(1100, "El Bajo", "vehicle", label="benign", source="truck"),
 ]
 
 
@@ -40,13 +40,13 @@ def row(node, seq, at, sound="chainsaw", confidence=0.9, verified=True):
 
 
 ROWS = [
-    row("Creek Bend", 1, 101),
-    row("Mossy Gap", 1, 133, confidence=0.7),  # below the baseline threshold
-    row("Low Marsh", 1, 905),
-    row("Low Marsh", 2, 1003, confidence=0.82),
-    row("Low Marsh", 3, 1101, "vehicle", 0.85),
-    row("South Gate", 1, 5000, "gunshot", 0.95),  # no scenario event near this time
-    row("Ridge East", 1, 120, confidence=0.99, verified=False),  # unverified never alerts
+    row("Arroyo Recodo", 1, 101),
+    row("Paso Musgo", 1, 133, confidence=0.7),  # below the baseline threshold
+    row("El Bajo", 1, 905),
+    row("El Bajo", 2, 1003, confidence=0.82),
+    row("El Bajo", 3, 1101, "vehicle", 0.85),
+    row("Puesto Sur", 1, 5000, "gunshot", 0.95),  # no scenario event near this time
+    row("Loma Este", 1, 120, confidence=0.99, verified=False),  # unverified never alerts
 ]
 
 
@@ -60,9 +60,9 @@ def view(iid, records, approvals=(), steps=None, wall=1.0, nodes=None):
 
 
 def test_match_event_picks_nearest_on_the_same_node_within_window():
-    assert metrics.match_event(EVENTS, START, "Low Marsh", START + 995) is EVENTS[4]
-    assert metrics.match_event(EVENTS, START, "Low Marsh", START + 5000) is None
-    assert metrics.match_event(EVENTS, START, "Ridge East", START + 100) is None
+    assert metrics.match_event(EVENTS, START, "El Bajo", START + 995) is EVENTS[4]
+    assert metrics.match_event(EVENTS, START, "El Bajo", START + 5000) is None
+    assert metrics.match_event(EVENTS, START, "Loma Este", START + 100) is None
 
 
 def test_group_of_only_real_events():
@@ -74,7 +74,7 @@ def test_group_of_only_real_events():
 
 def test_baseline_alerts_every_confident_verified_detection():
     b = metrics.score_baseline(ROWS, EVENTS, START, WORLD)
-    # Creek Bend (real), Low Marsh x3 (false), South Gate gunshot with no event (false)
+    # Arroyo Recodo (real), El Bajo x3 (false), Puesto Sur gunshot with no event (false)
     assert b["alerts"] == 5
     assert b["real_caught"] == 1 and b["real_missed"] == 1
     assert b["false_alerts"] == 4
@@ -83,9 +83,9 @@ def test_baseline_alerts_every_confident_verified_detection():
 
 def test_commander_counts_requests_catches_and_misses():
     views = [
-        view("a", [("Creek Bend", 1), ("Mossy Gap", 1)], approvals=["approved", "stale"], steps={"triage": 2, "commander": 3}, wall=4.0),
-        view("b", [("Low Marsh", 1)], approvals=["rejected"], steps={"triage": 1}, wall=2.0),
-        view("c", [("Low Marsh", 2)], steps={"triage": 1}, wall=3.0),
+        view("a", [("Arroyo Recodo", 1), ("Paso Musgo", 1)], approvals=["approved", "stale"], steps={"triage": 2, "commander": 3}, wall=4.0),
+        view("b", [("El Bajo", 1)], approvals=["rejected"], steps={"triage": 1}, wall=2.0),
+        view("c", [("El Bajo", 2)], steps={"triage": 1}, wall=3.0),
     ]
     c = metrics.score_commander(views, ROWS, EVENTS, START)
     assert c["incidents"] == 3 and c["requests"] == 2
@@ -97,8 +97,8 @@ def test_commander_counts_requests_catches_and_misses():
 
 def test_a_rejected_real_incident_is_missed_and_an_approved_false_one_is_a_false_dispatch():
     views = [
-        view("a", [("Creek Bend", 1)], approvals=["rejected"]),
-        view("b", [("Low Marsh", 1)], approvals=["approved"]),
+        view("a", [("Arroyo Recodo", 1)], approvals=["rejected"]),
+        view("b", [("El Bajo", 1)], approvals=["approved"]),
     ]
     c = metrics.score_commander(views, ROWS, EVENTS, START)
     assert c["real_caught"] == 0 and c["real_missed"] == 2
@@ -107,19 +107,19 @@ def test_a_rejected_real_incident_is_missed_and_an_approved_false_one_is_a_false
 
 def test_noisy_node_averages_only_incidents_that_node_alone_heard():
     per = [
-        {"nodes": ["Low Marsh"], "triage_steps": 2, "steps": 4, "wall_s": 3.0},
-        {"nodes": ["Low Marsh"], "triage_steps": 0, "steps": 2, "wall_s": 1.0},
-        {"nodes": ["Creek Bend", "Low Marsh"], "triage_steps": 9, "steps": 9, "wall_s": 9.0},
+        {"nodes": ["El Bajo"], "triage_steps": 2, "steps": 4, "wall_s": 3.0},
+        {"nodes": ["El Bajo"], "triage_steps": 0, "steps": 2, "wall_s": 1.0},
+        {"nodes": ["Arroyo Recodo", "El Bajo"], "triage_steps": 9, "steps": 9, "wall_s": 9.0},
     ]
     n = metrics.noisy_node(per)
-    assert n == {"node": "Low Marsh", "incidents": 2, "triage_steps": 1.0, "steps": 3.0, "wall_s": 2.0}
+    assert n == {"node": "El Bajo", "incidents": 2, "triage_steps": 1.0, "steps": 3.0, "wall_s": 2.0}
     assert metrics.noisy_node([])["incidents"] == 0
 
 
 def test_eval_approves_real_incidents_and_rejects_the_rest():
-    truth = {("Creek Bend", 1): "logging", ("Low Marsh", 1): None}
-    assert metrics.want_dispatch(view("a", [("Creek Bend", 1)]), truth)
-    assert not metrics.want_dispatch(view("b", [("Low Marsh", 1)]), truth)
+    truth = {("Arroyo Recodo", 1): "logging", ("El Bajo", 1): None}
+    assert metrics.want_dispatch(view("a", [("Arroyo Recodo", 1)]), truth)
+    assert not metrics.want_dispatch(view("b", [("El Bajo", 1)]), truth)
 
 
 def run_result(mode="mock", scenario="night1", memory="fresh", triage=2.0, pace="live", speed=60.0, baseline=None):
@@ -131,7 +131,7 @@ def run_result(mode="mock", scenario="night1", memory="fresh", triage=2.0, pace=
         "commander": {
             "requests": 3, "real_caught": 2, "real_missed": 0, "false_requests": 1,
             "wall_s_per_incident": 1.5,
-            "noisy_node": {"node": "Low Marsh", "incidents": 5, "triage_steps": triage, "steps": 4.0, "wall_s": 1.0},
+            "noisy_node": {"node": "El Bajo", "incidents": 5, "triage_steps": triage, "steps": 4.0, "wall_s": 1.0},
             "triage_steps_total": int(triage * 10), "steps_total": 50, "wall_s_total": 12.0,
         },
     }  # fmt: skip

@@ -181,7 +181,7 @@ def test_model_and_record_limits_are_enforced(tmp_path):
 
 def test_stats_report_limits(tmp_path):
     stats = Rig(tmp_path, []).rt.stats()
-    assert stats["node"] == "Creek Bend"
+    assert stats["node"] == "Arroyo Recodo"
     assert (stats["model_bytes"], stats["max_model_bytes"]) == (60_000, 100_000)
     assert (stats["record_bytes"], stats["max_record_bytes"]) == (108, 222)
     assert stats["max_events_per_hour"] == 60

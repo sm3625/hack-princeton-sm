@@ -49,9 +49,9 @@ def test_detections_lists_recent_first_with_names(client):
     body = client.get("/api/detections", params={"limit": 3}).json()
     rows = body["detections"]
     assert [(r["node"], r["seq"], r["verified"]) for r in rows] == [
-        ("Fern Hollow", 1, False),
-        ("Creek Bend", 3, True),
-        ("Creek Bend", 2, True),
+        ("Hondonada", 1, False),
+        ("Arroyo Recodo", 3, True),
+        ("Arroyo Recodo", 2, True),
     ]
     assert rows[1]["sound"] == "chainsaw" and "received_at" in rows[1]
 
@@ -65,7 +65,7 @@ def test_tamper_endpoint_flips_a_byte_and_reports_failure(client):
     res = client.post("/api/dev/tamper/5/8")
     assert res.status_code == 200
     assert res.json() == {
-        "node": "Creek Bend",
+        "node": "Arroyo Recodo",
         "seq": 8,
         "byte": 20,
         "verified_before": True,
@@ -74,7 +74,7 @@ def test_tamper_endpoint_flips_a_byte_and_reports_failure(client):
     assert client.rx.store.query() == []
     assert client.messages[-1] == {
         "type": "rejected",
-        "node": "Creek Bend",
+        "node": "Arroyo Recodo",
         "reason": "bad_signature",
         "seq": 8,
     }
@@ -116,8 +116,8 @@ def test_app_lifespan_starts_udp_listener_end_to_end(app_env, tmp_path):
             assert [(r["seq"], r["verified"]) for r in rows] == [(2, False), (1, True)]
             first, second = ws.receive_json(), ws.receive_json()
         link.close()
-    assert first["type"] == "detection" and first["node"] == "Creek Bend"
-    assert second == {"type": "rejected", "node": "Creek Bend", "reason": "bad_signature", "seq": 2}
+    assert first["type"] == "detection" and first["node"] == "Arroyo Recodo"
+    assert second == {"type": "rejected", "node": "Arroyo Recodo", "reason": "bad_signature", "seq": 2}
 
 
 def test_busy_udp_port_does_not_stop_the_app(app_env, monkeypatch):

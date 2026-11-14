@@ -43,7 +43,7 @@ VIEWS = {
 }
 
 PLAN = """# E4 chainsaw
-- [x] Open incident: Creek Bend, chainsaw 91% (record 1)
+- [x] Open incident: Arroyo Recodo, chainsaw 91% (record 1)
 - [x] Triage: 3 nodes within 40 s, no rain -> likely real
 - [{drone}] Drone over E4
 - [ ] Ask ranger to dispatch
@@ -100,15 +100,15 @@ def main(out: Path) -> None:
         )
 
         wait_until("02:14:12")
-        incident("triage", "Chainsaw near Creek Bend")
+        incident("triage", "Chainsaw near Arroyo Recodo")
         plan(False)
-        step("commander", "Opened from Creek Bend: chainsaw 91% (record 1).")
+        step("commander", "Opened from Arroyo Recodo: chainsaw 91% (record 1).")
         wait_until("02:14:50")
-        step("triage", "Mossy Gap and Logging Road agree within 40 s. No rain in E4. Likely real.")
+        step("triage", "Paso Musgo and Brecha Vieja agree within 40 s. No rain in E4. Likely real.")
         wait_until("02:15:30")
         route = engine.plan_route(2167, 1700)
         engine.fly(route, wait=False)
-        incident("investigating", "Chainsaw near Creek Bend")
+        incident("investigating", "Chainsaw near Arroyo Recodo")
         step(
             "drone-pilot",
             f"Flying to E4: {route.distance_m / 1000:.1f} km, "
@@ -132,7 +132,7 @@ def main(out: Path) -> None:
                 },
             }
         )
-        srv.publish({"type": "rejected", "node": "Low Marsh", "reason": "bad_signature"})
+        srv.publish({"type": "rejected", "node": "El Bajo", "reason": "bad_signature"})
         time.sleep(1.5)
 
         pages["desktop-light"].screenshot(path=out / "desktop-light.png")

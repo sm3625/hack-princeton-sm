@@ -7,11 +7,11 @@ Every other `*.yaml` here is a replayable night for the simulator (`sim/scenario
 
 | File | Sim time | Detections | Real incidents | Noise |
 |---|---|---|---|---|
-| `night1.yaml` | 22:00–06:00, 14 Nov | 40 | 2: chainsaw logging in E4 (9 records), gunshots near G2 then a vehicle (5 records) | 19 weather false alarms (18 rain + 1 thunder; 16 on Low Marsh), 1 supply truck heard by 4 nodes in 28 s, 1 branch fall read as a gunshot, 1 aircraft, 1 howler-monkey "chainsaw" |
-| `night2.yaml` | 22:00–06:00, 15 Nov | 27 | 1: chainsaw logging in C7 after the rain stops (7 records) | Same pattern: 16 weather false alarms (14 on Low Marsh), a patrol truck heard by 3 nodes, a branch fall inside no-fly G6 |
+| `night1.yaml` | 22:00–06:00, 14 Nov | 40 | 2: chainsaw logging in E4 (9 records), gunshots near G2 then a vehicle (5 records) | 19 weather false alarms (18 rain + 1 thunder; 16 on El Bajo), 1 supply truck heard by 4 nodes in 28 s, 1 branch fall read as a gunshot, 1 aircraft, 1 howler-monkey "chainsaw" |
+| `night2.yaml` | 22:00–06:00, 15 Nov | 27 | 1: chainsaw logging in C7 after the rain stops (7 records) | Same pattern: 16 weather false alarms (14 on El Bajo), a patrol truck heard by 3 nodes, a branch fall inside no-fly G6 |
 
-Night 2 exists for the memory test: the commander should recognise the Low Marsh rain pattern from
-night 1 and spend fewer triage steps on it, while still taking Fern Hollow seriously once the rain is over.
+Night 2 exists for the memory test: the commander should recognise the El Bajo rain pattern from
+night 1 and spend fewer triage steps on it, while still taking Hondonada seriously once the rain is over.
 
 Drone sightings (anything else: "no activity seen"):
 
@@ -20,7 +20,7 @@ Drone sightings (anything else: "no activity seen"):
 - night 2, C7: "two people with a chainsaw, motorbike nearby" 01:50–02:35, then "fresh stumps, no one in sight".
 
 A sighting matches when the drone's target is within 300 m of the sector. From base, the drone reaches
-E4, G2 (detouring around F2) and C7 on a full battery; Old Cedar (G8) and the far north-east are out of
+E4, G2 (detouring around F2) and C7 on a full battery; Cedro Viejo (G8) and the far north-east are out of
 range with the 15 % reserve, and G6 is no-fly.
 
 ## Format
@@ -40,7 +40,7 @@ drone:                    # what the camera sees over a sector, optionally in a 
 
 events:                   # one expected detection each
   - at: "02:14:05"        # or "+90" / 90 for seconds after start
-    node: Creek Bend      # node name from world.yaml
+    node: Arroyo Recodo      # node name from world.yaml
     sound: chainsaw       # class the node should report: chainsaw | gunshot | vehicle | axe | background
     confidence: 0.91      # used only by the stub feed
     duration: 8           # seconds of audio fed to the node (max 30)

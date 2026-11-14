@@ -335,6 +335,9 @@ def discover(project, key, transport=request_json_explained):
     return found
 
 
+MAX_CYCLES = 720
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", help="Enable Photon reads and ranger decisions")
@@ -382,7 +385,10 @@ def main(argv=None):
         photon = Photon(target, os.getenv("PHOTON_API_KEY", ""), args.allow_sends)
         bridge = Bridge(station, photon, args.db)
         deadline = time.monotonic() + args.seconds
-        for _ in range(40):  # At most 200 Photon GET attempts, even with pagination.
+        # Enough cycles to cover the requested duration, never more than MAX_CYCLES
+        # (an hour at 5 s; five pages per cycle bounds the GETs).
+        cycles = min(MAX_CYCLES, -(-args.seconds // args.poll_seconds))
+        for _ in range(cycles):
             if time.monotonic() >= deadline:
                 break
             bridge.discover()

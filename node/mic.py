@@ -1,4 +1,4 @@
-"""Run one live node: uv run python -m node.mic --node "Creek Bend"
+"""Run one live node: uv run python -m node.mic --node "Arroyo Recodo"
 
 Listens on the default microphone (16 kHz mono via sounddevice), classifies with the real model
 (node/classifier.py), and sends signed records over UDP to the station started by `make dev`.

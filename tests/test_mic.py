@@ -27,8 +27,8 @@ def fake_model(monkeypatch):
 
 
 def test_find_node_by_name_case_insensitive():
-    assert find_node(WORLD, "creek bend").id == 5
-    with pytest.raises(SystemExit, match="Ridge North"):
+    assert find_node(WORLD, "arroyo recodo").id == 5
+    with pytest.raises(SystemExit, match="Loma Norte"):
         find_node(WORLD, "Nowhere")
 
 
@@ -47,7 +47,7 @@ def test_wav_mode_sends_a_signed_record_over_udp(tmp_path, fake_model, capsys, c
     try:
         main(
             [
-                "--node", "Creek Bend",
+                "--node", "Arroyo Recodo",
                 "--wav", str(wav),
                 "--port", str(station.getsockname()[1]),
                 "--loss", "0",
@@ -67,5 +67,5 @@ def test_wav_mode_sends_a_signed_record_over_udp(tmp_path, fake_model, capsys, c
     assert (d.node_id, d.seq, d.sound.name) == (5, 1, "CHAINSAW")
     assert (tmp_path / "node_data" / "5" / "1.wav").exists()
     assert "model 40000/100000 bytes" in caplog.text  # device limits are logged
-    assert "Creek Bend: chainsaw 0.92 seq 1" in caplog.text
+    assert "Arroyo Recodo: chainsaw 0.92 seq 1" in caplog.text
     assert "radio sent 1, lost 0" in capsys.readouterr().out

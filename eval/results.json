@@ -45,7 +45,7 @@
         "wall_s_per_incident": 2.9,
         "wall_s_per_real_incident": 5.4,
         "noisy_node": {
-          "node": "Low Marsh",
+          "node": "El Bajo",
           "incidents": 1,
           "triage_steps": 17,
           "steps": 38,
@@ -55,7 +55,7 @@
           {
             "id": "2026-11-15_G8",
             "nodes": [
-              "Old Cedar"
+              "Cedro Viejo"
             ],
             "real": [],
             "status": "watching",
@@ -68,8 +68,8 @@
           {
             "id": "2026-11-15_H2",
             "nodes": [
-              "Logging Road",
-              "River Mouth"
+              "Brecha Vieja",
+              "Orilla San Pedro"
             ],
             "real": [
               "poaching-g2"
@@ -84,7 +84,7 @@
           {
             "id": "2026-11-15_B6",
             "nodes": [
-              "Fern Hollow"
+              "Hondonada"
             ],
             "real": [],
             "status": "dismissed",
@@ -97,7 +97,7 @@
           {
             "id": "2026-11-15_B3-2",
             "nodes": [
-              "Low Marsh"
+              "El Bajo"
             ],
             "real": [],
             "status": "dismissed",
@@ -110,10 +110,10 @@
           {
             "id": "2026-11-15_B3",
             "nodes": [
-              "Creek Bend",
-              "Fern Hollow",
-              "Low Marsh",
-              "Mossy Gap"
+              "Arroyo Recodo",
+              "Hondonada",
+              "El Bajo",
+              "Paso Musgo"
             ],
             "real": [
               "logging-e4"
@@ -128,7 +128,7 @@
           {
             "id": "2026-11-15_F3",
             "nodes": [
-              "Logging Road"
+              "Brecha Vieja"
             ],
             "real": [
               "logging-e4"
@@ -143,7 +143,7 @@
           {
             "id": "2026-11-15_C1",
             "nodes": [
-              "South Gate"
+              "Puesto Sur"
             ],
             "real": [],
             "status": "dismissed",
@@ -200,7 +200,7 @@
         "wall_s_per_incident": 2.0,
         "wall_s_per_real_incident": 5.3,
         "noisy_node": {
-          "node": "Low Marsh",
+          "node": "El Bajo",
           "incidents": 1,
           "triage_steps": 16,
           "steps": 32,
@@ -210,7 +210,7 @@
           {
             "id": "2026-11-16_G6",
             "nodes": [
-              "Stone Ford"
+              "Vado de Piedra"
             ],
             "real": [],
             "status": "dismissed",
@@ -223,7 +223,7 @@
           {
             "id": "2026-11-16_B3-2",
             "nodes": [
-              "Low Marsh"
+              "El Bajo"
             ],
             "real": [],
             "status": "dismissed",
@@ -236,9 +236,9 @@
           {
             "id": "2026-11-16_B8",
             "nodes": [
-              "Fern Hollow",
-              "Ridge East",
-              "Ridge North"
+              "Hondonada",
+              "Loma Este",
+              "Loma Norte"
             ],
             "real": [
               "logging-c7"
@@ -253,7 +253,7 @@
           {
             "id": "2026-11-16_B6",
             "nodes": [
-              "Fern Hollow"
+              "Hondonada"
             ],
             "real": [],
             "status": "dismissed",
@@ -266,8 +266,8 @@
           {
             "id": "2026-11-16_B3",
             "nodes": [
-              "Low Marsh",
-              "South Gate"
+              "El Bajo",
+              "Puesto Sur"
             ],
             "real": [],
             "status": "dismissed",
@@ -324,7 +324,7 @@
         "wall_s_per_incident": 2.1,
         "wall_s_per_real_incident": 5.8,
         "noisy_node": {
-          "node": "Low Marsh",
+          "node": "El Bajo",
           "incidents": 1,
           "triage_steps": 16,
           "steps": 32,
@@ -334,7 +334,7 @@
           {
             "id": "2026-11-16_G6",
             "nodes": [
-              "Stone Ford"
+              "Vado de Piedra"
             ],
             "real": [],
             "status": "dismissed",
@@ -347,7 +347,7 @@
           {
             "id": "2026-11-16_B3-2",
             "nodes": [
-              "Low Marsh"
+              "El Bajo"
             ],
             "real": [],
             "status": "dismissed",
@@ -360,9 +360,9 @@
           {
             "id": "2026-11-16_D7",
             "nodes": [
-              "Fern Hollow",
-              "Ridge East",
-              "Ridge North"
+              "Hondonada",
+              "Loma Este",
+              "Loma Norte"
             ],
             "real": [
               "logging-c7"
@@ -377,7 +377,7 @@
           {
             "id": "2026-11-16_B6",
             "nodes": [
-              "Fern Hollow"
+              "Hondonada"
             ],
             "real": [],
             "status": "dismissed",
@@ -390,8 +390,8 @@
           {
             "id": "2026-11-16_B3",
             "nodes": [
-              "Low Marsh",
-              "South Gate"
+              "El Bajo",
+              "Puesto Sur"
             ],
             "real": [],
             "status": "dismissed",
@@ -448,7 +448,7 @@
         "wall_s_per_incident": 70.0,
         "wall_s_per_real_incident": 108.2,
         "noisy_node": {
-          "node": "Low Marsh",
+          "node": "El Bajo",
           "incidents": 1,
           "triage_steps": 10,
           "steps": 14,
@@ -458,7 +458,7 @@
           {
             "id": "2026-11-15_F3",
             "nodes": [
-              "Logging Road"
+              "Brecha Vieja"
             ],
             "real": [
               "logging-e4"
@@ -473,7 +473,7 @@
           {
             "id": "2026-11-15_B3-2",
             "nodes": [
-              "Low Marsh"
+              "El Bajo"
             ],
             "real": [],
             "status": "dismissed",
@@ -486,8 +486,8 @@
           {
             "id": "2026-11-15_H2",
             "nodes": [
-              "Logging Road",
-              "River Mouth"
+              "Brecha Vieja",
+              "Orilla San Pedro"
             ],
             "real": [
               "poaching-g2"
@@ -502,7 +502,7 @@
           {
             "id": "2026-11-15_G8",
             "nodes": [
-              "Old Cedar"
+              "Cedro Viejo"
             ],
             "real": [],
             "status": "dismissed",
@@ -515,7 +515,7 @@
           {
             "id": "2026-11-15_B6",
             "nodes": [
-              "Fern Hollow"
+              "Hondonada"
             ],
             "real": [],
             "status": "dismissed",
@@ -528,10 +528,10 @@
           {
             "id": "2026-11-15_B3",
             "nodes": [
-              "Creek Bend",
-              "Fern Hollow",
-              "Low Marsh",
-              "Mossy Gap"
+              "Arroyo Recodo",
+              "Hondonada",
+              "El Bajo",
+              "Paso Musgo"
             ],
             "real": [
               "logging-e4"
@@ -546,7 +546,7 @@
           {
             "id": "2026-11-15_C1",
             "nodes": [
-              "South Gate"
+              "Puesto Sur"
             ],
             "real": [],
             "status": "dismissed",
@@ -606,7 +606,7 @@
         "wall_s_per_incident": 781.7,
         "wall_s_per_real_incident": 1158.7,
         "noisy_node": {
-          "node": "Low Marsh",
+          "node": "El Bajo",
           "incidents": 0,
           "triage_steps": 0.0,
           "steps": 0.0,
@@ -616,10 +616,10 @@
           {
             "id": "2026-11-15_B3",
             "nodes": [
-              "Creek Bend",
-              "Fern Hollow",
-              "Low Marsh",
-              "Mossy Gap"
+              "Arroyo Recodo",
+              "Hondonada",
+              "El Bajo",
+              "Paso Musgo"
             ],
             "real": [
               "logging-e4"
@@ -634,8 +634,8 @@
           {
             "id": "2026-11-15_F3",
             "nodes": [
-              "Creek Bend",
-              "Logging Road"
+              "Arroyo Recodo",
+              "Brecha Vieja"
             ],
             "real": [
               "logging-e4"
@@ -650,7 +650,7 @@
           {
             "id": "2026-11-15_C1",
             "nodes": [
-              "South Gate"
+              "Puesto Sur"
             ],
             "real": [],
             "status": "dismissed",

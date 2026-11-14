@@ -41,7 +41,7 @@ def test_failed_wake_ups_are_retried_with_backoff_then_dropped(tmp_path):
     h = Harness(tmp_path, models=models)
     wall = Wall()
     h.commander.wakes.wall = wall
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
     for i in range(1, 5):
         wall.t += 1000
         h.tick("02:20:00")
@@ -69,8 +69,8 @@ def test_background_mode_runs_on_worker_threads(tmp_path):
     c = h.commander
     c.start(interval_s=0.02)
     try:
-        h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-        h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+        h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+        h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
         h.sim.t += 20
         assert wait_for(lambda: h.pending())
         (a,) = h.pending()

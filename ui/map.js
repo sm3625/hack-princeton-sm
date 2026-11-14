@@ -226,11 +226,12 @@ export class ForestMap {
     this.inset = px("--map-inset-bottom");
     this.insetTop = Math.min(px("--map-inset-top"), h * 0.4);
     this.insetRight = Math.min(px("--map-inset-right"), w * 0.6);
-    this.midX = (w - this.insetRight) / 2;
+    this.insetLeft = Math.min(px("--map-inset-left"), w * 0.3);
+    this.midX = this.insetLeft + (w - this.insetRight - this.insetLeft) / 2;
     this.midY = this.insetTop + (h - this.inset - this.insetTop) / 2;
     this.svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     this.kFit = Math.min(
-      (w - this.insetRight - 2 * PAD) / this.W,
+      (w - this.insetRight - this.insetLeft - 2 * PAD) / this.W,
       (h - this.inset - this.insetTop - 2 * PAD) / this.H,
     );
     this.overlaysDirty = true;

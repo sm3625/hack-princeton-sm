@@ -32,15 +32,15 @@ RAIN_WEST = {f"{c}{r}" for c in "ABC" for r in range(1, 7)}  # night1 rain area 
 # id, title, expected, rain sectors, records (node, seq, time, sound, confidence)
 CASES = [
     ("A", "Logging: chainsaw at 3 dry nodes", "dispatch_requested", set(),
-     [("Creek Bend", 41, "02:14:05", "CHAINSAW", 0.91), ("Mossy Gap", 17, "02:14:31", "CHAINSAW", 0.84),
-      ("Logging Road", 23, "02:14:44", "CHAINSAW", 0.86)]),
+     [("Arroyo Recodo", 41, "02:14:05", "CHAINSAW", 0.91), ("Paso Musgo", 17, "02:14:31", "CHAINSAW", 0.84),
+      ("Brecha Vieja", 23, "02:14:44", "CHAINSAW", 0.86)]),
     ("C", "Rain cluster: chainsaw at 2 nodes in rain", "no_request", RAIN_WEST,
-     [("Low Marsh", 3, "00:16:46", "CHAINSAW", 0.83), ("Fern Hollow", 1, "00:21:02", "CHAINSAW", 0.82),
-      ("Low Marsh", 4, "00:24:27", "CHAINSAW", 0.85)]),
+     [("El Bajo", 3, "00:16:46", "CHAINSAW", 0.83), ("Hondonada", 1, "00:21:02", "CHAINSAW", 0.82),
+      ("El Bajo", 4, "00:24:27", "CHAINSAW", 0.85)]),
     ("B", "Gunshots: 2 dry nodes", "dispatch_requested", set(),
-     [("River Mouth", 5, "04:37:12", "GUNSHOT", 0.94), ("Logging Road", 30, "04:37:14", "GUNSHOT", 0.88)]),
+     [("Orilla San Pedro", 5, "04:37:12", "GUNSHOT", 0.94), ("Brecha Vieja", 30, "04:37:14", "GUNSHOT", 0.88)]),
     ("D", "Single node in rain", "no_request", RAIN_WEST,
-     [("South Gate", 2, "00:40:10", "CHAINSAW", 0.81)]),
+     [("Puesto Sur", 2, "00:40:10", "CHAINSAW", 0.81)]),
 ]
 _TAG = re.compile(r"\[([A-Z][A-Za-z ]+?) #\d+\]")
 

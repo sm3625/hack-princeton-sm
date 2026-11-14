@@ -11,7 +11,7 @@ Rules baseline against the incident commander, replayed through the real pipelin
 | Rules baseline (Local model (qwen3:8b), sim waits) | 21 | 1/2 | 1 | 14 | none |
 | Commander, Local model (qwen3:8b), sim waits (partial) | 15 | 1/2 | 1 | 10 | 781.7 s |
 
-| Night 2 | Requests | Triage steps | All steps | Commander time | Low Marsh triage each |
+| Night 2 | Requests | Triage steps | All steps | Commander time | El Bajo triage each |
 |---|---|---|---|---|---|
 | Mock model, live 60x, no memory | 2 | 73 | 191 | 10.6 s | 16 (1) |
 | Mock model, live 60x, after night 1 | 2 | 78 | 200 | 10.0 s | 16 (1) |

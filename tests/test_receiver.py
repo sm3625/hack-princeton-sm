@@ -44,7 +44,7 @@ def test_verified_record_is_stored_published_and_hooked():
     assert out.accepted and out.reason is None and out.detection.verified
     assert store.query() == [out.detection]
     assert messages == [
-        {"type": "detection", "detection": out.detection.to_json(), "node": "Creek Bend"}
+        {"type": "detection", "detection": out.detection.to_json(), "node": "Arroyo Recodo"}
     ]
     assert messages[0]["detection"]["sound"] == "chainsaw"
     assert hooked == [out.detection]
@@ -59,7 +59,7 @@ def test_bad_signature_is_stored_unverified_and_never_hooked():
     out = rx.handle(bytes(raw))
     assert (out.accepted, out.reason) == (False, "bad_signature")
     assert messages == [
-        {"type": "rejected", "node": "Creek Bend", "reason": "bad_signature", "seq": 1}
+        {"type": "rejected", "node": "Arroyo Recodo", "reason": "bad_signature", "seq": 1}
     ]
     assert store.query(verified_only=True) == []
     assert [d.verified for d in store.query(verified_only=False)] == [False]
@@ -80,7 +80,7 @@ def test_replay_is_rejected():
     assert rx.handle(raw).accepted
     out = rx.handle(raw)
     assert (out.accepted, out.reason) == (False, "replay")
-    assert messages[-1] == {"type": "rejected", "node": "Creek Bend", "reason": "replay", "seq": 1}
+    assert messages[-1] == {"type": "rejected", "node": "Arroyo Recodo", "reason": "replay", "seq": 1}
     assert len(store.query(verified_only=False)) == 1
 
 
@@ -118,7 +118,7 @@ def test_tampered_version_byte_is_rejected_as_bad_signature():
     raw[0] = 0x7F
     assert rx.handle(bytes(raw)).reason == "bad_signature"
     assert messages == [
-        {"type": "rejected", "node": "Creek Bend", "reason": "bad_signature", "seq": None}
+        {"type": "rejected", "node": "Arroyo Recodo", "reason": "bad_signature", "seq": None}
     ]
     assert store.query(verified_only=False) == []  # unparseable, so not storable
 
@@ -147,7 +147,7 @@ def test_publishes_to_the_real_station_bus():
 
     msg = asyncio.run(scenario())
     assert msg["type"] == "detection" and msg["detection"]["seq"] == 7
-    assert msg["node"] == "Creek Bend"
+    assert msg["node"] == "Arroyo Recodo"
 
 
 def test_handle_from_a_thread_publishes_on_the_bound_loop():
@@ -176,7 +176,7 @@ def test_tamper_flips_a_stored_byte_and_reverifies():
     rx.handle(record())
     result = rx.tamper(5, 1)
     assert result == {
-        "node": "Creek Bend",
+        "node": "Arroyo Recodo",
         "seq": 1,
         "byte": OFFSET_CONFIDENCE,
         "verified_before": True,

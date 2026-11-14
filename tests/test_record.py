@@ -43,7 +43,7 @@ def test_wire_layout_is_little_endian_spec_order():
     assert raw[0] == 1  # version
     assert raw[1:3] == b"\x02\x01"  # node_id u16 LE
     assert raw[3:7] == b"\x06\x05\x04\x03"  # seq u32 LE
-    assert struct.unpack("<i", raw[11:15])[0] == round(-3.4443 * 1e7)
+    assert struct.unpack("<i", raw[11:15])[0] == round(17.2807 * 1e7)
     assert raw[19] == SoundClass.CHAINSAW
     assert raw[20] == round(0.9 * 255)
     assert raw[39:44] == b"\x00" * 5  # reserved

@@ -1,22 +1,24 @@
-# Fictional 4 x 4 km forest. Sectors are 500 m squares named A1..H8 (column letter, row number).
+# 4 x 4 km pilot block in Laguna del Tigre National Park, Maya Biosphere Reserve (Peten, Guatemala),
+# just north of the Rio San Pedro. Node names are illustrative local-style names, not real sensor sites.
+# Sectors are 500 m squares named A1..H8 (column letter, row number).
 width_m: 4000
 height_m: 4000
 sector_m: 500
-origin_lat: -3.4650
-origin_lon: -62.2150
+origin_lat: 17.2600
+origin_lon: -90.4100
 base_x_m: 200
 base_y_m: 200
 no_fly: [F2, G6]
 nodes:
-  - {id: 1,  name: Ridge North,   x_m: 600,  y_m: 3500, lat: -3.4335, lon: -62.2096, sector: B8}
-  - {id: 2,  name: Ridge East,    x_m: 1900, y_m: 3300, lat: -3.4353, lon: -62.1979, sector: D7}
-  - {id: 3,  name: Old Cedar,     x_m: 3200, y_m: 3600, lat: -3.4326, lon: -62.1862, sector: G8}
-  - {id: 4,  name: Fern Hollow,   x_m: 900,  y_m: 2500, lat: -3.4425, lon: -62.2069, sector: B6}
-  - {id: 5,  name: Creek Bend,    x_m: 2100, y_m: 2300, lat: -3.4443, lon: -62.1961, sector: E5}
-  - {id: 6,  name: Stone Ford,    x_m: 3400, y_m: 2600, lat: -3.4416, lon: -62.1844, sector: G6}
-  - {id: 7,  name: Low Marsh,     x_m: 500,  y_m: 1400, lat: -3.4524, lon: -62.2105, sector: B3}
-  - {id: 8,  name: Mossy Gap,     x_m: 1600, y_m: 1500, lat: -3.4515, lon: -62.2006, sector: D4}
-  - {id: 9,  name: Logging Road,  x_m: 2800, y_m: 1300, lat: -3.4533, lon: -62.1898, sector: F3}
-  - {id: 10, name: South Gate,    x_m: 1100, y_m: 400,  lat: -3.4614, lon: -62.2051, sector: C1}
-  - {id: 11, name: Kapok Stand,   x_m: 2300, y_m: 600,  lat: -3.4596, lon: -62.1943, sector: E2}
-  - {id: 12, name: River Mouth,   x_m: 3600, y_m: 500,  lat: -3.4605, lon: -62.1826, sector: H2}
+  - {id: 1,  name: Loma Norte,   x_m: 600, y_m: 3500, lat: 17.2914, lon: -90.4044, sector: B8}
+  - {id: 2,  name: Loma Este,    x_m: 1900, y_m: 3300, lat: 17.2896, lon: -90.3921, sector: D7}
+  - {id: 3,  name: Cedro Viejo,     x_m: 3200, y_m: 3600, lat: 17.2923, lon: -90.3799, sector: G8}
+  - {id: 4,  name: Hondonada,   x_m: 900, y_m: 2500, lat: 17.2825, lon: -90.4015, sector: B6}
+  - {id: 5,  name: Arroyo Recodo,    x_m: 2100, y_m: 2300, lat: 17.2807, lon: -90.3902, sector: E5}
+  - {id: 6,  name: Vado de Piedra,    x_m: 3400, y_m: 2600, lat: 17.2834, lon: -90.3780, sector: G6}
+  - {id: 7,  name: El Bajo,     x_m: 500, y_m: 1400, lat: 17.2726, lon: -90.4053, sector: B3}
+  - {id: 8,  name: Paso Musgo,     x_m: 1600, y_m: 1500, lat: 17.2735, lon: -90.3949, sector: D4}
+  - {id: 9,  name: Brecha Vieja,  x_m: 2800, y_m: 1300, lat: 17.2717, lon: -90.3837, sector: F3}
+  - {id: 10, name: Puesto Sur,    x_m: 1100, y_m: 400, lat: 17.2636, lon: -90.3997, sector: C1}
+  - {id: 11, name: Ceibal,   x_m: 2300, y_m: 600, lat: 17.2654, lon: -90.3884, sector: E2}
+  - {id: 12, name: Orilla San Pedro,   x_m: 3600, y_m: 500, lat: 17.2645, lon: -90.3761, sector: H2}

@@ -6,13 +6,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-  <title>Forest Guardian</title>
+  <title>Forest Guardian · Maya Biosphere Reserve</title>
   <link rel="icon" href="/ui/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
   <header class="bar" id="bar">
-    <h1><img class="brand-icon" src="/ui/icon.svg" alt=""><span class="brand-text">Forest Guardian</span></h1>
+    <h1><img class="brand-icon" src="/ui/icon.svg" alt=""><span class="brand-text">Forest Guardian<span class="brand-sub">Maya Biosphere Reserve · Laguna del Tigre pilot</span></span></h1>
     <div class="clock" id="clock" aria-live="off">
       <span id="clock-time" class="clock-time">--:--</span>
       <span id="clock-speed" class="clock-sub"></span>
@@ -38,6 +38,23 @@
 
   <main class="layout">
     <section class="map-wrap" id="map" aria-label="Map">
+      <figure class="reserve-inset" aria-label="Pilot block location in the Maya Biosphere Reserve">
+        <figcaption>
+          <strong>Maya Biosphere Reserve</strong>
+          <span>Petén, Guatemala · 4 × 4 km pilot block</span>
+        </figcaption>
+        <svg viewBox="0 -4 246 122" role="img" aria-hidden="true">
+          <text class="ri-country" x="140" y="-0.5">MEXICO</text>
+          <polygon class="ri-reserve" points="52,3.4 234.8,3.4 234.8,57.4 209.8,78.3 149.9,83.5 94.9,76.2 74.9,97 35,111.6 10,90.8 7,62.6 52,62.6"/>
+          <text class="ri-zone" x="58" y="26">Laguna del Tigre NP</text>
+          <circle class="ri-site" cx="187.6" cy="65.5" r="2.2"/>
+          <text class="ri-site-label" x="192" y="68.5">Tikal</text>
+          <circle class="ri-pilot-halo" cx="110.7" cy="59.7" r="7"/>
+          <rect class="ri-pilot" x="107.2" y="56.2" width="7" height="7" rx="1.2"/>
+          <text class="ri-pilot-label" x="110.7" y="46">Pilot</text>
+        </svg>
+        <p class="ri-note">Outline approximate. Sensor names are illustrative.</p>
+      </figure>
       <div id="node-card" class="node-card" hidden></div>
       <div id="drone-chip" class="drone-chip" hidden></div>
     </section>

@@ -79,7 +79,7 @@ free credits are not treated as permission. No price or free allowance is assume
 
 `--live` without `--allow-sends` enables authenticated polling and incoming decisions but
 **no sends**. It is not an offline test. The default duration is 600 seconds, maximum 3600;
-there are at most 40 polling cycles and five pages per cycle (200 GET attempts). Minimum
+polling runs for the requested duration, at most 720 cycles (one hour at the 5-second minimum) and five pages per cycle. Minimum
 poll interval is five seconds. Network calls have 15-second timeouts, so an in-progress
 cycle can outlast the duration. Ctrl-C stops the worker. Run one worker per conversation.
 

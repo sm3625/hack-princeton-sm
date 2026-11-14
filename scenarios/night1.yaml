@@ -22,97 +22,97 @@ drone:
 
 events:
   # Distant aircraft read as a vehicle.
-  - {at: "22:41:20", node: Ridge East, sound: vehicle, confidence: 0.81, duration: 6,
+  - {at: "22:41:20", node: Loma Este, sound: vehicle, confidence: 0.81, duration: 6,
      source: aircraft, label: false_alarm, clip: esc50/airplane_1.wav}
 
   # One supply truck on the south track, heard by 4 nodes within 30 s.
-  - {at: "23:41:08", node: South Gate, sound: vehicle, confidence: 0.88, duration: 8,
+  - {at: "23:41:08", node: Puesto Sur, sound: vehicle, confidence: 0.88, duration: 8,
      source: truck, label: benign, clip: esc50/engine_1.wav, note: supply truck}
-  - {at: "23:41:15", node: Mossy Gap, sound: vehicle, confidence: 0.84, duration: 8,
+  - {at: "23:41:15", node: Paso Musgo, sound: vehicle, confidence: 0.84, duration: 8,
      source: truck, label: benign, clip: esc50/engine_1.wav, note: supply truck}
-  - {at: "23:41:24", node: Kapok Stand, sound: vehicle, confidence: 0.86, duration: 8,
+  - {at: "23:41:24", node: Ceibal, sound: vehicle, confidence: 0.86, duration: 8,
      source: truck, label: benign, clip: esc50/engine_1.wav, note: supply truck}
-  - {at: "23:41:36", node: Low Marsh, sound: vehicle, confidence: 0.81, duration: 8,
+  - {at: "23:41:36", node: El Bajo, sound: vehicle, confidence: 0.81, duration: 8,
      source: truck, label: benign, clip: esc50/engine_1.wav, note: supply truck}
 
-  # Rain on the west side (23:50-01:35): Low Marsh false-alarms again and again.
-  - {at: "00:02:40", node: Low Marsh, sound: chainsaw, confidence: 0.82, duration: 6,
+  # Rain on the west side (23:50-01:35): El Bajo false-alarms again and again.
+  - {at: "00:02:40", node: El Bajo, sound: chainsaw, confidence: 0.82, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_1.wav}
-  - {at: "00:09:15", node: Low Marsh, sound: chainsaw, confidence: 0.85, duration: 6,
+  - {at: "00:09:15", node: El Bajo, sound: chainsaw, confidence: 0.85, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_2.wav}
-  - {at: "00:16:50", node: Low Marsh, sound: chainsaw, confidence: 0.81, duration: 6,
+  - {at: "00:16:50", node: El Bajo, sound: chainsaw, confidence: 0.81, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_3.wav}
-  - {at: "00:21:05", node: Fern Hollow, sound: chainsaw, confidence: 0.80, duration: 6,
+  - {at: "00:21:05", node: Hondonada, sound: chainsaw, confidence: 0.80, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_1.wav}
-  - {at: "00:24:30", node: Low Marsh, sound: chainsaw, confidence: 0.86, duration: 6,
+  - {at: "00:24:30", node: El Bajo, sound: chainsaw, confidence: 0.86, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_4.wav}
-  - {at: "00:31:10", node: Low Marsh, sound: vehicle, confidence: 0.80, duration: 6,
+  - {at: "00:31:10", node: El Bajo, sound: vehicle, confidence: 0.80, duration: 6,
      source: thunder, label: false_alarm, clip: esc50/thunderstorm_1.wav}
-  - {at: "00:38:45", node: Low Marsh, sound: chainsaw, confidence: 0.83, duration: 6,
+  - {at: "00:38:45", node: El Bajo, sound: chainsaw, confidence: 0.83, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_2.wav}
-  - {at: "00:47:20", node: Low Marsh, sound: chainsaw, confidence: 0.84, duration: 6,
+  - {at: "00:47:20", node: El Bajo, sound: chainsaw, confidence: 0.84, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_5.wav}
-  - {at: "00:52:00", node: South Gate, sound: chainsaw, confidence: 0.80, duration: 6,
+  - {at: "00:52:00", node: Puesto Sur, sound: chainsaw, confidence: 0.80, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_3.wav}
-  - {at: "00:58:35", node: Low Marsh, sound: chainsaw, confidence: 0.82, duration: 6,
+  - {at: "00:58:35", node: El Bajo, sound: chainsaw, confidence: 0.82, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_1.wav}
-  - {at: "01:06:10", node: Low Marsh, sound: chainsaw, confidence: 0.87, duration: 6,
+  - {at: "01:06:10", node: El Bajo, sound: chainsaw, confidence: 0.87, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_4.wav}
-  - {at: "01:12:40", node: Fern Hollow, sound: chainsaw, confidence: 0.81, duration: 6,
+  - {at: "01:12:40", node: Hondonada, sound: chainsaw, confidence: 0.81, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_5.wav}
-  - {at: "01:19:55", node: Low Marsh, sound: chainsaw, confidence: 0.83, duration: 6,
+  - {at: "01:19:55", node: El Bajo, sound: chainsaw, confidence: 0.83, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_2.wav}
-  - {at: "01:27:30", node: Low Marsh, sound: chainsaw, confidence: 0.81, duration: 6,
+  - {at: "01:27:30", node: El Bajo, sound: chainsaw, confidence: 0.81, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_3.wav}
-  - {at: "01:33:10", node: Low Marsh, sound: chainsaw, confidence: 0.80, duration: 6,
+  - {at: "01:33:10", node: El Bajo, sound: chainsaw, confidence: 0.80, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_1.wav}
 
   # Real incident 1: chainsaw logging in E4, heard by 3 neighbouring nodes, then a vehicle leaves.
-  - {at: "02:14:05", node: Creek Bend, sound: chainsaw, confidence: 0.91, duration: 8,
+  - {at: "02:14:05", node: Arroyo Recodo, sound: chainsaw, confidence: 0.91, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_1.wav}
-  - {at: "02:14:31", node: Mossy Gap, sound: chainsaw, confidence: 0.86, duration: 8,
+  - {at: "02:14:31", node: Paso Musgo, sound: chainsaw, confidence: 0.86, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_1.wav}
-  - {at: "02:14:44", node: Logging Road, sound: chainsaw, confidence: 0.83, duration: 8,
+  - {at: "02:14:44", node: Brecha Vieja, sound: chainsaw, confidence: 0.83, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_1.wav}
-  - {at: "02:19:12", node: Creek Bend, sound: chainsaw, confidence: 0.93, duration: 8,
+  - {at: "02:19:12", node: Arroyo Recodo, sound: chainsaw, confidence: 0.93, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_2.wav}
-  - {at: "02:19:40", node: Mossy Gap, sound: chainsaw, confidence: 0.88, duration: 8,
+  - {at: "02:19:40", node: Paso Musgo, sound: chainsaw, confidence: 0.88, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_2.wav}
-  - {at: "02:26:02", node: Creek Bend, sound: chainsaw, confidence: 0.90, duration: 8,
+  - {at: "02:26:02", node: Arroyo Recodo, sound: chainsaw, confidence: 0.90, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_3.wav}
-  - {at: "02:26:25", node: Logging Road, sound: chainsaw, confidence: 0.84, duration: 8,
+  - {at: "02:26:25", node: Brecha Vieja, sound: chainsaw, confidence: 0.84, duration: 8,
      source: chainsaw, label: real, incident: logging-e4, clip: esc50/chainsaw_3.wav}
-  - {at: "02:52:10", node: Logging Road, sound: vehicle, confidence: 0.85, duration: 8,
+  - {at: "02:52:10", node: Brecha Vieja, sound: vehicle, confidence: 0.85, duration: 8,
      source: truck, label: real, incident: logging-e4, clip: esc50/engine_2.wav}
-  - {at: "02:53:35", node: Kapok Stand, sound: vehicle, confidence: 0.81, duration: 8,
+  - {at: "02:53:35", node: Ceibal, sound: vehicle, confidence: 0.81, duration: 8,
      source: truck, label: real, incident: logging-e4, clip: esc50/engine_2.wav}
 
-  # A branch snaps near Fern Hollow and reads as a gunshot. One node, no follow-up.
-  - {at: "03:05:20", node: Fern Hollow, sound: gunshot, confidence: 0.81, duration: 3,
+  # A branch snaps near Hondonada and reads as a gunshot. One node, no follow-up.
+  - {at: "03:05:20", node: Hondonada, sound: gunshot, confidence: 0.81, duration: 3,
      source: branch_fall, label: false_alarm, clip: esc50/crackling_fire_1.wav}
 
-  # Second shower (03:25-04:05): Low Marsh again.
-  - {at: "03:31:15", node: Low Marsh, sound: chainsaw, confidence: 0.84, duration: 6,
+  # Second shower (03:25-04:05): El Bajo again.
+  - {at: "03:31:15", node: El Bajo, sound: chainsaw, confidence: 0.84, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_4.wav}
-  - {at: "03:38:50", node: Low Marsh, sound: chainsaw, confidence: 0.82, duration: 6,
+  - {at: "03:38:50", node: El Bajo, sound: chainsaw, confidence: 0.82, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_5.wav}
-  - {at: "03:46:30", node: Low Marsh, sound: chainsaw, confidence: 0.85, duration: 6,
+  - {at: "03:46:30", node: El Bajo, sound: chainsaw, confidence: 0.85, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_2.wav}
-  - {at: "03:55:05", node: Low Marsh, sound: chainsaw, confidence: 0.81, duration: 6,
+  - {at: "03:55:05", node: El Bajo, sound: chainsaw, confidence: 0.81, duration: 6,
      source: rain, label: false_alarm, clip: esc50/rain_3.wav}
 
   # Real incident 2: gunshots near G2, then a vehicle heading west.
-  - {at: "04:37:12", node: River Mouth, sound: gunshot, confidence: 0.94, duration: 3,
+  - {at: "04:37:12", node: Orilla San Pedro, sound: gunshot, confidence: 0.94, duration: 3,
      source: gunshot, label: real, incident: poaching-g2, clip: urbansound8k/gun_shot_1.wav}
-  - {at: "04:37:14", node: Logging Road, sound: gunshot, confidence: 0.85, duration: 3,
+  - {at: "04:37:14", node: Brecha Vieja, sound: gunshot, confidence: 0.85, duration: 3,
      source: gunshot, label: real, incident: poaching-g2, clip: urbansound8k/gun_shot_1.wav}
-  - {at: "04:44:05", node: River Mouth, sound: vehicle, confidence: 0.86, duration: 8,
+  - {at: "04:44:05", node: Orilla San Pedro, sound: vehicle, confidence: 0.86, duration: 8,
      source: truck, label: real, incident: poaching-g2, clip: esc50/engine_3.wav}
-  - {at: "04:44:50", node: Logging Road, sound: vehicle, confidence: 0.82, duration: 8,
+  - {at: "04:44:50", node: Brecha Vieja, sound: vehicle, confidence: 0.82, duration: 8,
      source: truck, label: real, incident: poaching-g2, clip: esc50/engine_3.wav}
-  - {at: "04:46:20", node: Kapok Stand, sound: vehicle, confidence: 0.80, duration: 8,
+  - {at: "04:46:20", node: Ceibal, sound: vehicle, confidence: 0.80, duration: 8,
      source: truck, label: real, incident: poaching-g2, clip: esc50/engine_3.wav}
 
   # Howler monkeys at dawn read as a chainsaw.
-  - {at: "05:21:40", node: Old Cedar, sound: chainsaw, confidence: 0.80, duration: 6,
+  - {at: "05:21:40", node: Cedro Viejo, sound: chainsaw, confidence: 0.80, duration: 6,
      source: howler_monkeys, label: false_alarm}

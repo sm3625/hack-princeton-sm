@@ -12,9 +12,9 @@ from common.contracts import SoundClass as S
 @pytest.fixture
 def env(tmp_path):
     h = Harness(tmp_path)
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
-    h.hear("Mossy Gap", 18, "02:14:10", S.CHAINSAW, 0.99, verified=False)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Paso Musgo", 18, "02:14:10", S.CHAINSAW, 0.99, verified=False)
     (inc,) = h.commander.incidents.all()
     tools = make_tools(h.commander.services)
     cfg = {"configurable": {"incident_id": inc.id}}
@@ -28,8 +28,8 @@ def env(tmp_path):
 def test_get_detections_returns_verified_records_by_name(env):
     _h, _inc, call = env
     out = call("get_detections", sector="E5", window_s=1800)
-    assert "[Creek Bend #41] 02:14:05 chainsaw 0.91" in out
-    assert "[Mossy Gap #17]" in out
+    assert "[Arroyo Recodo #41] 02:14:05 chainsaw 0.91" in out
+    assert "[Paso Musgo #17]" in out
     assert "#18" not in out  # unverified
     assert "node_id" not in out
     assert call("get_detections", sector="Z9").startswith("Unknown sector")
@@ -37,11 +37,11 @@ def test_get_detections_returns_verified_records_by_name(env):
 
 def test_node_info_weather_and_memory(env):
     h, _inc, call = env
-    call("remember", topic="nodes", note="Creek Bend: false alarms\nin heavy rain")
-    info = json.loads(call("get_node_info", node_name="creek bend"))
-    assert info["node"] == "Creek Bend" and info["sector"] == "E5"
+    call("remember", topic="nodes", note="Arroyo Recodo: false alarms\nin heavy rain")
+    info = json.loads(call("get_node_info", node_name="arroyo recodo"))
+    assert info["node"] == "Arroyo Recodo" and info["sector"] == "E5"
     assert info["verified_alerts_24h"] == 1
-    assert info["memory"] == ["2026-11-14: Creek Bend: false alarms in heavy rain"]
+    assert info["memory"] == ["2026-11-14: Arroyo Recodo: false alarms in heavy rain"]
     assert "Unknown node" in call("get_node_info", node_name="Node 7")
     h.sim.rain = {"B3"}
     assert call("get_weather", sector="b3") == "B3: raining, wind 25 kph"
@@ -82,17 +82,17 @@ def test_drone_tools(env):
 
 def test_verify_signature_rechecks_raw_bytes(env):
     h, _inc, call = env
-    assert "signature valid" in call("verify_signature", node="Creek Bend", seq=41)
-    h.tamper("Creek Bend", 41)
-    assert "INVALID" in call("verify_signature", node="Creek Bend", seq=41)
-    assert "INVALID" in call("verify_signature", node="Mossy Gap", seq=18)
-    assert "no such record" in call("verify_signature", node="Creek Bend", seq=7)
+    assert "signature valid" in call("verify_signature", node="Arroyo Recodo", seq=41)
+    h.tamper("Arroyo Recodo", 41)
+    assert "INVALID" in call("verify_signature", node="Arroyo Recodo", seq=41)
+    assert "INVALID" in call("verify_signature", node="Paso Musgo", seq=18)
+    assert "no such record" in call("verify_signature", node="Arroyo Recodo", seq=7)
 
 
 def test_incident_evidence_counts_independent_nodes(env):
     _h, _inc, call = env
     out = call("get_incident_evidence")
-    assert "[Creek Bend #41] 02:14:05 chainsaw 0.91" in out and "[Mossy Gap #17]" in out
+    assert "[Arroyo Recodo #41] 02:14:05 chainsaw 0.91" in out and "[Paso Musgo #17]" in out
     assert "#18" not in out  # unverified never becomes evidence
     assert "Independent nodes: 2" in out and "Corroborated: YES" in out
     assert "Valid node names (use only these):" in out
@@ -104,7 +104,7 @@ def test_get_detections_reaches_back_to_incident_start_while_triaging(env):
     h, inc, call = env
     h.sim.t += 3 * 3600
     out = call("get_detections", sector="E5", window_s=60)
-    assert "[Creek Bend #41]" in out
+    assert "[Arroyo Recodo #41]" in out
     h.commander.services.gate.grant(inc.id)
     call("dispatch_rangers", sector="E5", note="go")
     out = call("get_detections", sector="E5", window_s=60)  # follow-up: is it quiet now?
@@ -113,7 +113,7 @@ def test_get_detections_reaches_back_to_incident_start_while_triaging(env):
 
 def test_incident_evidence_does_not_count_rain_nodes_as_corroboration(env):
     h, _inc, call = env
-    h.sim.rain = {"E5", "D4"}  # Creek Bend and Mossy Gap both in rain
+    h.sim.rain = {"E5", "D4"}  # Arroyo Recodo and Paso Musgo both in rain
     out = call("get_incident_evidence")
     assert "Nodes in rain now: 2 of 2." in out
     assert "Corroborated: NO." in out

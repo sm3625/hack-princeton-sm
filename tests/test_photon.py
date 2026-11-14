@@ -54,8 +54,8 @@ def setup(tmp_path):
             raise p.BridgeError(f"HTTP {response.status_code}")
         return response.json()
 
-    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
-    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
     h.tick("02:14:20")
     station = p.Station(transport=transport)
     provider = FakePhoton()

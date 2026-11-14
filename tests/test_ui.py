@@ -15,8 +15,8 @@ expect = playwright_api.expect
 from tests.live_server import LiveServer
 
 NODE_NAMES = {
-    "Ridge North", "Ridge East", "Old Cedar", "Fern Hollow", "Creek Bend", "Stone Ford",
-    "Low Marsh", "Mossy Gap", "Logging Road", "South Gate", "Kapok Stand", "River Mouth",
+    "Loma Norte", "Loma Este", "Cedro Viejo", "Hondonada", "Arroyo Recodo", "Vado de Piedra",
+    "El Bajo", "Paso Musgo", "Brecha Vieja", "Puesto Sur", "Ceibal", "Orilla San Pedro",
 }  # fmt: skip
 
 
@@ -103,13 +103,13 @@ def test_world_renders_twelve_named_nodes(browser, server):
 
 def test_detection_shows_in_feed_and_lights_node(browser, server):
     page = open_page(browser, server)
-    server.publish(detection(7, confidence=0.82))  # Low Marsh
+    server.publish(detection(7, confidence=0.82))  # El Bajo
     page.click("#tab-feed")
     item = page.locator(".feed-item").first
     expect(item).to_contain_text("Chainsaw")
     expect(item).to_contain_text("82%")
-    expect(item).to_contain_text("Low Marsh")
-    expect(page.locator('[data-node-name="Low Marsh"]')).to_have_class("node amber")
+    expect(item).to_contain_text("El Bajo")
+    expect(page.locator('[data-node-name="El Bajo"]')).to_have_class("node amber")
     assert "7" not in item.inner_text().split()  # names, never numeric ids
 
 
@@ -128,7 +128,7 @@ def test_feed_survives_a_page_refresh(browser, server):
     page = open_page(browser, server)  # fresh page: nothing arrives live, history only
     page.click("#tab-feed")
     expect(page.locator(".feed-item")).to_have_count(1)
-    expect(page.locator(".feed-item").first).to_contain_text("Low Marsh")
+    expect(page.locator(".feed-item").first).to_contain_text("El Bajo")
     page.reload()
     page.click("#tab-feed")
     expect(page.locator(".feed-item")).to_have_count(1)  # reload and resync do not duplicate
@@ -137,10 +137,10 @@ def test_feed_survives_a_page_refresh(browser, server):
 
 def test_rejected_record_turns_node_red(browser, server):
     page = open_page(browser, server)
-    server.publish({"type": "rejected", "node": "Creek Bend", "reason": "bad_signature"})
+    server.publish({"type": "rejected", "node": "Arroyo Recodo", "reason": "bad_signature"})
     page.click("#tab-feed")
     expect(page.locator(".feed-item.rejected").first).to_contain_text("Bad signature")
-    expect(page.locator('[data-node-name="Creek Bend"]')).to_have_class("node red")
+    expect(page.locator('[data-node-name="Arroyo Recodo"]')).to_have_class("node red")
 
 
 def test_approval_card_posts_decisions(browser, server):
@@ -196,7 +196,7 @@ def test_deep_link_opens_incident(browser, server):
             body=json.dumps(
                 {
                     "id": "inc-7",
-                    "title": "Chainsaw near Creek Bend",
+                    "title": "Chainsaw near Arroyo Recodo",
                     "sector": "E5",
                     "status": "triage",
                     "plan": "- [ ] triage",
@@ -205,7 +205,7 @@ def test_deep_link_opens_incident(browser, server):
         ),
     )
     page.goto(server.url + "/incident/inc-7")
-    expect(page.locator(".detail-title")).to_have_text("Chainsaw near Creek Bend")
+    expect(page.locator(".detail-title")).to_have_text("Chainsaw near Arroyo Recodo")
     expect(page.locator("pre.plan")).to_have_text("- [ ] triage")
     page.get_by_role("button", name="Incidents").first.click()
     expect(page).to_have_url(server.url + "/")

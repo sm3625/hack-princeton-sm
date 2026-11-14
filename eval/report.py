@@ -86,7 +86,7 @@ def memory_table(data: dict) -> list[str]:
     if not rows:
         return []
     head = [
-        "| Night 2 | Requests | Triage steps | All steps | Commander time | Low Marsh triage each |",
+        "| Night 2 | Requests | Triage steps | All steps | Commander time | El Bajo triage each |",
         "|---|---|---|---|---|---|",
     ]
     return head + rows

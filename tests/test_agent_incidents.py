@@ -29,18 +29,18 @@ def add(mgr, nodes, name, seq, t, sound, conf=0.9, verified=True):
 
 def test_truck_heard_by_four_nodes_is_one_incident(world, mgr):
     nodes = Nodes(world)
-    hits = [("Logging Road", "04:10:00"), ("Kapok Stand", "04:10:08"), ("Mossy Gap", "04:10:12"), ("Creek Bend", "04:10:20")]
+    hits = [("Brecha Vieja", "04:10:00"), ("Ceibal", "04:10:08"), ("Paso Musgo", "04:10:12"), ("Arroyo Recodo", "04:10:20")]
     incs = {add(mgr, nodes, n, 1, t, S.VEHICLE).id for n, t in hits}
     assert len(incs) == 1
     (inc,) = mgr.all()
     assert inc.family == "vehicle" and len(inc.records) == 4
-    assert sorted(inc.public(world)["nodes"]) == ["Creek Bend", "Kapok Stand", "Logging Road", "Mossy Gap"]
+    assert sorted(inc.public(world)["nodes"]) == ["Arroyo Recodo", "Brecha Vieja", "Ceibal", "Paso Musgo"]
 
 
 def test_location_is_confidence_weighted_centroid(world, mgr):
     nodes = Nodes(world)
-    add(mgr, nodes, "Creek Bend", 1, "02:14:05", S.CHAINSAW, 0.9)
-    inc = add(mgr, nodes, "Mossy Gap", 1, "02:14:09", S.CHAINSAW, 0.3)
+    add(mgr, nodes, "Arroyo Recodo", 1, "02:14:05", S.CHAINSAW, 0.9)
+    inc = add(mgr, nodes, "Paso Musgo", 1, "02:14:09", S.CHAINSAW, 0.3)
     cb, mg = world.node(5), world.node(8)
     assert inc.x_m == pytest.approx((cb.x_m * 0.9 + mg.x_m * 0.3) / 1.2)
     assert inc.y_m == pytest.approx((cb.y_m * 0.9 + mg.y_m * 0.3) / 1.2)
@@ -51,51 +51,51 @@ def test_location_is_confidence_weighted_centroid(world, mgr):
 
 def test_far_apart_or_different_threats_are_separate(world, mgr):
     nodes = Nodes(world)
-    a = add(mgr, nodes, "Ridge North", 1, "02:00:00", S.CHAINSAW)
-    b = add(mgr, nodes, "River Mouth", 1, "02:00:05", S.CHAINSAW)  # ~4.3 km away
-    c = add(mgr, nodes, "Ridge North", 2, "02:00:10", S.GUNSHOT)  # same place, different threat
+    a = add(mgr, nodes, "Loma Norte", 1, "02:00:00", S.CHAINSAW)
+    b = add(mgr, nodes, "Orilla San Pedro", 1, "02:00:05", S.CHAINSAW)  # ~4.3 km away
+    c = add(mgr, nodes, "Loma Norte", 2, "02:00:10", S.GUNSHOT)  # same place, different threat
     assert len({a.id, b.id, c.id}) == 3
 
 
 def test_vehicle_joins_a_nearby_logging_incident(world, mgr):
     nodes = Nodes(world)
-    a = add(mgr, nodes, "Creek Bend", 1, "02:14:05", S.CHAINSAW)
-    b = add(mgr, nodes, "Creek Bend", 2, "02:51:50", S.VEHICLE)
+    a = add(mgr, nodes, "Arroyo Recodo", 1, "02:14:05", S.CHAINSAW)
+    b = add(mgr, nodes, "Arroyo Recodo", 2, "02:51:50", S.VEHICLE)
     assert a.id == b.id and b.family == "logging" and b.sounds == ["chainsaw", "vehicle"]
 
 
 def test_chainsaw_upgrades_a_vehicle_incident(world, mgr):
     nodes = Nodes(world)
-    add(mgr, nodes, "Creek Bend", 1, "02:00:00", S.VEHICLE)
-    inc = add(mgr, nodes, "Creek Bend", 2, "02:05:00", S.CHAINSAW)
-    assert inc.family == "logging" and inc.title == "Chainsaw near Creek Bend"
+    add(mgr, nodes, "Arroyo Recodo", 1, "02:00:00", S.VEHICLE)
+    inc = add(mgr, nodes, "Arroyo Recodo", 2, "02:05:00", S.CHAINSAW)
+    assert inc.family == "logging" and inc.title == "Chainsaw near Arroyo Recodo"
 
 
 def test_time_window_and_closed_incidents_start_new_ones(world, mgr):
     nodes = Nodes(world)
-    a = add(mgr, nodes, "Creek Bend", 1, "01:00:00", S.CHAINSAW)
-    b = add(mgr, nodes, "Creek Bend", 2, "03:00:00", S.CHAINSAW)  # two hours later
+    a = add(mgr, nodes, "Arroyo Recodo", 1, "01:00:00", S.CHAINSAW)
+    b = add(mgr, nodes, "Arroyo Recodo", 2, "03:00:00", S.CHAINSAW)  # two hours later
     assert b.id == "2026-11-14_E5-2" and a.id != b.id
     mgr.update(b.id, status="closed")
-    c = add(mgr, nodes, "Creek Bend", 3, "03:05:00", S.CHAINSAW)
+    c = add(mgr, nodes, "Arroyo Recodo", 3, "03:05:00", S.CHAINSAW)
     assert c.id == "2026-11-14_E5-3"
 
 
 def test_unverified_background_and_replayed_records_are_dropped(world, mgr):
     nodes = Nodes(world)
-    assert add(mgr, nodes, "Creek Bend", 1, "02:00:00", S.CHAINSAW, verified=False) is None
-    assert add(mgr, nodes, "Creek Bend", 2, "02:00:00", S.BACKGROUND) is None
-    assert add(mgr, nodes, "Creek Bend", 3, "02:00:00", S.CHAINSAW) is not None
-    assert add(mgr, nodes, "Creek Bend", 3, "02:00:00", S.CHAINSAW) is None
+    assert add(mgr, nodes, "Arroyo Recodo", 1, "02:00:00", S.CHAINSAW, verified=False) is None
+    assert add(mgr, nodes, "Arroyo Recodo", 2, "02:00:00", S.BACKGROUND) is None
+    assert add(mgr, nodes, "Arroyo Recodo", 3, "02:00:00", S.CHAINSAW) is not None
+    assert add(mgr, nodes, "Arroyo Recodo", 3, "02:00:00", S.CHAINSAW) is None
     (inc,) = mgr.all()
     assert inc.records == [[5, 3]]
 
 
 def test_detections_jsonl_uses_names_and_record_tags(world, mgr):
     nodes = Nodes(world)
-    inc = add(mgr, nodes, "Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
+    inc = add(mgr, nodes, "Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
     (row,) = [json.loads(x) for x in mgr.files.read(inc.folder + "detections.jsonl").splitlines()]
-    assert row["record"] == "[Creek Bend #41]" and row["node"] == "Creek Bend" and row["seq"] == 41
+    assert row["record"] == "[Arroyo Recodo #41]" and row["node"] == "Arroyo Recodo" and row["seq"] == 41
     assert "node_id" not in row and "signature" not in row
     utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(at("02:14:05")))  # ISO stays UTC
     assert row["time"] == utc and row["confidence"] == 0.91
@@ -103,11 +103,11 @@ def test_detections_jsonl_uses_names_and_record_tags(world, mgr):
 
 def test_incidents_persist(world, tmp_path, mgr):
     nodes = Nodes(world)
-    inc = add(mgr, nodes, "Creek Bend", 1, "02:00:00", S.CHAINSAW)
+    inc = add(mgr, nodes, "Arroyo Recodo", 1, "02:00:00", S.CHAINSAW)
     mgr.update(inc.id, status="watching", next_check_at=at("02:30:00"))
     again = IncidentManager(world, mgr.files, IncidentRepo(tmp_path / "i.sqlite"))
     assert again.get(inc.id).status == "watching"
-    assert again.add(nodes.record("Creek Bend", 1, at("02:00:00"), S.CHAINSAW, 0.9)[0]) is None
+    assert again.add(nodes.record("Arroyo Recodo", 1, at("02:00:00"), S.CHAINSAW, 0.9)[0]) is None
 
 
 def test_agent_files_stay_inside_root(tmp_path):

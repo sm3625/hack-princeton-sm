@@ -1384,3 +1384,59 @@ li + li > .incident-row::after { left: 38px; }
 .plan.rendered h1, .plan.rendered h2, .plan.rendered h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; margin: 0.4em 0 0.3em; }
 .plan.rendered > :first-child { margin-top: 0; }
 .plan.rendered ul, .plan.rendered ol { padding-left: 1.2em; margin: 0.3em 0; }
+
+/* ---------- Maya Biosphere Reserve context ---------- */
+
+.brand-text { display: inline-flex; flex-direction: column; line-height: 1.1; }
+.brand-sub { font-size: 11.5px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+
+.reserve-inset {
+  position: absolute;
+  left: var(--gutter, 12px);
+  bottom: var(--gutter, 12px);
+  z-index: 3;
+  width: 284px;
+  margin: 0;
+  padding: 12px 14px 10px;
+  border-radius: 16px;
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: inset 0 0.5px 0 var(--glass-edge), 0 0 0 0.5px var(--line), var(--shadow);
+  pointer-events: none;
+  animation: card-in 0.6s var(--spring) 0.1s both;
+}
+
+.reserve-inset figcaption { display: flex; flex-direction: column; gap: 1px; }
+.reserve-inset strong { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+.reserve-inset figcaption span { font-size: 12px; color: var(--muted); }
+.reserve-inset svg { display: block; width: 100%; height: auto; margin-top: 8px; overflow: visible; }
+
+.ri-reserve {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 70%, transparent);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.ri-country { font-size: 8px; font-weight: 600; letter-spacing: 0.12em; fill: var(--muted); opacity: 0.7; text-anchor: middle; }
+.ri-zone { font-size: 10px; font-weight: 600; fill: var(--accent); opacity: 0.9; }
+.ri-site { fill: var(--muted); }
+.ri-site-label { font-size: 10px; fill: var(--muted); }
+.ri-pilot { fill: var(--amber); stroke: #fff; stroke-width: 0.8; }
+.ri-pilot-halo { fill: var(--amber); opacity: 0.25; transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
+.ri-pilot-label { font-size: 10px; font-weight: 700; fill: var(--amber-text); text-anchor: middle; }
+.ri-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); opacity: 0.8; }
+
+/* desktop: the inset sits top-left under the header; the map keeps its nodes clear of it */
+@media (min-width: 901px) {
+  .reserve-inset { top: calc(var(--bar-h) + var(--gutter) * 2); bottom: auto; left: var(--gutter); }
+  .map-wrap { --map-inset-left: 298px; } /* inset 284 + gutter 14 (plain px for map.js) */
+  .node-card { top: auto; bottom: var(--gutter); }
+}
+
+@media (max-width: 900px) {
+  .reserve-inset { width: 168px; padding: 8px 10px 6px; left: 8px; bottom: 22px; }
+  .reserve-inset figcaption span, .ri-note { display: none; }
+  .brand-sub { display: none; }
+}
