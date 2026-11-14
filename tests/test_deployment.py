@@ -363,6 +363,30 @@ def test_bad_deployment_fails_at_startup(monkeypatch):
         create_app()
 
 
+def test_resource_edits_queue_a_new_fleet_and_keep_approval_required():
+    from fastapi import FastAPI
+    from station.routes_deployment import router
+
+    app = FastAPI()
+    app.include_router(router)
+    app.state.deployment = profile = load_deployment("well_resourced")
+    app.state.sim = engine = SimEngine(deployment=profile)
+    engine.on_reset = lambda: None
+    client = TestClient(app)
+    body = {"drones": 0, "ranger_teams": 4, "response_min": 20, "connectivity": "cellular"}
+    url = "/api/deployment/resources"
+    assert client.put(url, json={**body, "drones": 13}).status_code == 422
+    response = client.put(url, json=body)
+    assert response.status_code == 200 and response.json()["pending"]
+    assert len(engine.drones) == 3
+    assert response.json()["approval"]["required"]
+    engine.apply_next_deployment()
+    assert engine.drone is None
+    current = client.get("/api/deployment").json()
+    assert not current["pending"] and current["ranger_teams"] == {"count": 4, "response_min": 20}
+    assert current["connectivity"] == "cellular"
+
+
 def test_no_drone_prompt_lets_corroborated_sounds_send_a_team():
     from agent import prompts
     from common.deployment import load_deployment

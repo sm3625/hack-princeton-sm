@@ -13,7 +13,7 @@ Dispatch in the current application is still simulated.
 Start the station with `make dev`, create an incident, then in another terminal:
 
 ```sh
-make photon
+make photon-preview
 ```
 
 This reads the local station and prints proposed notifications. It makes **zero Photon
@@ -82,7 +82,12 @@ free credits are not treated as permission. No price or free allowance is assume
 **no sends**. It is not an offline test. The default duration is 600 seconds, maximum 3600;
 polling runs for the requested duration, at most 720 cycles (one hour at the 5-second minimum) and five pages per cycle. Minimum
 poll interval is five seconds. Network calls have 15-second timeouts, so an in-progress
-cycle can outlast the duration. Ctrl-C stops the worker. Run one worker per conversation.
+cycle can outlast the duration. Run `make photon` for continuous polling with zero outbound
+send attempts. Ctrl-C stops the worker. Run one worker per conversation.
+
+On the Vultr judge deployment, the unit in `deploy/systemd/forest-guardian-photon.service`
+restarts the bridge after failure and starts at boot when enabled. It reads the Photon
+credentials from `/etc/forest-guardian-photon.env` and uses the judge credential over loopback.
 
 The optional `PHOTON_STATION_URL` must be a loopback HTTP origin. The bridge is intended
 for the trusted local station, not deployment of its unauthenticated local API to the internet.

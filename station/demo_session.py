@@ -88,7 +88,7 @@ class DemoSession:
             verify=self.app.state.verify_record,
             fs_root=root / "files", db_path=root / "state.sqlite",
             models={role: get_chat_model(role, self.app.state.settings) for role in ROLES},
-            publish=publish, deployment=self.app.state.deployment,
+            publish=publish, deployment=self.app.state.sim.deployment,
         )
         self.current, self.sim = commander, sim
         self.root = root
@@ -130,6 +130,7 @@ class DemoSession:
                 await pipeline.drain()
             self.app.state.event_store.clear()
             self.app.state.receiver.counts.clear()
+            engine.apply_next_deployment()
             self.new_commander()
             engine.run_id = uuid.uuid4().hex
             bus.publish({"type": "run_reset", "run_id": engine.run_id})

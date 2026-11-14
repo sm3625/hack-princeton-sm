@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -342,6 +343,7 @@ MAX_CYCLES = 720
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", help="Enable Photon reads and ranger decisions")
+    parser.add_argument("--continuous", action="store_true", help="Keep polling until stopped (requires --live)")
     parser.add_argument("--allow-sends", type=int, default=0,
                         help="Explicit maximum send attempts this invocation (may cost credits)")
     parser.add_argument("--seconds", type=int, default=600, help="Live duration, maximum 3600")
@@ -350,8 +352,8 @@ def main(argv=None):
     parser.add_argument("--discover", action="store_true",
                         help="One read-only Photon call: print the IDs from messages you sent the line")
     args = parser.parse_args(argv)
-    if args.allow_sends < 0 or (args.allow_sends and not args.live):
-        parser.error("--allow-sends requires --live and a nonnegative limit")
+    if args.allow_sends < 0 or ((args.allow_sends or args.continuous) and not args.live):
+        parser.error("--continuous and --allow-sends require --live; send allowance must be nonnegative")
     if not 1 <= args.seconds <= 3600 or args.poll_seconds < 5:
         parser.error("--seconds must be 1..3600; --poll-seconds must be at least 5")
     bridge = None
@@ -375,7 +377,16 @@ def main(argv=None):
                     else:
                         print(f"{k}={v if v not in ('', '?') else '(not in message; ask)'}")
             return 0
-        station = Station(os.getenv("PHOTON_STATION_URL") or "http://127.0.0.1:8000")
+        url = os.getenv("PHOTON_STATION_URL") or "http://127.0.0.1:8000"
+        if password := os.getenv("STATION_JUDGE_PASSWORD"):
+            authorization = "Basic " + base64.b64encode(f"judge:{password}".encode()).decode()
+
+            def local_transport(method, url, body):
+                return request_json(method, url, body, {"Authorization": authorization})
+
+            station = Station(url, local_transport)
+        else:
+            station = Station(url)
         if not args.live:
             print("PREVIEW ONLY — no Photon calls or station mutations")
             for approval in station.pending():
@@ -389,19 +400,21 @@ def main(argv=None):
         # Enough cycles to cover the requested duration, never more than MAX_CYCLES
         # (an hour at 5 s; five pages per cycle bounds the GETs).
         cycles = min(MAX_CYCLES, -(-args.seconds // args.poll_seconds))
-        for _ in range(cycles):
-            if time.monotonic() >= deadline:
-                break
+        while args.continuous or (cycles > 0 and time.monotonic() < deadline):
             bridge.discover()
             bridge.flush()
             bridge.poll()
             bridge.flush()
-            time.sleep(min(args.poll_seconds, max(0, deadline - time.monotonic())))
+            cycles -= 1
+            time.sleep(args.poll_seconds if args.continuous else
+                       min(args.poll_seconds, max(0, deadline - time.monotonic())))
         print(f"Stopped. Unused send allowance: {photon.remaining}. Check dashboard for outcomes.")
         return 0
     except BridgeError as exc:
         print(f"Photon bridge stopped: {exc}")
         return 1
+    except KeyboardInterrupt:
+        return 0
     finally:
         if bridge:
             bridge.db.close()

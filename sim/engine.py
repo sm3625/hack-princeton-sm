@@ -75,6 +75,7 @@ class SimEngine:
         self.clock = SimClock()
         self.weather_model = WeatherModel(self.world, publish=self.publish)
         self.deployment = deployment or load_deployment()
+        self.next_deployment: Deployment | None = None
         # One Drone per profile entry. `self.drone` is the first (None at a site with no drone).
         self.drones = [Drone(self.world, self.clock, spec, did) for did, spec in self.deployment.drone_specs()]
         self.drone = self.drones[0] if self.drones else None
@@ -265,6 +266,13 @@ class SimEngine:
     def _publish_drones(self) -> None:
         for drone in self.drones:
             self.publish(drone.message())
+
+    def apply_next_deployment(self) -> None:
+        if self.next_deployment is not None:
+            self.deployment = self.next_deployment
+            self.next_deployment = None
+            self.drones = [Drone(self.world, self.clock, spec, did) for did, spec in self.deployment.drone_specs()]
+            self.drone = self.drones[0] if self.drones else None
 
     async def _run(self, runner: ScenarioRunner) -> None:
         await runner.run()

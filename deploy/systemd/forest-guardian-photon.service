@@ -1,0 +1,20 @@
+[Unit]
+Description=Forest Guardian continuous Photon bridge
+After=forest-guardian-judges.service network-online.target
+Wants=forest-guardian-judges.service network-online.target
+ConditionPathExists=/etc/forest-guardian-photon.env
+
+[Service]
+User=forest-guardian
+Group=forest-guardian
+WorkingDirectory=/opt/forest-guardian-judges
+EnvironmentFile=/etc/forest-guardian-judges.env
+EnvironmentFile=/etc/forest-guardian-photon.env
+Environment=PHOTON_STATION_URL=http://127.0.0.1:8002
+ExecStart=/opt/forest-guardian-judges/.venv/bin/python -m station.photon --live --continuous
+Restart=always
+RestartSec=15
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

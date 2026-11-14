@@ -59,6 +59,21 @@
 
     <aside class="panel" id="panel">
       <div id="summary" class="summary" aria-label="Station status" hidden></div>
+      <details class="edge-panel" id="resources-panel">
+        <summary>Site resources</summary>
+        <form id="resources-form">
+          <label>Drones <input name="drones" type="number" min="0" max="12" required></label>
+          <label>Ranger teams <input name="ranger_teams" type="number" min="1" max="50" required></label>
+          <label>Response time (min) <input name="response_min" type="number" min="1" max="1440" required></label>
+          <label>Connectivity <select name="connectivity">
+            <option value="lora">LoRa</option>
+            <option value="satellite">Satellite</option>
+            <option value="cellular">Cellular</option>
+          </select></label>
+          <button class="btn" type="submit">Save for next run</button>
+          <p id="resources-status" role="status"></p>
+        </form>
+      </details>
       <details class="edge-panel" id="edge-panel">
         <summary><span class="edge-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 1v5m6-5v5M9 18v5m6-5v5M1 9h5m-5 6h5m12-6h5m-5 6h5"/><path d="M10 10h4v4h-4z"/></svg><span>EDGE AI<small>Sound detection at the sensor</small></span></span><span id="edge-state">Checking…</span></summary>
         <div class="edge-flow" aria-label="Audio is classified locally, then detections are signed"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4m4-8v12m5-16v20m5-16v12m4-8v4"/></svg><span>Audio</span></div><span class="edge-arrow">→</span><div class="edge-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 1v5m6-5v5M9 18v5m6-5v5M1 9h5m-5 6h5m12-6h5m-5 6h5"/><path d="M10 10h4v4h-4z"/></svg><span>Local inference</span></div><span class="edge-arrow">→</span><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6z"/><path d="m8 12 3 3 5-6"/></svg><span>Signed alert</span></div></div>

@@ -1205,6 +1205,9 @@ function resetRunView(message = {}) {
   state.selectedNode = null;
   state.trailOpen = null;
   state.rain.clear();
+  state.drone = null;
+  state.map?.clearDrone();
+  $("drone-chip").hidden = true;
   $("approvals").replaceChildren();
   layoutApprovals();
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
@@ -1587,6 +1590,47 @@ async function loadHealth() {
   }
 }
 
+const resourcesForm = $("resources-form");
+
+async function loadResources() {
+  try {
+    const data = await api("/api/deployment");
+    resourcesForm.elements.drones.value = data.drones.count;
+    resourcesForm.elements.ranger_teams.value = data.ranger_teams.count;
+    resourcesForm.elements.response_min.value = data.ranger_teams.response_min;
+    resourcesForm.elements.connectivity.value = data.connectivity;
+    $("resources-panel").hidden = !data.editable;
+    $("resources-status").textContent = data.pending ? "Changes queued for the next run." : "";
+  } catch {
+    $("resources-status").textContent = "Could not load site resources.";
+  }
+}
+
+resourcesForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const fields = resourcesForm.elements;
+  const button = resourcesForm.querySelector("button");
+  button.disabled = true;
+  try {
+    await api("/api/deployment/resources", {
+      method: "PUT",
+      body: {
+        drones: fields.drones.valueAsNumber,
+        ranger_teams: fields.ranger_teams.valueAsNumber,
+        response_min: fields.response_min.valueAsNumber,
+        connectivity: fields.connectivity.value,
+      },
+    });
+    $("resources-status").textContent = "Changes queued for the next run.";
+  } catch {
+    $("resources-status").textContent = "Could not save site resources.";
+  } finally {
+    button.disabled = false;
+  }
+});
+
+window.addEventListener("demo-run-reset", loadResources);
+
 async function loadWorld() {
   for (;;) {
     try {
@@ -1601,6 +1645,7 @@ async function loadWorld() {
 async function init() {
   bindControls();
   loadHealth();
+  loadResources();
   state.world = await loadWorld();
   setConnected(true);
   for (const n of state.world.nodes) {

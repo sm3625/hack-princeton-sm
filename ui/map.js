@@ -659,6 +659,12 @@ export class ForestMap {
     this.requestFrame();
   }
 
+  clearDrone() {
+    Object.assign(this.drone, { from: null, to: null, flying: false, trail: [], path: [], target: null });
+    this.callout.hidden = true;
+    this.requestFrame();
+  }
+
   dronePos(now) {
     const d = this.drone;
     if (!d.to) return null;
@@ -734,6 +740,7 @@ export class ForestMap {
   renderDrone(now) {
     const d = this.drone;
     const pos = this.dronePos(now);
+    this.droneG.style.display = pos ? "" : "none";
     const atBase = !d.flying;
     this.droneG.classList.toggle("flying", d.flying);
     this.droneG.classList.toggle("parked", atBase);
