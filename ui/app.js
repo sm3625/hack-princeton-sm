@@ -276,7 +276,7 @@ function upsertIncident(raw) {
   if (!raw || raw.id === undefined || raw.id === null) return null;
   const id = String(raw.id);
   const inc = state.incidents.get(id) || { id, steps: [], plan: null, planHtml: null };
-  for (const key of ["sector", "status", "title", "updated_at"]) {
+  for (const key of ["sector", "status", "title", "updated_at", "assessment", "ranger_updates"]) {
     if (raw[key] !== undefined && raw[key] !== null) inc[key] = raw[key];
   }
   const plan = raw.plan ?? raw.plan_markdown ?? raw.markdown;
@@ -406,10 +406,52 @@ function renderDetail() {
       inc.updated_at !== undefined ? timeEl(inc.updated_at) : null,
     ),
     ranger,
+    feedbackSection(inc),
+    inc.assessment ? el("section", { class: "detail-section" },
+      el("h3", {}, "Current assessment"),
+      el("p", {}, inc.assessment.explanation),
+      el("p", {}, "Next: " + String(inc.assessment.next_action).replaceAll("_", " ")),
+      el("p", {}, "Why: " + inc.assessment.reason),
+      el("details", {}, el("summary", {}, "Alternative explanation"), el("p", {}, inc.assessment.alternative))) : null,
     el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
     el("section", { class: "detail-section" }, el("h3", {}, "Activity"), steps),
     el("button", { class: "btn wide", type: "button", onclick: () => openCaseFile(inc) }, icon("doc"), "Case file"),
   );
+}
+
+const feedbackDrafts = new Map();
+function feedbackSection(inc) {
+  const draft = feedbackDrafts.get(inc.id) || { text: "", outcome: "" };
+  feedbackDrafts.set(inc.id, draft);
+  const note = el("textarea", { class: "ranger-feedback-note", maxlength: "500", required: true,
+    placeholder: "What did you observe or confirm?", "aria-label": "Ranger update" });
+  const outcome = el("select", { "aria-label": "Ranger outcome" },
+    ...[["", "Message / correction"], ["confirmed_threat", "Confirmed threat"],
+      ["authorized_activity", "Authorized activity"], ["false_alarm", "False alarm"],
+      ["unresolved", "Unresolved"]].map(([value, label]) => el("option", { value }, label)));
+  note.value = draft.text;
+  outcome.value = draft.outcome;
+  note.addEventListener("input", () => { draft.text = note.value; });
+  outcome.addEventListener("change", () => { draft.outcome = outcome.value; });
+  const status = el("p", { role: "status", class: "muted" });
+  const submit = el("button", { type: "submit", class: "btn" }, "Send ranger update");
+  const form = el("form", { onsubmit: async (event) => {
+    event.preventDefault();
+    if (!note.value.trim()) { status.textContent = "Enter a ranger note."; return; }
+    submit.disabled = true;
+    try {
+      await api(`/api/incidents/${encodeURIComponent(inc.id)}/messages`, { method: "POST",
+        body: { text: note.value.trim(), outcome: outcome.value || null } });
+      note.value = "";
+      feedbackDrafts.delete(inc.id);
+      status.textContent = "Update saved. Pending proposals will be reassessed; prior dispatches cannot be recalled here.";
+      refreshIncident(inc.id);
+    } catch { status.textContent = "Could not save the update. Please try again."; }
+    finally { submit.disabled = false; }
+  } }, outcome, note, submit, status);
+  const latest = inc.ranger_updates?.at(-1);
+  return el("section", { class: "detail-section" }, el("h3", {}, "Message ranger station"),
+    latest ? el("p", {}, "Last ranger report: " + latest.text) : null, form);
 }
 
 function renderMapIncidents() {

@@ -1,0 +1,106 @@
+{
+  "mode": "ollama",
+  "model": "qwen3:8b",
+  "cases": [
+    {
+      "case": "rain",
+      "passed": true,
+      "status": "awaiting_approval",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "Multiple strong chainsaw reports from independent nodes in sector D4, despite rain and wind, warrant investigation. Drone observation can confirm or refute the threat.",
+          "alternative": "Wait for a recheck without drone verification",
+          "next_action": "propose_dispatch",
+          "reason": "The risk of a real threat outweighs the uncertainty, and drone verification is feasible.",
+          "records": [
+            [
+              5,
+              1
+            ],
+            [
+              8,
+              1
+            ]
+          ],
+          "observation_count": 0,
+          "ranger_update_count": 0
+        }
+      ],
+      "observations": [],
+      "pending": [
+        "Investigate chainsaw activity in sector D4. Two independent nodes detected chainsaw sounds with high confidence despite rain and wind. Request ranger assessment to confirm or dismiss the threat."
+      ],
+      "wall_s": 115.96
+    },
+    {
+      "case": "unavailable",
+      "passed": true,
+      "status": "awaiting_approval",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "The drone flight to sector D4 is not feasible due to insufficient battery. Without aerial verification, we cannot confirm the presence of a threat.",
+          "alternative": "Propose ranger assessment without drone verification.",
+          "next_action": "propose_dispatch",
+          "reason": "Strong acoustic evidence from two independent nodes in dry weather warrants ranger assessment, even without drone confirmation.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 0
+        }
+      ],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "unavailable",
+          "content": "route not feasible",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [
+        "No aerial verification: route not feasible. Chainsaw detected in sector D4 by two independent nodes. Need to verify and respond."
+      ],
+      "wall_s": 93.25
+    },
+    {
+      "case": "camera",
+      "passed": false,
+      "status": "awaiting_approval",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "assessments": [],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "observed",
+          "content": "Inconclusive: dense canopy; no activity seen in the visible clearing.",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [
+        "Camera report (limited coverage): Inconclusive: dense canopy; no activity seen in the visible clearing. Chainsaw detected in sector D4 by two independent nodes. Need to verify and respond."
+      ],
+      "wall_s": 88.57
+    },
+    {
+      "case": "correction",
+      "passed": false,
+      "error": "timeout",
+      "limit_s": 180.0
+    }
+  ]
+}

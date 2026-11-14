@@ -261,6 +261,9 @@ class SimEngine:
         await runner.run()
         if runner is self.runner:
             self.clock.pause()
+            # Scheduler latency is not simulated activity. At 60x, a busy local
+            # model can otherwise move the end of a scenario several seconds.
+            self.clock.set_time(runner.scenario.end)
             self.publish(self.clock_message())
             log.info("scenario %s finished (%d events)", runner.scenario.name, runner.fired)
 

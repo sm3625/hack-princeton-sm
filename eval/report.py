@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VARIANTS = (("mock", "live"), ("mock", "waits"), ("ollama", "live"), ("ollama", "waits"))
+VARIANTS = tuple((m, p) for m in ("mock", "ollama", "haiku") for p in ("live", "waits", "lockstep"))
 
 
 def label(mode: str, pace: str, model: str = "", speed: float | None = None) -> str:
     if mode == "mock":
         name = "Mock model"
+    elif mode == "haiku":
+        name = f"Cloud model ({model})"
     else:
         name = f"Local model ({model})" if model else "Local model"
-    if pace == "waits":
+    if pace == "lockstep":
+        suffix = ", lockstep"
+    elif pace == "waits":
         suffix = ", sim waits"
     elif speed is not None:
         suffix = f", live {speed:g}x"
@@ -22,7 +26,7 @@ def label(mode: str, pace: str, model: str = "", speed: float | None = None) -> 
 
 
 def _run(data: dict, scenario: str, mode: str, memory: str = "fresh", pace: str = "live") -> dict | None:
-    return data["runs"].get(f"{scenario}:{mode}:{memory}" + (":waits" if pace == "waits" else ""))
+    return data["runs"].get(f"{scenario}:{mode}:{memory}" + (f":{pace}" if pace in ("waits", "lockstep") else ""))
 
 
 def _secs(s: float) -> str:
@@ -142,7 +146,16 @@ def write_report(data: dict, path: Path) -> None:
         "time, approval waits excluded; the baseline has no analysis step. Live runs use the recorded simulation "
         "speed. Sim waits holds the clock during agent work, but the clock advances during drone flights. "
         "This is pacing assistance, not a strict lockstep replay with identical observations. Older runs without speed metadata are "
-        "labeled simply live."
+        "labeled simply live. Scoring v2 requires an executed dispatch with a snapshot of real evidence; "
+        "approval alone earns no catch. Legacy results retain their original approval-based scoring. "
+        "Lockstep runs deliver events and complete inference synchronously, advancing through intervening "
+        "events during drone travel; real model responses can still vary. Synthetic clips are reported in JSON."
     )
     parts += [note, ""]
+    for key, run in data["runs"].items():
+        if run.get("pace") == "lockstep":
+            parts.append(f"- {key}: scoring v{run['commander'].get('scoring_version', 1)}, "
+                         f"{run.get('synthetic_clips', 0)}/{run.get('events_processed', 0)} synthetic clips. "
+                         "Mock decisions validate the harness, not real-model judgment.")
+
     path.write_text("\n".join(parts))

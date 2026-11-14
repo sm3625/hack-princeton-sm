@@ -7,7 +7,7 @@
 Each run starts a station process (real classifier, signing, receiver, commander) with temp
 database, keys and agent folders, plays the night at 60x over HTTP and plays the ranger: it
 approves approvals for real incidents and rejects the rest, so the night finishes unattended.
-Results are merged into eval/results.json and eval/report.md. Never uses a paid model.
+Results are merged into eval/results.json and eval/report.md. Cloud mode is opt-in via --mode haiku and requires credentials.
 """
 
 from __future__ import annotations
@@ -31,15 +31,16 @@ from typing import Any
 
 from websockets.exceptions import ConnectionClosed
 
+from agent.llm import HAIKU_MODEL
 from common.contracts import ROOT, load_world
 from eval import metrics
 from eval.report import write_report
 from sim.scenario import load_scenario
 
 RESULTS = ROOT / "eval" / "results.json"
-MODES = ("mock", "ollama")
-QUIET_S = {"mock": 20.0, "ollama": 150.0}  # no agent activity for this long = night is done
-DEFAULT_MAX_MIN = {"mock": 30.0, "ollama": 20.0}
+MODES = ("mock", "ollama", "haiku")
+QUIET_S = {"mock": 20.0, "ollama": 150.0, "haiku": 60.0}  # no agent activity for this long = night is done
+DEFAULT_MAX_MIN = {"mock": 30.0, "ollama": 20.0, "haiku": 20.0}
 
 
 def free_port() -> int:
@@ -50,7 +51,7 @@ def free_port() -> int:
 
 def pace_clock(station: Station, sim: dict, busy: bool, sim_waits: bool) -> None:
     """Hold inference time, but let a blocking drone flight advance and finish."""
-    flying = sim["drone"]["flying"]
+    flying = any(d["flying"] for d in sim.get("drones", []) or [sim.get("drone") or {}] if d)
     if not sim["running"]:
         paused = not flying  # a flight can outlast the scenario's automatic pause
     elif sim_waits:
@@ -203,7 +204,7 @@ def run_night(
                 for m in station.messages
                 if m.get("type") == "approval"
             )
-            if (not sim["running"] and not sim["drone"]["flying"] and not busy
+            if (not sim["running"] and not any(d["flying"] for d in sim.get("drones", []) or [sim.get("drone") or {}] if d) and not busy
                     and quiet > QUIET_S[mode] and not pending):
                 break
         wall = time.monotonic() - began
@@ -215,7 +216,7 @@ def run_night(
             "scenario": scenario_name,
             "mode": mode,
             "memory": "carried" if memory_from else "fresh",
-            "model": os.getenv("OLLAMA_MODEL", "qwen3:8b") if mode == "ollama" else "mock",
+            "model": os.getenv("OLLAMA_MODEL", "qwen3:8b") if mode == "ollama" else HAIKU_MODEL if mode == "haiku" else "mock",
             "speed": speed,
             "pace": "waits" if sim_waits else "live",
             "from": from_time,
@@ -246,7 +247,7 @@ def _truth(station: Station, scenario, rows: list[dict] | None = None) -> dict[t
 
 def _decide(station: Station, msg: dict, truth: dict) -> str:
     view = station.request("GET", f"/api/incidents/{msg['incident_id']}")[1]
-    decision = "approve" if metrics.want_dispatch(view, truth) else "reject"
+    decision = "approve" if metrics.want_dispatch(msg if "records" in msg else view, truth) else "reject"
     note = "" if decision == "approve" else "Not a real incident."
     station.request("POST", f"/api/approvals/{msg['approval_id']}", {"decision": decision, "note": note})
     return decision
@@ -261,7 +262,7 @@ def load_results(path: Path = RESULTS) -> dict:
 
 def save(result: dict, path: Path = RESULTS) -> None:
     data = load_results(path)
-    key = f"{result['scenario']}:{result['mode']}:{result['memory']}" + (":waits" if result.get("pace") == "waits" else "")
+    key = f"{result['scenario']}:{result['mode']}:{result['memory']}" + (f":{result['pace']}" if result.get("pace") in ("waits", "lockstep") else "")
     data["runs"][key] = result
     data["updated"] = datetime.now().isoformat(timespec="seconds")
     path.write_text(json.dumps(data, indent=2) + "\n")
@@ -275,6 +276,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--after", help="play this night first and carry its memory into --scenario")
     ap.add_argument("--all", action="store_true", help="night1, then night2 fresh and night2 after night1")
     ap.add_argument("--sim-waits", action="store_true", help="hold the sim during agent work, except while the drone flies")
+    ap.add_argument("--lockstep", action="store_true", help="deterministic synchronous pipeline replay")
     ap.add_argument("--speed", type=float, default=60.0)
     ap.add_argument("--from", dest="from_time", help="skip ahead to this clock time, e.g. 02:00")
     ap.add_argument("--max-minutes", type=float, help="wall-time cap per night")
@@ -284,7 +286,14 @@ def main(argv: list[str] | None = None) -> None:
     lock = threading.Lock()
 
     def play(name: str, memory: Path | None = None) -> Path:
-        result, folder = run_night(name, args.mode, memory_from=memory, **kw)
+        if args.lockstep:
+            if args.from_time or args.sim_waits:
+                ap.error("--lockstep cannot be combined with --from or --sim-waits")
+            from eval.lockstep import run_lockstep
+            result, folder = run_lockstep(name, args.mode, memory_from=memory,
+                                         max_wall_min=args.max_minutes or 30)
+        else:
+            result, folder = run_night(name, args.mode, memory_from=memory, **kw)
         with lock:
             save(result)
         return folder

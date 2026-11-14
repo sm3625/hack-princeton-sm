@@ -233,7 +233,9 @@ def test_ranger_message_wakes_the_commander(h):
     h.commander.decide(h.pending()[0].id, "approve")
     h.commander.message(inc_id, "Team on site, two people fled north.")
     h.tick("02:30:00")
-    assert any("ranger's message" in m["summary"] for m in h.of_type("agent_step"))
+    inc = h.commander.incidents.get(inc_id)
+    assert inc.assessments and "two people fled north" in inc.assessments[-1]["reason"]
+    assert inc.status == "watching"
     with pytest.raises(NotFound):
         h.commander.message("no-such-incident", "hi")
 
@@ -264,7 +266,7 @@ def test_agent_shape(tmp_path):
     h.tick("03:30:00")
     names = {role: sorted(t.name for t in tools) for role, tools in Recording.bound.items()}
     assert names["commander"] == sorted(
-        ["dispatch_rangers", "edit_file", "get_detections", "get_incident_evidence", "get_node_info", "get_weather", "ls",
+        ["compare_response_options", "record_assessment", "dispatch_rangers", "edit_file", "get_detections", "get_incident_evidence", "get_node_info", "get_weather", "ls",
          "read_file", "remember", "schedule_check", "set_status", "task", "write_file"]
     )
     # sub-agent tools replace the parent's: no dispatch, no task (no nested delegation)
@@ -312,6 +314,14 @@ def test_repeat_dispatch_after_reject_is_refused_by_code(h, monkeypatch):
     # new evidence lifts the block: the next request goes to a ranger again
     h.hear("Arroyo Recodo", 42, "02:51:00", S.CHAINSAW, 0.95)
     h.commander.message(inc_id, "and now?")
+    # New evidence lifts repeat suppression, but the camera/feedback snapshot still
+    # requires a current assessment before a new proposal may reach the ranger.
+    from agent.tools import make_tools
+    make_tools(h.commander.services)["record_assessment"].invoke(
+        {"explanation": "Threat reports continue", "alternative": "Noise",
+         "next_action": "propose_dispatch", "reason": "Fresh evidence warrants renewed human review"},
+        {"configurable": {"incident_id": inc_id}},
+    )
     h.tick("02:52:00")
     assert len(h.pending()) == 1
 

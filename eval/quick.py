@@ -8,13 +8,14 @@ at the decision: a dispatch request, or dismissed/watching. No approval, follow-
 
 Each case runs in its own process with a time limit, so a stuck model cannot eat the budget.
 It does NOT test the classifier, the radio, night-long grouping or 60x time pressure: the full
-replay (eval.run) does. Never calls a paid model.
+replay (eval.run) does. Cloud mode must be explicitly selected with --mode haiku or LLM_MODE=haiku.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -84,9 +85,12 @@ def run_case(case_id: str, out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--mode", choices=("ollama", "haiku", "mock"))
     ap.add_argument("--case", help=argparse.SUPPRESS)
     ap.add_argument("--out", help=argparse.SUPPRESS)
     args = ap.parse_args()
+    if args.mode:
+        os.environ["LLM_MODE"] = args.mode
     if args.case:
         run_case(args.case, Path(args.out))
         return
@@ -94,9 +98,8 @@ def main() -> None:
     from station.config import load_settings
 
     settings = load_settings()
-    if settings.llm_mode != "ollama":
-        sys.exit(f"eval.quick runs on the local model only; LLM_MODE is {settings.llm_mode}")
-    _warm_up(settings.ollama_model)
+    if settings.llm_mode == "ollama":
+        _warm_up(settings.ollama_model)
     start, rows = time.monotonic(), []
     for cid, title, expected, _rain, _recs in CASES:
         left = TOTAL_LIMIT_S - (time.monotonic() - start)
@@ -125,8 +128,12 @@ def main() -> None:
         rows.append(row)
         print(f"[{cid}] {title}: {got} ({'ok' if row['correct'] else 'WRONG'}, {row['case_wall_s']} s)", flush=True)
     total = round(time.monotonic() - start, 1)
-    result = {"model": settings.ollama_model, "total_s": total, "cases": rows,
+    from agent.llm import HAIKU_MODEL
+    model = settings.ollama_model if settings.llm_mode == "ollama" else HAIKU_MODEL if settings.llm_mode == "haiku" else "mock"
+    result = {"mode": settings.llm_mode, "model": model, "total_s": total, "cases": rows,
               "correct": sum(r["correct"] for r in rows), "of": len(rows)}
+    OUT_JSON.with_name(f"quick_{settings.llm_mode}.json").write_text(json.dumps(result, indent=2) + "\n")
+    OUT_MD.with_name(f"quick_{settings.llm_mode}.md").write_text(_report(result))
     OUT_JSON.write_text(json.dumps(result, indent=2) + "\n")
     OUT_MD.write_text(_report(result))
     print(f"{result['correct']}/{result['of']} correct in {total} s; wrote {OUT_MD.relative_to(ROOT)}")

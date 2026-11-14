@@ -136,6 +136,11 @@ class Incident:
     dispatches: list[dict] = field(default_factory=list)
     in_rain: bool | None = None  # True while every record so far was heard in rain; None = unknown
     rejected_at_records: int | None = None  # record count when a ranger last rejected dispatch
+    heads_up_at: int | None = None  # when code sent the immediate "possible threat" notice
+    heads_up: str = ""
+    observations: list[dict] = field(default_factory=list)
+    ranger_updates: list[dict] = field(default_factory=list)
+    assessments: list[dict] = field(default_factory=list)
 
     @property
     def thread_id(self) -> str:
@@ -147,6 +152,10 @@ class Incident:
 
     def node_ids(self) -> list[int]:
         return [int(k) for k in self.weights]
+
+    def ranger_outcome(self) -> str | None:
+        """Free-form messages do not erase an explicit ranger outcome."""
+        return next((u["outcome"] for u in reversed(self.ranger_updates) if u.get("outcome")), None)
 
     def public(self, world: World) -> dict[str, Any]:
         """What the UI may see: names, never numeric node ids."""
@@ -163,6 +172,11 @@ class Incident:
             "records": len(self.records),
             "location": {"x_m": round(self.x_m), "y_m": round(self.y_m)},
             "next_check_at": self.next_check_at,
+            "heads_up_at": self.heads_up_at,
+            "heads_up": self.heads_up,
+            "observations": self.observations,
+            "ranger_updates": self.ranger_updates,
+            "assessment": self.assessments[-1] if self.assessments else None,
         }
 
     def to_json(self) -> str:

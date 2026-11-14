@@ -9,6 +9,7 @@ those clock times, so a sim that feeds separate clips at different sim times beh
 from __future__ import annotations
 
 import io
+import json
 import logging
 import math
 import os
@@ -47,6 +48,59 @@ IMPULSE_HITS = 2
 HITS_REQUIRED = {SoundClass.GUNSHOT: IMPULSE_HITS}
 SUPPRESS_S = 30.0
 CLIP_S = 5.0
+
+# Per-node adaptive thresholds. Each node keeps a slow running rate of "windows that looked like
+# class X" per class. A real event lasts minutes; a noise source next to the node (generator,
+# insects, a loose panel in the wind) lasts hours. So a rate that stays high for a long time is
+# the node's own baseline, and its threshold for that class rises a little.
+ADAPT_WINDOWS = 7200  # memory of the running rate, in windows (1 h of continuous audio)
+ADAPT_FREE_RATE = 0.02  # a hit rate up to this never moves the threshold
+ADAPT_GAIN = 0.6  # threshold rise per unit of hit rate above the free rate
+ADAPT_MAX_RAISE = 0.12
+MAX_THRESHOLD = 0.97
+BASELINE_SAVE_EVERY = 600  # windows between baseline saves
+
+
+class AdaptiveThresholds:
+    """Base threshold per class (from the model's calibration, else DEBOUNCE_CONFIDENCE) plus a
+    per-node rise learned from that node's own long-run hit rate."""
+
+    def __init__(self, base: dict[SoundClass, float] | None = None, *, adaptive: bool = True):
+        self.base = {SoundClass(k): float(v) for k, v in (base or {}).items()}
+        self.adaptive = adaptive
+        self.rate: dict[SoundClass, float] = {}
+
+    def base_for(self, sound: SoundClass) -> float:
+        return self.base.get(sound, DEBOUNCE_CONFIDENCE)
+
+    def threshold(self, sound: SoundClass) -> float:
+        base = self.base_for(sound)
+        if not self.adaptive:
+            return base
+        rise = ADAPT_GAIN * max(0.0, self.rate.get(sound, 0.0) - ADAPT_FREE_RATE)
+        return max(base, min(MAX_THRESHOLD, base + min(ADAPT_MAX_RAISE, rise)))
+
+    def observe(self, pred: Prediction) -> None:
+        """Count one window. Hits are judged at the base threshold, so a raised threshold
+        cannot hide the noise that raised it."""
+        hit_sound = (
+            pred.sound
+            if pred.sound != SoundClass.BACKGROUND and pred.confidence >= self.base_for(pred.sound)
+            else None
+        )
+        for sound in set(self.rate) | ({hit_sound} if hit_sound is not None else set()):
+            r = self.rate.get(sound, 0.0)
+            self.rate[sound] = r + ((1.0 if sound == hit_sound else 0.0) - r) / ADAPT_WINDOWS
+
+    def to_json(self) -> dict:
+        return {s.name.lower(): round(r, 6) for s, r in self.rate.items()}
+
+    def load_json(self, data: dict) -> None:
+        for name, r in data.items():
+            try:
+                self.rate[SoundClass[name.upper()]] = min(1.0, max(0.0, float(r)))
+            except (KeyError, TypeError, ValueError):
+                continue
 
 
 @dataclass(frozen=True)
@@ -107,6 +161,7 @@ class NodeRuntime:
         *,
         limits: NodeLimits | None = None,
         on_window: Callable[[float, Prediction], None] | None = None,
+        adaptive: bool = True,
     ) -> None:
         self.node = node
         self.limits = limits or NodeLimits()
@@ -129,6 +184,13 @@ class NodeRuntime:
         self.node_dir.mkdir(parents=True, exist_ok=True)
         self._seq_file = self.node_dir / "seq"
         self._seq = int(self._seq_file.read_text()) if self._seq_file.exists() else 0
+        self.thresholds = AdaptiveThresholds(getattr(classifier, "thresholds", None), adaptive=adaptive)
+        self._baseline_file = self.node_dir / "baseline.json"
+        if adaptive and self._baseline_file.exists():
+            try:
+                self.thresholds.load_json(json.loads(self._baseline_file.read_text()))
+            except (OSError, ValueError, AttributeError):
+                log.warning("node %s: unreadable baseline, starting fresh", node.name)
 
         self._win = int(SAMPLE_RATE * WINDOW_S)
         self._hop = int(SAMPLE_RATE * HOP_S)
@@ -182,6 +244,9 @@ class NodeRuntime:
             if self._on_window:
                 self._on_window(t, pred)
             self._history.append(pred)
+            self.thresholds.observe(pred)
+            if self.thresholds.adaptive and self.counters["windows"] % BASELINE_SAVE_EVERY == 0:
+                self._save_baseline()
             detection = self._debounce(t, end)
             if detection:
                 emitted.append(detection)
@@ -198,7 +263,8 @@ class NodeRuntime:
         hits = [
             p
             for p in self._history
-            if p.sound != SoundClass.BACKGROUND and p.confidence >= DEBOUNCE_CONFIDENCE
+            if p.sound != SoundClass.BACKGROUND
+            and p.confidence >= self.thresholds.threshold(p.sound)
         ]
         if not hits:
             return None
@@ -221,6 +287,12 @@ class NodeRuntime:
             return None
         confidence = sum(p.confidence for p in hits if p.sound == sound) / count
         return self._emit(t, end, sound, confidence)
+
+    def _save_baseline(self) -> None:
+        try:
+            _write_atomic(self._baseline_file, json.dumps(self.thresholds.to_json()).encode())
+        except OSError:
+            log.warning("node %s: could not save baseline", self.node.name)
 
     def _within_budget(self, t: float) -> bool:
         while self._emitted_at and self._emitted_at[0] <= t - 3600:
@@ -254,6 +326,8 @@ class NodeRuntime:
             raise LimitError(f"record is {len(record)} bytes; limit {self.limits.max_record_bytes}")
         self._emitted_at.append(t)
         self.counters["events"] += 1
+        if self.thresholds.adaptive:
+            self._save_baseline()
         log.info("node %s: %s %.2f seq %d", self.node.name, sound.name.lower(), confidence, seq)
         try:
             self._send(record)
@@ -275,5 +349,11 @@ class NodeRuntime:
             "events_last_hour": len(self._emitted_at),
             "max_events_per_hour": self.limits.max_events_per_hour,
             "seq": self._seq,
+            "thresholds": {
+                s.name.lower(): round(self.thresholds.threshold(s), 3)
+                for s in SoundClass
+                if s != SoundClass.BACKGROUND
+                and (s in self.thresholds.base or s in self.thresholds.rate)
+            },
             **self.counters,
         }

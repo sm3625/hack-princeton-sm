@@ -207,3 +207,35 @@ def test_node_to_station_end_to_end_with_loss_shows_seq_gaps(tmp_path):
     assert len(got) == link.stats.sent and 0 < len(got) < 10  # some lost, no retries
     assert all(d.verified for d in store.query())
     assert [m["type"] for m in messages] == ["detection"] * len(got)
+
+
+def test_replay_stays_rejected_after_the_stored_record_is_tampered():
+    """The tamper demo marks the row unverified; the seq must stay taken (finding 3)."""
+    rx, store, _ = rig()
+    hooked = []
+    rx.on_verified.append(hooked.append)
+    original = record()
+    assert rx.handle(original).accepted
+    assert rx.tamper(5, 1)["verified"] is False
+    out = rx.handle(original)
+    assert (out.accepted, out.reason) == (False, "replay")
+    assert len(hooked) == 1 and store.query() == []
+    assert rx.tamper(5, 1)["verified"] is True  # the demo can still restore the original
+
+
+def test_forged_packets_are_capped_and_never_evict_real_evidence():
+    """Anyone can send to the UDP port: forged rows are a ring buffer, not unbounded (finding 4)."""
+    messages: list[dict] = []
+    store = SqliteEventStore(max_unverified=40)
+    rx = Receiver(store, PUBLIC, WORLD, publish=messages.append)
+    assert rx.handle(record(seq=1)).accepted
+    rx.tamper(5, 1)  # an unverified row that is real evidence
+    for seq in range(2, 402):
+        forged = bytearray(record(seq=seq))
+        forged[OFFSET_CONFIDENCE] ^= 0xFF
+        assert rx.handle(bytes(forged)).reason == "bad_signature"
+    assert store.unverified_count() <= 40 + 32 + 1
+    assert store.pruned >= 300
+    assert store.find(5, 1) is not None  # the tampered original survived the flood
+    assert rx.counts["bad_signature"] == 401  # every forged packet is still counted
+    assert rx.handle(record(seq=2)).accepted  # and the real seq 2 is not blocked

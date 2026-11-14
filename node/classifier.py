@@ -113,6 +113,10 @@ class TFLiteClassifier:
         self.model_bytes: int = self.model_path.stat().st_size
         names = meta.get("classes", ["background", "chainsaw", "gunshot", "vehicle"])
         self.classes: tuple[SoundClass, ...] = tuple(SoundClass[n.upper()] for n in names)
+        # per-class debounce thresholds calibrated on validation folds (node.runtime reads these)
+        self.thresholds: dict[SoundClass, float] = {
+            SoundClass[k.upper()]: float(v) for k, v in (meta.get("thresholds") or {}).items()
+        }
         self.num_threads = num_threads
         self._interp = None
         self._lock = threading.Lock()

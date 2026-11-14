@@ -16,7 +16,7 @@ from sim.scenario import ScenarioEvent
 
 MATCH_WINDOW_S = 120  # a record belongs to the nearest scenario event on its node within this
 NOISY_NODE = "El Bajo"  # rains false alarms all night in both scenarios
-DISPATCHED = ("approved", "edited")
+SCORING_VERSION = 2
 
 
 def real_groups(events: Iterable[ScenarioEvent]) -> list[str]:
@@ -79,7 +79,8 @@ def score_commander(
 ) -> dict[str, Any]:
     """Incidents the commander opened and the approvals it put in front of rangers.
 
-    A request is false when the stand-in ranger (eval.run) rejected it: nothing real in the incident then."""
+    Catches require an executed dispatch with real evidence in its recorded snapshot.
+    Approvals alone, failed tools, and evidence arriving after dispatch cannot earn credit."""
     truth = {(r["node"], r["seq"]): group_of(match_event(events, start, r["node"], r["timestamp"])) for r in rows}
     groups = real_groups(events)
     detected = {g for g in truth.values() if g}
@@ -89,13 +90,17 @@ def score_commander(
     for v in views:
         g = incident_groups(v, truth)
         approvals = [a for a in v["approvals"] if a["status"] != "stale"]  # stale: superseded, never shown
-        sent = [a for a in approvals if a["status"] in DISPATCHED]
+        sent = v.get("dispatches", [])
         requests += len(approvals)
-        false_requests += sum(a["status"] == "rejected" for a in approvals)  # the stand-in ranger said no
-        if not g:
-            false_dispatches += len(sent)
-        if sent:
-            caught |= g
+        false_requests += sum(
+            not incident_groups(a, truth) if "records" in a else a["status"] == "rejected"
+            for a in approvals
+        )
+        for dispatch in sent:
+            # Legacy dispatches without evidence snapshots cannot be verified retroactively.
+            dispatched_groups = incident_groups({"records": dispatch.get("records", [])}, truth)
+            caught |= dispatched_groups
+            false_dispatches += not bool(dispatched_groups)
         stats = v.get("stats") or {}
         steps = stats.get("steps", {})
         per_incident.append({
@@ -112,6 +117,7 @@ def score_commander(
     walls = [p["wall_s"] for p in per_incident]
     real_walls = [p["wall_s"] for p in per_incident if p["real"]]
     return {
+        "scoring_version": SCORING_VERSION,
         "incidents": len(per_incident),
         "requests": requests,
         "real_detected": len(detected),

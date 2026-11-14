@@ -1,0 +1,49 @@
+# Demo: about 2 minutes at 20x. Sounds come in quick succession so the agent is visibly busy
+# from the first seconds. Three incidents for the model to judge, plus follow-up sounds that join
+# them: rain false alarms on the west side, a logging crew in dry sectors, then gunshots near the
+# south ranger post. Run with `uv run python -m eval.demo` (see eval/demo.py).
+# Times are station-local clock times; quote them.
+title: Demo (2 min)
+date: 2026-11-14
+start: "02:00"
+end: "02:36"
+speed: 20
+
+weather:
+  - {at: "02:00", sectors: all, rain: false, wind_kph: 6}
+  - {at: "02:00", sectors: "A1:C6", rain: true, wind_kph: 24}
+
+# What the drone camera sees over a sector (default: "no activity seen").
+drone:
+  - {sector: E4, see: "fresh clearing, chainsaw crew of three, one truck", from: "02:00", until: "02:36"}
+  - {sector: D2, see: "two people with rifles beside a pickup", from: "02:14", until: "02:36"}
+
+events:
+  # ~2 s in: rain makes El Bajo "hear" a chainsaw, then again, then its neighbour does too.
+  - {at: "02:00:40", node: El Bajo, sound: chainsaw, confidence: 0.82, duration: 6,
+     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_1.wav}
+  - {at: "02:01:40", node: El Bajo, sound: chainsaw, confidence: 0.80, duration: 6,
+     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_2.wav}
+  - {at: "02:02:40", node: Hondonada, sound: chainsaw, confidence: 0.81, duration: 6,
+     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_3.wav}
+
+  # ~12 s in: a real chainsaw in dry sectors, heard by three nodes within 20 s.
+  - {at: "02:04:00", node: Arroyo Recodo, sound: chainsaw, confidence: 0.93, duration: 8,
+     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_1.wav}
+  - {at: "02:04:10", node: Paso Musgo, sound: chainsaw, confidence: 0.88, duration: 8,
+     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_1.wav}
+  - {at: "02:04:20", node: Brecha Vieja, sound: chainsaw, confidence: 0.90, duration: 8,
+     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_2.wav}
+  # ~25 s and ~35 s in: the saw keeps going, then a truck comes for the logs.
+  - {at: "02:08:20", node: Arroyo Recodo, sound: chainsaw, confidence: 0.95, duration: 8,
+     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_3.wav}
+  - {at: "02:11:40", node: Brecha Vieja, sound: vehicle, confidence: 0.86, duration: 8,
+     source: truck, label: real, incident: logging, clip: esc50/engine_2.wav}
+
+  # ~45 s in: two gunshots near the south post, heard by two dry nodes, then a vehicle leaving.
+  - {at: "02:15:00", node: Ceibal, sound: gunshot, confidence: 0.94, duration: 3,
+     source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "02:15:05", node: Puesto Sur, sound: gunshot, confidence: 0.88, duration: 3,
+     source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "02:18:20", node: Puesto Sur, sound: vehicle, confidence: 0.84, duration: 8,
+     source: truck, label: real, incident: poaching, clip: esc50/engine_3.wav}

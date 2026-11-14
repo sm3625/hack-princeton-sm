@@ -326,3 +326,27 @@ def test_results_keep_live_and_waiting_memory_runs_separate(browser, server):
     waits = page.locator(".res-card").filter(has=page.get_by_role("heading", name="Night 1 · Local · sim waits"))
     expect(live).to_contain_text("Memory: 40 → 31 triage steps")
     expect(waits).to_contain_text("Memory: 40 → 17 triage steps")
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_ranger_feedback_form_preserves_draft_and_submits(browser, server, width):
+    page = open_page(browser, server, viewport={"width": width, "height": 850})
+    inc = {"id": "feedback-case", "sector": "E5", "status": "watching", "title": "Review activity"}
+    posted = []
+    page.route("**/api/incidents/feedback-case", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps({"incident": inc})))
+    def submit(route):
+        posted.append(json.loads(route.request.post_data))
+        route.fulfill(status=202, content_type="application/json", body='{"ok":true}')
+    page.route("**/api/incidents/feedback-case/messages", submit)
+    page.goto(server.url + "/incident/feedback-case")
+    note = page.get_by_role("textbox", name="Ranger update")
+    note.fill("Permit verified <script>not markup</script>")
+    page.get_by_role("combobox", name="Ranger outcome").select_option("authorized_activity")
+    server.publish({"type": "incident", "incident": {**inc, "updated_at": 999}})
+    expect(note).to_have_value("Permit verified <script>not markup</script>")
+    page.get_by_role("button", name="Send ranger update").click()
+    expect(note).to_have_value("")
+    assert posted == [{"text": "Permit verified <script>not markup</script>", "outcome": "authorized_activity"}]
+    assert page.errors == []
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")

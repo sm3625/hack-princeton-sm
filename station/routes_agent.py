@@ -95,6 +95,7 @@ class Decision(BaseModel):
 
 class RangerMessage(BaseModel):
     text: str = Field(..., min_length=1, max_length=500)
+    outcome: Literal["confirmed_threat", "authorized_activity", "false_alarm", "unresolved"] | None = None
 
 
 @router.get("/api/incidents")
@@ -121,7 +122,9 @@ def get_case_file(incident_id: str, c: CommanderDep) -> dict:
 @router.post("/api/incidents/{incident_id}/messages", status_code=202)
 def post_message(incident_id: str, body: RangerMessage, c: CommanderDep) -> dict:
     try:
-        c.message(incident_id, body.text)
+        c.message(incident_id, body.text, body.outcome)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
     except NotFound:
         raise HTTPException(404, "No such incident.") from None
     return {"ok": True}

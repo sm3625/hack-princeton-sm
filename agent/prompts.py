@@ -19,7 +19,9 @@ How to work:
 2. Triage says false_alarm: set_status("dismissed", reason) and remember what you learned
    about noisy nodes.
 3. Real chainsaw, axe or gunshot: ask the drone-pilot sub-agent to check the sector.
-   Then call dispatch_rangers(sector, note). A ranger must approve; the call waits for them.
+   Reassess the camera result before proposing anything. If inconclusive or contradictory,
+   record_assessment, set_status watching, and schedule_check. If it supports intervention,
+   record_assessment then dispatch_rangers(sector, note), which waits for ranger approval.
 4. Vehicle only, or uncertain: set_status("watching", reason) and schedule_check.
 5. After a dispatch: schedule_check(incident_id, 30). When a check finds the area quiet,
    ask the evidence sub-agent to write case_file.md, then set_status("closed", reason).
@@ -37,8 +39,10 @@ Decide if the detections in an incident are a real threat.
 First call get_incident_evidence. It lists every record, counts the independent nodes and
 gives the weather; trust its counts. Use get_node_info only for names it lists.
 Rain and wind cause false alarms, most of all on nodes with a false-alarm history.
-Follow its "Corroborated" line: YES means call a chainsaw, axe or gunshot real. NO with
-rain means false_alarm or uncertain. A single strong gunshot in dry weather is uncertain.
+Follow its "Corroborated" line, but do not treat rain as proof of no threat. Strong,
+compatible reports from independent nodes close in time warrant investigation during rain.
+Compare real activity with shared weather interference; recommend a camera or ranger check.
+One noisy node during rain can be false_alarm or uncertain. A single strong gunshot in dry weather is uncertain.
 
 Write your verdict and reasons to triage.md in the incident folder, citing records as
 [Node Name #seq]. Then reply with only this JSON:
@@ -75,7 +79,9 @@ DESCRIPTIONS = {
 NO_DRONE_MARKER = "No drone at this site"  # also how the mock model knows to skip the drone step
 
 _DRONE_STEP = """3. Real chainsaw, axe or gunshot: ask the drone-pilot sub-agent to check the sector.
-   Then call dispatch_rangers(sector, note). A ranger must approve; the call waits for them."""
+   Reassess the camera result before proposing anything. If inconclusive or contradictory,
+   record_assessment, set_status watching, and schedule_check. If it supports intervention,
+   record_assessment then dispatch_rangers(sector, note), which waits for ranger approval."""
 _NO_DRONE_STEP = f"""3. Real chainsaw, axe or gunshot: {NO_DRONE_MARKER}, so there is no aerial check.
    Call dispatch_rangers(sector, note) and start the note with "{NO_AERIAL}"
    A ranger must approve; the call waits for them. If you are unsure, set_status("watching")
@@ -90,7 +96,7 @@ def commander_prompt(dep: Deployment) -> str:
     extra = [dep.resources_line()]
     if dep.agent.max_followup_checks:
         extra.append(f"Each incident allows at most {dep.agent.max_followup_checks} scheduled checks.")
-    return text + "\n\n" + " ".join(extra)
+    return text + "\n\n" + " ".join(extra) + INVESTIGATION_RULES
 
 
 def evidence_prompt(dep: Deployment) -> str:
@@ -99,3 +105,27 @@ def evidence_prompt(dep: Deployment) -> str:
     return EVIDENCE.replace("triage.md, drone_log.md and", "triage.md and").replace(
         "Drone observations", "Aerial verification (state: none, no drone)"
     )
+
+
+INVESTIGATION_RULES = """
+Investigation rules override any automatic drone-then-dispatch sequence above:
+- Rain does not exclude a threat. Multiple strong, compatible reports close in time warrant
+  investigation, even with a noisy-node history. Repeated records from one node are not
+  independent confirmation. Compare real activity with weather interference.
+- Before acting on a drone result or ranger update, call compare_response_options and
+  record_assessment: explanation, plausible alternative, next action and why it is preferable.
+- An unavailable drone is missing evidence, never confirmation. With strong urgent acoustic
+  evidence you may propose ranger assessment/dispatch, explicitly stating no aerial verification.
+  Otherwise watch and schedule a bounded recheck. Do not claim illegal activity from sounds alone.
+- An empty, inconclusive or contradictory camera view requires reassessment. Usually watch,
+  recheck or request ranger input; do not automatically dispatch or dismiss. State limited
+  camera coverage. For explicitly inconclusive/contradictory reports, request ranger input and
+  schedule a recheck. Dispatch requires a new confirming observation or explicit ranger confirmed_threat
+  outcome; acoustic confidence alone does not bypass this review policy.
+- Ranger messages require a revised plan, not merely acknowledgment. Explicit authorized_activity
+  or false_alarm outcomes override earlier guesses: dismiss an undispatched case, or watch and
+  explain the correction if rangers were already sent (you cannot recall them). Do not dispatch
+  again until a ranger supplies a new outcome. An unresolved report means uncertainty, not clearance.
+- Keep ranger reports attributed to the ranger. Never turn approval/rejection into confirmed truth.
+  Earlier memory is provisional and must not override fresh records or a ranger correction.
+"""

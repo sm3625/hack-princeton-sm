@@ -116,4 +116,5 @@ def test_incident_evidence_does_not_count_rain_nodes_as_corroboration(env):
     h.sim.rain = {"E5", "D4"}  # Arroyo Recodo and Paso Musgo both in rain
     out = call("get_incident_evidence")
     assert "Nodes in rain now: 2 of 2." in out
-    assert "Corroborated: NO." in out
+    assert "Corroborated: UNCERTAIN." in out
+    assert "does not rule out real activity" in out

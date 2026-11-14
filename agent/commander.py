@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import asyncio
+import heapq
+import itertools
 import json
 import logging
 import secrets
@@ -18,8 +20,8 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from concurrent.futures import Future
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,7 @@ from agent.evidence import (
 )
 from agent.fallbacks import ClockSim, MemoryEventStore
 from agent.incidents import (
+    THREAT_FAMILIES,
     AgentFiles,
     Incident,
     IncidentManager,
@@ -58,7 +61,7 @@ from agent.incidents import (
     fmt_time,
 )
 from agent.llm import ROLES, get_chat_model
-from agent.tools import TOOLSETS, Services, make_tools
+from agent.tools import TOOLSETS, Services, camera_uncertain, make_tools
 from common.contracts import ROOT, Detection, EventStore, Sim, World, load_world
 from common.deployment import NO_AERIAL, Deployment, load_deployment
 
@@ -82,6 +85,68 @@ REPEAT_REJECT = (
     "records have arrived since. Do not ask again. Use set_status watching or dismissed, and "
     "schedule_check if you want to look again later."
 )
+
+
+HEADS_UP_CONFIDENCE = 0.85  # a dry node this sure, plus a second dry node, triggers the heads-up
+PREFILTER_FAMILIES = ("logging", "vehicle")  # a gunshot always goes to the model
+PREFILTER_REASON = "Cleared by station rule: one node, in rain, with earlier false alarms there."
+
+# Lower runs first. The model handles one incident at a time; in a storm the queue is long,
+# and a real threat must not wait behind rain alarms.
+P_RANGER, P_THREAT, P_POSSIBLE, P_CHECK, P_VEHICLE, P_RAIN = range(6)
+
+
+class PriorityExecutor:
+    """One worker thread. The most urgent queued job runs next; ties run in arrival order.
+    A running job is never interrupted."""
+
+    def __init__(self, name: str = "commander") -> None:
+        self._heap: list[tuple[int, int, Future, Callable[[], Any]]] = []
+        self._cv = threading.Condition()
+        self._order = itertools.count()
+        self._closed = False
+        self._thread = threading.Thread(target=self._run, name=name, daemon=True)
+        self._thread.start()
+
+    def submit(self, fn: Callable[[], Any], priority: int = P_CHECK) -> Future:
+        future: Future = Future()
+        with self._cv:
+            if self._closed:
+                future.cancel()
+                return future
+            heapq.heappush(self._heap, (priority, next(self._order), future, fn))
+            self._cv.notify()
+        return future
+
+    def queued(self) -> int:
+        with self._cv:
+            return len(self._heap)
+
+    def _run(self) -> None:
+        while True:
+            with self._cv:
+                while not self._heap and not self._closed:
+                    self._cv.wait()
+                if self._closed:
+                    return
+                _, _, future, fn = heapq.heappop(self._heap)
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                future.set_result(fn())
+            except BaseException as e:  # noqa: BLE001 - reported through the future
+                future.set_exception(e)
+
+    def shutdown(self, wait: bool = False, cancel_futures: bool = True) -> None:
+        with self._cv:
+            self._closed = True
+            if cancel_futures:
+                for _, _, future, _ in self._heap:
+                    future.cancel()
+                self._heap.clear()
+            self._cv.notify_all()
+        if wait:
+            self._thread.join()
 
 
 # ---------- agent assembly ----------
@@ -358,6 +423,8 @@ class Approval:
     decided_at: int | None = None
     decision_note: str = ""
     decided_via: str = ""  # "dashboard" or "imessage": where the ranger decided
+    records: list[dict] = field(default_factory=list)
+    ranger_revision: int = 0
 
     def public(self) -> dict:
         return {
@@ -372,6 +439,8 @@ class Approval:
             "decided_at": self.decided_at,
             "decision_note": self.decision_note,
             "decided_via": self.decided_via,
+            "created_at": self.created_at,
+            "records": self.records,
         }
 
 
@@ -395,7 +464,9 @@ class Commander:
         background: bool = True,
         clips_root: Path = ROOT / "node_data",
         deployment: Deployment | None = None,
+        prefilter: bool = True,
     ) -> None:
+        self.prefilter = prefilter
         self.deployment = deployment or load_deployment()
         self.world = world or load_world()
         self.store = store if store is not None else MemoryEventStore()
@@ -425,7 +496,7 @@ class Commander:
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self.agent = build_agent(self.services, models, SqliteSaver(self._conn))
         self.approvals: dict[str, Approval] = {a["id"]: Approval(**a) for a in self.repo.load_approvals()}
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="commander") if background else None
+        self._executor = PriorityExecutor() if background else None
         self._busy: set[str] = set()
         self._failures: dict[str, int] = {}
         self._stats: dict[str, dict] = {}  # per incident, this process only: eval reads it
@@ -444,24 +515,111 @@ class Commander:
             return
         inc = self.incidents.add(detection)
         if inc is not None:
+            self._heads_up(inc)
             self.wakes.detection(inc.id, (detection.node_id, detection.seq), now=self.sim.now())
 
-    def message(self, incident_id: str, text: str) -> None:
-        if self.incidents.get(incident_id) is None:
-            raise NotFound(incident_id)
-        self.wakes.message(incident_id, _one_line(text, MAX_NOTE))
+    def _heads_up(self, inc: Incident) -> None:
+        """Plain code, no model: as soon as two dry nodes agree on a chainsaw, axe or gunshot,
+        tell the rangers a review has started. The model then confirms or dismisses; however
+        long its queue is, the first warning never waits for it. Not a dispatch request."""
+        if inc.heads_up_at is not None or inc.family not in THREAT_FAMILIES:
+            return
+        if inc.status not in ("open", "watching"):
+            return
+        dry, _ = self.services.rain_split(inc)
+        if len(dry) < 2 or max(inc.weights.get(str(n), 0.0) for n in dry) < HEADS_UP_CONFIDENCE:
+            return
+        names = sorted(self.world.node(n).name for n in dry)
+        sound = next((s for s in inc.sounds if s != "vehicle"), inc.family)
+        text = f"Possible {sound} in sector {inc.sector}, heard by {len(names)} nodes. Reviewing."
+        now = self.sim.now()
+        self.incidents.update(inc.id, heads_up_at=now, heads_up=text)
+        self.publish({"type": "heads_up", "incident_id": inc.id, "sector": inc.sector,
+                      "sound": sound, "nodes": names, "text": text, "at": now})
+        self._step(inc.id, "station", text)
+
+    def priority(self, inc: Incident | None, wake: Wake) -> int:
+        if inc is None or wake.messages:
+            return P_RANGER
+        dry, wet = self.services.rain_split(inc)
+        if inc.family == "poaching":
+            return P_THREAT
+        if not dry and wet:
+            return P_RAIN
+        if inc.family in THREAT_FAMILIES:
+            return P_THREAT if inc.family == "poaching" or len(dry) >= 2 else P_POSSIBLE
+        if wake.check_due and not wake.new_records:
+            return P_CHECK
+        return P_VEHICLE
+
+    def message(self, incident_id: str, text: str, outcome: str | None = None) -> None:
+        if outcome not in (None, "confirmed_threat", "authorized_activity", "false_alarm", "unresolved"):
+            raise ValueError("Unknown ranger outcome")
+        with self._lock:
+            inc = self.incidents.get(incident_id)
+            if inc is None:
+                raise NotFound(incident_id)
+            text = _one_line(text, MAX_NOTE)
+            if not text:
+                raise ValueError("A ranger note is required")
+            update = {"source": "ranger", "timestamp": self.sim.now(), "text": text,
+                      "outcome": outcome, "records_at_update": len(inc.records)}
+            self.incidents.update(inc.id, ranger_updates=[*inc.ranger_updates, update],
+                                  updated_at=self.sim.now())
+            pending = [a for a in self.approvals.values()
+                       if a.incident_id == incident_id and a.status == "pending"]
+            # Invalidate immediately. Do not make a ranger wait for inference to clear an
+            # obsolete interrupt; a later investigative wake resumes it with rejection.
+            for approval in pending:
+                approval.status = "stale"
+                approval.decision_note = "Superseded by ranger information: " + text
+                approval.decided_at = self.sim.now()
+                self._save_approval(approval)
+                self.publish(approval.public())
+            self.services.gate.revoke(incident_id)
+            if inc.ranger_outcome() in ("authorized_activity", "false_alarm"):
+                self._apply_ranger_clearance(inc)
+            else:
+                self.wakes.message(incident_id, text)
+        self._step(incident_id, "station", "Ranger update received; reassessing. Already executed dispatches are unchanged.")
+
+    def _apply_ranger_clearance(self, inc: Incident) -> None:
+        update = inc.ranger_updates[-1]
+        reason = "Ranger reports " + inc.ranger_outcome().replace("_", " ") + ": " + update["text"]
+        assessment = {"time": fmt_time(self.sim.now()), "source": "ranger",
+                      "explanation": reason, "alternative": "Earlier acoustic threat interpretation",
+                      "next_action": "wait_recheck" if inc.dispatches else "dismiss",
+                      "reason": "Explicit ranger correction supersedes the earlier interpretation. Prior dispatches cannot be recalled here.",
+                      "records": [{"node": self.world.node(n).name, "seq": seq} for n, seq in inc.records],
+                      "observation_count": len(inc.observations), "ranger_update_count": len(inc.ranger_updates)}
+        self.incidents.update(inc.id, status="watching" if inc.dispatches else "dismissed",
+                              summary=reason[:200], next_check_at=None,
+                              assessments=[*inc.assessments, assessment], updated_at=self.sim.now())
+        plan = "# Ranger correction\n\n" + reason + "\n\n" + assessment["reason"] + "\n"
+        self.files.write(inc.folder + "plan.md", plan)
+        self.publish({"type": "plan", "incident_id": inc.id, "markdown": plan, "html": render_markdown(plan)})
 
     # --- running ---
 
     def tick(self, now: int | None = None) -> list[Future | None]:
         """Wake the commander for every incident with something due."""
         now = self.sim.now() if now is None else now
+        # A correction can arrive while a model is still constructing an approval.
+        for a in list(self.approvals.values()):
+            if a.status == "pending" and a.ranger_revision != len(self.incidents.get(a.incident_id).ranger_updates):
+                a.status = "stale"
+                a.decision_note = "Ranger information changed during review; reassess."
+                self._save_approval(a)
+                self.services.gate.revoke(a.incident_id)
+                self.publish(a.public())
+                self.wakes.message(a.incident_id, a.decision_note)
         with self._lock:
             waiting = {a.incident_id for a in self.approvals.values() if a.status == "pending"}
             due = self.wakes.pop_due(now, skip=self._busy | waiting)
             for w in due:
                 self._busy.add(w.incident_id)
-        return [self._submit(w.incident_id, self._wake, w) for w in due]
+        ranked = sorted(((self.priority(self.incidents.get(w.incident_id), w), w) for w in due), key=lambda pw: pw[0])
+        return [self._submit(w.incident_id, self._wake, w, priority=p) for p, w in ranked]
 
     def start(self, loop: asyncio.AbstractEventLoop | None = None, interval_s: float = 0.5) -> None:
         if isinstance(self.publish, BusPublisher) and loop is not None:
@@ -484,7 +642,7 @@ class Commander:
         if self._executor:
             self._executor.shutdown(wait=False, cancel_futures=True)
 
-    def _submit(self, incident_id: str, fn: Callable, *args: Any) -> Future | None:
+    def _submit(self, incident_id: str, fn: Callable, *args: Any, priority: int = P_RANGER) -> Future | None:
         def job() -> None:
             try:
                 fn(*args)
@@ -498,11 +656,12 @@ class Commander:
         if self._executor is None:
             job()
             return None
-        return self._executor.submit(job)
+        return self._executor.submit(job, priority)
 
     def _config(self, inc: Incident, reporter: StepReporter) -> dict:
         return {
-            "configurable": {"thread_id": inc.thread_id, "incident_id": inc.id},
+            "configurable": {"thread_id": inc.thread_id, "incident_id": inc.id,
+                             "ranger_revision": len(inc.ranger_updates)},
             "callbacks": [reporter],
             "recursion_limit": RECURSION_LIMIT,
             "metadata": {"incident_id": inc.id},
@@ -512,8 +671,22 @@ class Commander:
         inc = self.incidents.get(wake.incident_id)
         if inc is None:
             return
+        if inc.ranger_outcome() in ("authorized_activity", "false_alarm"):
+            if inc.status != ("watching" if inc.dispatches else "dismissed"):
+                self._apply_ranger_clearance(inc)
+            return  # authoritative human clearance needs no model turn
+        # A superseded proposal remains checkpointed but is never approved. Clear it
+        # with a rejection only when there is a new investigation to perform.
+        if self.pending_interrupt_ids(inc.id):
+            self._run(inc.id, Command(resume={"decisions": [{"type": "reject", "message":
+                "This proposal is obsolete. Do not propose dispatch again in this turn; await the new ranger/evidence message."}]}))
         if wake.check_due:
             self.incidents.update(inc.id, next_check_at=None)
+        if wake.messages and inc.ranger_outcome() == "confirmed_threat":
+            # An explicit new confirmed outcome is evidence even without new sensor sequences.
+            self.incidents.update(inc.id, rejected_at_records=None)
+        if self._prefiltered(inc, wake):
+            return
         self._ensure_plan(inc)
         text = self.wake_text(inc, wake)
         try:
@@ -530,6 +703,40 @@ class Commander:
                 self._step(inc.id, "commander", f"agent unavailable ({type(e).__name__}); gave up on this wake-up")
             return
         self._failures.pop(inc.id, None)
+
+    def _prefiltered(self, inc: Incident, wake: Wake) -> bool:
+        """Clear the most obvious rain alarm without the model: every record from one node, it
+        is raining there, and that node already has dismissed false alarms. Anything else (a
+        second node, dry weather, a gunshot, a ranger message, an earlier dispatch request)
+        goes to the model. If the picture changes later, the next wake-up is judged afresh."""
+        if not self.prefilter or not wake.new_records or wake.messages or wake.check_due:
+            return False
+        if inc.family not in PREFILTER_FAMILIES or inc.status not in ("open", "dismissed"):
+            return False
+        if inc.ranger_updates or inc.dispatches or inc.rejected_at_records is not None or inc.heads_up_at is not None:
+            return False
+        nodes = inc.node_ids()
+        if len(nodes) != 1:
+            return False
+        dry, _ = self.services.rain_split(inc)
+        history = self.services.false_alarm_history(nodes[0], exclude=inc.id)
+        if dry or (history < 1 and inc.status != "dismissed"):
+            return False
+        now = self.sim.now()
+        name = self.world.node(nodes[0]).name
+        self.files.append(
+            inc.folder + "triage.md",
+            f"- {fmt_time(now)} station rule, no model: {len(inc.records)} record(s), all from "
+            f"{name}, raining there, false-alarm history: {history} earlier dismissed incident(s) "
+            "at this node (or this incident was already dismissed). "
+            "Dismissed as a rain false alarm.\n",
+        )
+        self.incidents.update(inc.id, status="dismissed", summary=PREFILTER_REASON, updated_at=now)
+        self._step(inc.id, "station", PREFILTER_REASON)
+        with self._lock:
+            s = self._stats.setdefault(inc.id, {"runs": 0, "wall_s": 0.0, "steps": {}})
+            s["prefiltered"] = s.get("prefiltered", 0) + 1
+        return True
 
     def _ensure_plan(self, inc: Incident) -> None:
         """Small local models often skip bookkeeping, so code seeds plan.md; the agent edits it."""
@@ -555,16 +762,19 @@ class Commander:
 
     def _run(self, incident_id: str, payload: Any) -> None:
         inc = self.incidents.get(incident_id)
+        ranger_revision = len(inc.ranger_updates)
         reporter = StepReporter(incident_id, self.files, self.publish)
         began = time.monotonic()
         config = self._config(inc, reporter)
+        config["configurable"]["ranger_revision"] = ranger_revision
         try:
             result = self.agent.invoke(payload, config)
             # Small models re-propose a rejected dispatch over and over. Code turns the repeat
             # down itself unless new evidence arrived since the ranger said no.
             for _ in range(MAX_AUTO_REJECTS):
                 interrupts = result.get("__interrupt__") or []
-                if not interrupts or not self._repeat_after_reject(incident_id):
+                problem = self._proposal_problem(inc)
+                if not interrupts or problem.startswith("Camera report is explicitly") or not (self._repeat_after_reject(incident_id) or problem):
                     break
                 requests = (interrupts[0].value or {}).get("action_requests", [])
                 n = len(requests) or 1
@@ -576,18 +786,59 @@ class Commander:
                 )
                 reporter.step("commander", "repeat dispatch request blocked: a ranger rejected it and nothing new has arrived")
                 result = self.agent.invoke(
-                    Command(resume={"decisions": [{"type": "reject", "message": REPEAT_REJECT}] * n}), config
+                    Command(resume={"decisions": [{"type": "reject", "message": REPEAT_REJECT if self._repeat_after_reject(incident_id) else problem}] * n}), config
                 )
         finally:
             self._record_stats(incident_id, time.monotonic() - began, reporter.counts)
         interrupts = result.get("__interrupt__") or []
+        if inc.ranger_outcome() in ("authorized_activity", "false_alarm"):
+            if inc.status != ("watching" if inc.dispatches else "dismissed"):
+                self._apply_ranger_clearance(inc)
+            return
         if interrupts:
-            self._open_approval(incident_id, interrupts[0])
+            problem = self._proposal_problem(inc)
+            if problem:
+                camera_review = problem.startswith("Camera report is explicitly")
+                reason = ("Ranger review required: " if camera_review else "Assessment unavailable: ") + problem
+                if camera_review:
+                    self.incidents.update(inc.id, assessments=[*inc.assessments, {
+                        "time": fmt_time(self.sim.now()), "source": "station_policy",
+                        "explanation": "Camera did not corroborate the acoustic reports; activity remains unresolved.",
+                        "alternative": "Activity outside camera coverage or a false acoustic alarm",
+                        "next_action": "request_ranger_assessment", "reason": reason,
+                        "observation_count": len(inc.observations), "ranger_update_count": len(inc.ranger_updates),
+                        "records": [{"node": self.world.node(n).name, "seq": seq} for n, seq in inc.records],
+                    }])
+                self.incidents.update(inc.id, status="watching", summary=reason[:200],
+                                      next_check_at=self.sim.now() + 600)
+                self.wakes.schedule(inc.id, self.sim.now() + 600, note=reason)
+                self._step(inc.id, "station", reason)
+            else:
+                self._open_approval(incident_id, interrupts[0], ranger_revision)
             return
         final = next((m for m in reversed(result.get("messages", [])) if isinstance(m, AIMessage)), None)
         if final is not None and final.text:
             reporter.step("commander", _first_meaningful_line(final.text))
         self.incidents.touch(incident_id, self.sim.now())
+
+    def _proposal_problem(self, inc: Incident) -> str:
+        if inc.ranger_outcome() in ("authorized_activity", "false_alarm"):
+            return "Ranger clearance forbids dispatch. Do not repeat this proposal."
+        if inc.observations:
+            latest = inc.observations[-1]
+            if (latest["availability"] == "observed" and camera_uncertain(latest["content"])
+                    and inc.ranger_outcome() != "confirmed_threat"):
+                return ("Camera report is explicitly inconclusive or contradictory. Ask for ranger input, "
+                        "record_assessment, set_status watching and schedule_check. "
+                        "A new confirming observation or explicit ranger confirmed_threat outcome is needed before dispatch.")
+            assessment = inc.assessments[-1] if inc.assessments else {}
+            if (assessment.get("observation_count") != len(inc.observations)
+                    or assessment.get("ranger_update_count") != len(inc.ranger_updates)
+                    or assessment.get("next_action") != "propose_dispatch"):
+                return ("Camera result requires a current record_assessment before dispatch. "
+                        "For an inconclusive/contradictory view, set_status watching and schedule_check; "
+                        "do not automatically dispatch. Compare alternatives and limited coverage.")
+        return ""
 
     def _repeat_after_reject(self, incident_id: str) -> bool:
         inc = self.incidents.get(incident_id)
@@ -607,14 +858,13 @@ class Commander:
             f"Time: {fmt_time(now)}",
         ]
         if wake.new_records:
-            wanted = set(wake.new_records)
-            node_ids = sorted({n for n, _ in wanted})
-            found = [d for d in self.store.query(node_ids=node_ids, verified_only=True) if (d.node_id, d.seq) in wanted]
-            lines.append("New records:")
-            lines += self.services.detection_lines(found)
+            refs = [f"[{self.world.node(n).name} #{seq}]" for n, seq in wake.new_records]
+            lines.append("New records (details below): " + ", ".join(refs))
         lines.append(f"Estimated source: sector {inc.sector} ({inc.x_m:.0f} m E, {inc.y_m:.0f} m N)")
         lines.append("All evidence so far (pass this to triage):")
         lines.append(self.services.incident_evidence(inc))
+        if inc.ranger_updates:
+            lines.append("Latest ranger update: " + json.dumps({**inc.ranger_updates[-1], "outcome": inc.ranger_outcome()}))
         if wake.check_due:
             lines.append(f"Scheduled check due ({wake.check_note}).")
         for m in wake.messages:
@@ -632,11 +882,12 @@ class Commander:
             for agent, n in counts.items():
                 s["steps"][agent] = s["steps"].get(agent, 0) + n
 
-    def _open_approval(self, incident_id: str, intr: Any) -> None:
+    def _open_approval(self, incident_id: str, intr: Any, ranger_revision: int | None = None) -> None:
         requests = [r for r in (intr.value or {}).get("action_requests", []) if r.get("name") == "dispatch_rangers"]
         if not requests:
             return
         args = requests[0].get("args") or {}
+        limitation = self.services.response_limitations(self.incidents.get(incident_id))
         now = self.sim.now()
         with self._lock:
             for a in self.approvals.values():
@@ -648,10 +899,12 @@ class Commander:
                 incident_id=incident_id,
                 interrupt_id=intr.id,
                 sector=str(args.get("sector", ""))[:8],
-                note=_one_line(args.get("note", ""), MAX_NOTE),
-                question=_one_line(requests[0].get("description", ""), MAX_NOTE + 60),
+                note=_one_line(limitation + " " + args.get("note", ""), MAX_NOTE),
+                question=_one_line(limitation + " " + requests[0].get("description", ""), MAX_NOTE + 60),
                 created_at=now,
+                ranger_revision=len(self.incidents.get(incident_id).ranger_updates) if ranger_revision is None else ranger_revision,
                 count=len(requests),
+                records=[{"node": self.world.node(n).name, "seq": seq} for n, seq in self.incidents.get(incident_id).records],
             )
             self.approvals[approval.id] = approval
             self._save_approval(approval)
@@ -677,6 +930,10 @@ class Commander:
             a = self.approvals.get(approval_id)
             if a is None:
                 raise NotFound(approval_id)
+            if decision != "reject" and a.ranger_revision != len(self.incidents.get(a.incident_id).ranger_updates):
+                raise Conflict("Ranger information changed; reassess before dispatch")
+            if decision != "reject" and (problem := self._proposal_problem(self.incidents.get(a.incident_id))):
+                raise Conflict(problem)
             if a.status != "pending":
                 raise Conflict(f"approval already {a.status}")
             if a.interrupt_id not in self.pending_interrupt_ids(a.incident_id):

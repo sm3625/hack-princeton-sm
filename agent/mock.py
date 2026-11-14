@@ -176,6 +176,10 @@ def commander(messages: list[BaseMessage]) -> list[tuple[str, dict]] | str:
     start, w = last_human(messages)
     d = Done(calls_since(messages, start + 1))
     kinds, status = w.kinds, w.get("status")
+    if "ranger message" in kinds:
+        return _ranger_update(w, d, _no_drone(messages))
+    if "new detections" in kinds and any(x in w.get("latest ranger update") for x in ('"authorized_activity"', '"false_alarm"')):
+        return _ranger_update(w, d, _no_drone(messages))
     if "new detections" in kinds:
         return _follow_up(w, d) if status == "dispatched" else _triage_flow(w, d, _no_drone(messages))
     if "scheduled check" in kinds:
@@ -189,13 +193,15 @@ def commander(messages: list[BaseMessage]) -> list[tuple[str, dict]] | str:
     return "No action needed."
 
 
-def _triage_flow(w: Brief, d: Done, no_drone: bool = False) -> list[tuple[str, dict]] | str:
+def _triage_flow(w: Brief, d: Done, no_drone: bool = False, ranger_confirmed: bool = False) -> list[tuple[str, dict]] | str:
     inc, sector, family = w.get("incident"), w.get("sector"), w.get("family")
     if d.count("write_file") == 0:
         return [_plan(w, [(False, "Triage: real or false alarm?"), (False, "Follow up if real")])]
     if not d.has("task:triage"):
         return [task("triage", _brief_for(w, "Is this real? Write triage.md and reply with the JSON verdict."))]
     v = parse_verdict(d.result("task:triage"))
+    if ranger_confirmed:
+        v = Verdict("real", .9, ["Ranger reports confirmed threat; independent human report"])
     reason = "; ".join(v.reasons[:2]) or v.verdict
     if v.verdict == "false_alarm":
         if not d.has("set_status"):
@@ -206,11 +212,18 @@ def _triage_flow(w: Brief, d: Done, no_drone: bool = False) -> list[tuple[str, d
             calls.append(_plan(w, [(True, "Triage"), (True, "Dismissed")], f"Dismissed: {reason}"))
             return calls
         return f"Dismissed {inc}: {reason}"
-    if v.verdict == "real" and family in ("logging", "poaching"):
+    if v.verdict in ("real", "investigate") and family in ("logging", "poaching"):
+        if not d.has("compare_response_options"):
+            return [tc("compare_response_options")]
+        if no_drone and v.verdict == "investigate":
+            return _uncertain_response(w, d, "Rain interference or real activity; no aerial verification available")
         if no_drone:
+            if not d.has("record_assessment"):
+                return [_assessment("Strong acoustic threat", "Authorized activity or classification error",
+                                    "propose_dispatch", "Request human verification; no aerial verification available")]
             if not d.has("dispatch_rangers"):
                 nodes = len({r["node"] for r in w.records})
-                what = "illegal logging" if family == "logging" else "poaching"
+                what = "logging activity requiring ranger assessment" if family == "logging" else "possible gunshot activity"
                 note = f"{NO_AERIAL} Likely {what} in sector {sector}. {nodes} nodes agree."
                 return [
                     _plan(w, [(True, "Triage: likely real"), (False, "Ask ranger to verify or dispatch")]),
@@ -221,12 +234,23 @@ def _triage_flow(w: Brief, d: Done, no_drone: bool = False) -> list[tuple[str, d
                 _plan(w, [(True, "Triage: likely real"), (False, "Drone check"), (False, "Ask ranger to dispatch")]),
                 task("drone-pilot", f"Incident: {inc}\nFly to sector {sector} and report what the camera sees."),
             ]
+        seen = d.result("task:drone-pilot")
+        lower = seen.lower()
+        unavailable = any(x in lower for x in ("could not fly", "not flown", "not completed"))
+        contradiction = any(x in lower for x in ("no activity", "no people", "no evidence", "inconclusive", "empty", "authorized", "only wildlife", "nothing seen"))
+        if contradiction or (unavailable and v.verdict == "investigate"):
+            return _uncertain_response(w, d, "Camera did not corroborate the acoustic reports: " + seen)
+        if not d.has("record_assessment"):
+            reason = ("No aerial verification available; request ranger assessment based on strong acoustic reports. " + seen
+                      if unavailable else "Camera report and acoustic evidence warrant human review. " + seen)
+            return [_assessment("Possible threat", "Authorized activity or classification error", "propose_dispatch", reason)]
         if not d.has("dispatch_rangers"):
             seen = d.result("task:drone-pilot")
             m = re.search(r"Camera saw: (.*?)\.? Flew", seen)
-            drone = f"drone saw {m.group(1).rstrip('.').lower()}" if m else f"drone: {seen}"
+            drone = ("no aerial verification; " + seen if unavailable else
+                     f"drone saw {m.group(1).rstrip('.').lower()}" if m else f"drone: {seen}")
             nodes = len({r["node"] for r in w.records})
-            what = "illegal logging" if family == "logging" else "poaching"
+            what = "logging activity requiring ranger assessment" if family == "logging" else "possible gunshot activity"
             note = f"Likely {what} in sector {sector}. {nodes} nodes agree; {drone}."
             return [tc("dispatch_rangers", sector=sector, note=note[:480])]
         res = d.result("dispatch_rangers")
@@ -253,6 +277,46 @@ def _triage_flow(w: Brief, d: Done, no_drone: bool = False) -> list[tuple[str, d
             _plan(w, [(True, "Triage"), (False, f"Re-check in {minutes} min")], why),
         ]
     return f"Watching {inc}."
+
+
+def _assessment(explanation, alternative, action, reason):
+    return tc("record_assessment", explanation=explanation, alternative=alternative,
+              next_action=action, reason=reason)
+
+
+def _uncertain_response(w, d, reason):
+    limitation = reason + ". Limited camera coverage does not prove absence of activity."
+    if not d.has("record_assessment"):
+        return [_assessment("Threat remains uncertain", "Weather interference or missed camera coverage",
+                            "request_ranger_assessment", limitation)]
+    if not d.has("set_status"):
+        return [tc("set_status", status="watching", reason=limitation),
+                tc("schedule_check", incident_id=w.get("incident"), minutes=10),
+                _plan(w, [(True, "Reassessed conflicting or unavailable evidence"),
+                          (False, "Request ranger assessment; recheck in 10 min")], limitation)]
+    return "Watching; ranger assessment requested and recheck scheduled. " + limitation
+
+
+def _ranger_update(w, d, no_drone=False):
+    try:
+        update = json.loads(w.get("latest ranger update", "{}"))
+    except ValueError:
+        update = {}
+    outcome = update.get("outcome")
+    if not d.has("compare_response_options"):
+        return [tc("compare_response_options")]
+    if outcome in ("authorized_activity", "false_alarm"):
+        reason = "Ranger reports " + outcome.replace("_", " ") + ": " + update.get("text", "")
+        if not d.has("record_assessment"):
+            return [_assessment(reason, "Earlier acoustic threat interpretation", "dismiss", "Ranger correction supersedes the earlier interpretation; prior dispatches cannot be recalled.")]
+        if not d.has("set_status"):
+            context = json.loads(d.result("compare_response_options") or "{}")
+            return [tc("set_status", status="watching" if context.get("already_dispatched") else "dismissed", reason=reason),
+                    _plan(w, [(True, "Revised assessment from ranger correction")], reason + ". Any prior dispatch remains recorded; no automatic recall.")]
+        return reason
+    if outcome == "confirmed_threat":
+        return _triage_flow(w, d, no_drone, ranger_confirmed=True)
+    return _uncertain_response(w, d, "Ranger supplied new information requiring verification: " + update.get("text", ""))
 
 
 def _follow_up(w: Brief, d: Done) -> list[tuple[str, dict]] | str:
@@ -311,6 +375,17 @@ def _judge(sector: str, dets: list[dict], weather: str, infos: list[dict]) -> di
     noisy = [i["node"] for i in infos if i.get("memory") or i.get("dismissed_incidents")]
     sound = dets[0]["sound"] if dets else "sound"
     tags = " ".join(f"[{r['node']} #{r['seq']}]" for r in dets[:6])
+    if rain:
+        strong = [r for r in dets if r["sound"] in THREATS and r["confidence"] >= .85]
+        def seconds(r):
+            h, m, sec = map(int, r["time"].split(":"))
+            return h * 3600 + m * 60 + sec
+        compatible = any(a["node"] != b["node"] and a["sound"] == b["sound"]
+                         and abs(seconds(a) - seconds(b)) <= 120 for a in strong for b in strong)
+        if compatible:
+            return {"verdict": "investigate", "confidence": .65, "location_estimate": sector,
+                    "reasons": ["Strong compatible reports from independent nodes during rain " + tags,
+                                "Rain interference and real activity remain plausible; seek camera or ranger assessment"]}
     if rain and (len(nodes) <= 1 or set(nodes) <= set(noisy)):
         reasons = [f"raining in {sector}", f"only {', '.join(nodes) or 'no node'} heard it {tags}".strip()]
         if noisy:
@@ -414,8 +489,7 @@ def _case_file(b: Brief, rows: list[dict], valid: set[str], triage_md: str, dron
     out += ["", "## Drone observations"]
     obs = [ln.strip("-# ").strip() for ln in drone_md.splitlines() if ln.strip().startswith(("- camera", "## "))]
     out += [f"- {o}" for o in obs] or ["- No drone flight."]
-    if first:
-        out.append(f"- Supports the acoustic records {first['record']}.")
+    out.append("- Camera coverage is limited; observations alone do not establish absence or legality.")
     out += ["", "## Approval record"]
     if approvals:
         out += [f"- {a.get('time')} {a.get('decision')} by {a.get('by', 'ranger')}: {a.get('note', '')}".rstrip(": ")

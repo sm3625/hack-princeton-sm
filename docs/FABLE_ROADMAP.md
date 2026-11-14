@@ -64,3 +64,41 @@ The tamper demo is in the pitch, so this matters.
 ## If there is only time for a few
 **1 → 2 → 3:** fewer false alarms, no backlog, and believable numbers make the strongest demo.
 **5** is the "wow" option if a hardware or emulator story matters to the judges.
+
+## Implementation status (2026-11-14)
+
+The software work is integrated with the existing working-tree changes:
+
+- Training mines confusing background categories on training folds, calibrates class
+  thresholds on validation folds, and refuses exports over 100,000 bytes. Threshold
+  comparisons use the exact rounded value written to metadata. Node baselines persist
+  per device, are bounded, and never lower a calibrated threshold.
+- Storm handling includes a conservative repeat-rain pre-filter, a priority executor,
+  immediate corroborated heads-ups, and shorter wake-up evidence. Gunshots retain threat
+  priority even in rain. A running model call is still non-preemptible.
+- `python -m eval.run --lockstep --scenario night1 --mode mock` runs the real classifier,
+  node signing, receiver and commander synchronously. Simulation time controls batching
+  and retry timers. Drone flight delivers intervening events before returning at arrival.
+  Inference takes zero simulated time; this measures decisions, not live queue throughput.
+  The time cap is checked between agent calls, not a hard timeout on a hung provider.
+- Scoring v2 counts executed dispatches with contemporaneous evidence snapshots.
+  An approved request without execution earns no catch; later evidence cannot rescue
+  an earlier false dispatch. Legacy results remain labeled as legacy in the report.
+- Full and quick evals accept `--mode haiku`; quick results also save separate per-provider
+  files. Cloud runs require credentials and are explicitly opt-in. No comparative speed,
+  cost or accuracy claim is made without running both providers.
+- Persistent replay reservations and bounded forged-packet retention are covered by the
+  existing security tests. HTTP origin checking now rejects malformed origins cleanly;
+  the WebSocket endpoint retains its own tested origin policy. Photon remains opt-in.
+
+Validation: complete mock Night 1 (40 events, 29 detections, 2/2 real incidents caught)
+repeated with identical detections, decisions, tool counts and scores. Complete mock
+Night 2: 27 events, 22 detections, 1/1 caught. All scenario clips in these runs were
+synthetic; these are pipeline/scheduler checks, not field accuracy measurements.
+
+Still requires empirical work: retrain and evaluate a candidate on untouched test folds
+before replacing the shipped model (its documented 6.9% background argmax false-positive
+rate is unchanged), measure local versus cloud models, and test storm throughput at
+normal speed. Hardware/LoRa firmware or Renode needs a separate target implementation;
+no microcontroller execution is claimed. The investigation upgrade remains on hold as
+specified above.

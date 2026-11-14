@@ -15,6 +15,7 @@ import numpy as np
 
 from common.contracts import SoundClass
 from node.classifier import DEFAULT_MODEL, FEATURE_SHAPE, TFLiteClassifier, log_mel, rms
+from node.runtime import DEBOUNCE_HITS, HITS_REQUIRED
 from training.dataset import CLASSES, EXCLUDED, TEST_FOLDS, eval_windows, load_clips
 
 BG = CLASSES.index(SoundClass.BACKGROUND)
@@ -37,9 +38,11 @@ def prf(cm: np.ndarray) -> list[tuple[float, float, int]]:
     return out
 
 
-def debounce_fires(probs: np.ndarray, cls: int, k: int = 3, n: int = 5) -> bool:
-    """SPEC 3.2: same non-background class >= 0.8 in >= 3 of the last 5 windows."""
-    hit = (probs.argmax(1) == cls) & (probs.max(1) >= ALARM_CONF)
+def debounce_fires(
+    probs: np.ndarray, cls: int, k: int = 3, n: int = 5, threshold: float = ALARM_CONF
+) -> bool:
+    """SPEC 3.2: same non-background class at its threshold in >= k of the last n windows."""
+    hit = (probs.argmax(1) == cls) & (probs.max(1) >= threshold)
     return any(hit[max(0, i - n + 1) : i + 1].sum() >= k for i in range(len(hit)))
 
 
@@ -99,8 +102,12 @@ def main(argv: list[str] | None = None) -> dict:
     cs = CLASSES.index(SoundClass.CHAINSAW)
     cs_recall = float((pred[y == cs] == cs).mean())
 
-    # window level at the runtime threshold: below 0.8 is treated as background
-    pred80 = np.where(conf >= ALARM_CONF, pred, BG)
+    # window level at the runtime thresholds (per class when the model ships them, else 0.8):
+    # below threshold is treated as background
+    thr = np.array([clf.thresholds.get(c, ALARM_CONF) for c in CLASSES])
+    thr_text = ", ".join(f"{NAMES[c]} {thr[c]:.2f}" for c in range(len(CLASSES)) if c != BG)
+    hits_needed = [HITS_REQUIRED.get(c, DEBOUNCE_HITS) for c in CLASSES]
+    pred80 = np.where(conf >= thr[pred], pred, BG)
     cm80 = confusion(y, pred80)
     bg_fp80 = float((pred80[bg] != BG).mean())
 
@@ -116,11 +123,17 @@ def main(argv: list[str] | None = None) -> dict:
         sel = [i for i, cy in zip(clip_ids, clip_y) if cy == c]
         if c == BG:
             fired = sum(
-                any(debounce_fires(P[owner == i], k) for k in range(len(CLASSES)) if k != BG)
+                any(
+                    debounce_fires(P[owner == i], k, hits_needed[k], threshold=thr[k])
+                    for k in range(len(CLASSES))
+                    if k != BG
+                )
                 for i in sel
             )
         else:
-            fired = sum(debounce_fires(P[owner == i], c) for i in sel)
+            fired = sum(
+                debounce_fires(P[owner == i], c, hits_needed[c], threshold=thr[c]) for i in sel
+            )
         deb[name] = (fired, len(sel))
 
     # background false alarms by source category
@@ -216,8 +229,9 @@ def main(argv: list[str] | None = None) -> dict:
         "",
         (
             "Recall and false-positive rate here are per window at plain argmax (no confidence "
-            "threshold), the strictest reading. At the runtime's 0.8 threshold the background "
-            f"false-positive rate is {bg_fp80:.1%}. Latency is the whole `classify()` call "
+            "threshold), the strictest reading. At the node's thresholds "
+            f"({thr_text}) the background false-positive rate is {bg_fp80:.1%} and chainsaw "
+            f"precision is {prf(cm80)[cs][0]:.1%}. Latency is the whole `classify()` call "
             f"(feature extraction {np.median(t_feat):.2f} ms + int8 model), one thread, "
             "median of 500 calls."
         ),
@@ -228,7 +242,7 @@ def main(argv: list[str] | None = None) -> dict:
         "",
         md_cm(cm),
         "",
-        f"## Per-class, per window, confidence >= {ALARM_CONF} (else background)",
+        f"## Per-class, per window, at the node's thresholds ({thr_text}; else background)",
         "",
         md_prf(cm80),
         "",
@@ -240,7 +254,7 @@ def main(argv: list[str] | None = None) -> dict:
         "",
         md_cm(cm_clip),
         "",
-        "## SPEC 3.2 debounce (>= 3 of 5 windows at >= 0.8), per clip",
+        "## Node debounce (3 of 5 windows at the class threshold; gunshot 2 of 5), per clip",
         "",
         "| class | clips where an event fires | rate |",
         "|---|---|---|",
@@ -251,10 +265,9 @@ def main(argv: list[str] | None = None) -> dict:
     lines += [
         "",
         (
-            "Gunshots are single impulses: one shot only spans about two overlapping windows, and "
-            "many UrbanSound8K gunshot slices are shorter than 1 s, so a 3-of-5 rule rarely fires "
-            "for them even when every window is classified correctly. The node runtime needs a "
-            "separate rule for gunshots (e.g. one window at >= 0.9)."
+            "Gunshots are single impulses that light up about two overlapping windows, and many "
+            "UrbanSound8K gunshot slices are shorter than 1 s, so the node fires a gunshot on 2 "
+            "of 5 windows instead of 3."
         ),
         "",
         "## Background false alarms by source category (argmax, per window)",
@@ -339,12 +352,17 @@ def main(argv: list[str] | None = None) -> dict:
             "are used (no checkpoint picked on test or validation)."
         ),
         (
-            "- Class bias: a separate run that also held out ESC-50 fold 4 / US8K fold 8 tuned "
-            "per-class logit offsets (best chainsaw recall with background false positives "
-            "<= 4% on those validation folds). The shipped model adds the same offsets "
-            f"{class_bias} to its output layer. They were not tuned on the test folds. On test "
-            "they pushed false positives above target (above all air conditioner, washing "
-            "machine, insects and wind called chainsaw), so chainsaw precision is low."
+            "- Hard negatives: during training the model scores plain training-fold background "
+            "windows every few epochs, and the source categories it mistakes for a target are "
+            "sampled up to 6x more often."
+        ),
+        (
+            "- Class bias and thresholds: a separate run that also held out ESC-50 fold 4 / US8K "
+            "fold 8 tuned per-class logit offsets (a point of background false alarms costs "
+            "five points of chainsaw recall) and one confidence threshold per class (at most 1% "
+            "of background windows per class, without giving up more than 15% of correct "
+            f"windows). The shipped model uses offsets {class_bias} and thresholds "
+            f"{thr_text}. Neither was tuned on the test folds."
         ),
         "",
     ]

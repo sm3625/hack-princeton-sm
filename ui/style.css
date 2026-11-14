@@ -1513,3 +1513,7 @@ li + li > .incident-row::after { left: 38px; }
   .reserve-inset figcaption span, .ri-note { display: none; }
   .brand-sub { display: none; }
 }
+
+/* Ranger feedback stays usable in the narrow incident panel. */
+.ranger-feedback-note { display: block; box-sizing: border-box; width: 100%; min-height: 5rem; margin: .75rem 0; font: inherit; }
+.detail-section select { max-width: 100%; font: inherit; }

@@ -129,3 +129,21 @@ def test_concurrent_writers_from_threads():
     for t in threads:
         t.join()
     assert len(store.query()) == sum(results) == 100
+
+
+def test_old_database_without_seen_seqs_is_migrated(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.sqlite"
+    store = SqliteEventStore(path)
+    d, raw = signed()
+    assert store.add(d, raw)
+    store.close()
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE seen_seqs")
+    conn.execute("ALTER TABLE events DROP COLUMN pinned")
+    conn.commit()
+    conn.close()
+    reopened = SqliteEventStore(path)
+    assert not reopened.add(d, raw)
+    assert reopened.query() == [d]

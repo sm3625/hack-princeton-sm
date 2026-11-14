@@ -1,0 +1,185 @@
+{
+  "mode": "mock",
+  "model": "scripted mock",
+  "cases": [
+    {
+      "case": "rain",
+      "passed": true,
+      "status": "awaiting_approval",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "Possible threat",
+          "alternative": "Authorized activity or classification error",
+          "next_action": "propose_dispatch",
+          "reason": "Camera report and acoustic evidence warrant human review. Camera saw: Fresh clearing, one vehicle. Flew 4.8 km; battery now 62%.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 0
+        }
+      ],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "observed",
+          "content": "Fresh clearing, one vehicle.",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [
+        "Camera report (limited coverage): Fresh clearing, one vehicle. Likely logging activity requiring ranger assessment in sector D4. 2 nodes agree; drone saw fresh clearing, one vehicle."
+      ],
+      "wall_s": 0.2
+    },
+    {
+      "case": "unavailable",
+      "passed": true,
+      "status": "awaiting_approval",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "Possible threat",
+          "alternative": "Authorized activity or classification error",
+          "next_action": "propose_dispatch",
+          "reason": "No aerial verification available; request ranger assessment based on strong acoustic reports. Could not fly to D4: route not feasible.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 0
+        }
+      ],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "unavailable",
+          "content": "route not feasible",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [
+        "No aerial verification: route not feasible. Likely logging activity requiring ranger assessment in sector D4. 2 nodes agree; no aerial verification; Could not fly to D4: route not feasible.."
+      ],
+      "wall_s": 0.28
+    },
+    {
+      "case": "camera",
+      "passed": true,
+      "status": "watching",
+      "summary": "Camera did not corroborate the acoustic reports: Camera saw: Inconclusive: dense canopy; no activity seen in the visible clearing. Flew 4.8 km; battery now 62%.. Limited camera coverage does not prove",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "Threat remains uncertain",
+          "alternative": "Weather interference or missed camera coverage",
+          "next_action": "request_ranger_assessment",
+          "reason": "Camera did not corroborate the acoustic reports: Camera saw: Inconclusive: dense canopy; no activity seen in the visible clearing. Flew 4.8 km; battery now 62%.. Limited camera coverage does not prove absence of activity.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 0
+        }
+      ],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "observed",
+          "content": "Inconclusive: dense canopy; no activity seen in the visible clearing.",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [],
+      "wall_s": 0.21
+    },
+    {
+      "case": "correction",
+      "passed": true,
+      "status": "dismissed",
+      "summary": "Ranger reports authorized activity: Permit verified; this crew is authorized",
+      "assessments": [
+        {
+          "time": "02:14:30",
+          "explanation": "Possible threat",
+          "alternative": "Authorized activity or classification error",
+          "next_action": "propose_dispatch",
+          "reason": "Camera report and acoustic evidence warrant human review. Camera saw: Fresh clearing, one vehicle. Flew 4.8 km; battery now 62%.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 0
+        },
+        {
+          "time": "02:15:00",
+          "explanation": "Ranger reports authorized activity: Permit verified; this crew is authorized",
+          "alternative": "Earlier acoustic threat interpretation",
+          "next_action": "dismiss",
+          "reason": "Ranger correction supersedes the earlier interpretation; prior dispatches cannot be recalled.",
+          "records": [
+            {
+              "node": "Arroyo Recodo",
+              "seq": 1
+            },
+            {
+              "node": "Paso Musgo",
+              "seq": 1
+            }
+          ],
+          "observation_count": 1,
+          "ranger_update_count": 1
+        }
+      ],
+      "observations": [
+        {
+          "source": "drone",
+          "timestamp": 1794640470,
+          "sector": "D4",
+          "availability": "observed",
+          "content": "Fresh clearing, one vehicle.",
+          "limitation": "One camera visit; limited time and coverage. Does not establish legality."
+        }
+      ],
+      "pending": [],
+      "wall_s": 0.3
+    }
+  ]
+}

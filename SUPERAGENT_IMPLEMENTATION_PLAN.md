@@ -1,6 +1,8 @@
 # Implementation plan: Forest Guardian superagent
 
-Status: proposed; no application changes implemented. Builds on `WOLFRAM_AND_SUPERAGENT_REVIEW.md` and the existing commander. This is the implementation sequence for the agent upgrade, not a replacement for the broader `PLAN.md`.
+Status: partially implemented. The requested rain/activity, unavailable-drone, contradictory-camera,
+and ranger-correction slice is documented in `docs/INVESTIGATION_BEHAVIORS.md`; the remaining
+phases and full release gate below are still proposed. Builds on `WOLFRAM_AND_SUPERAGENT_REVIEW.md` and the existing commander. This is the implementation sequence for the agent upgrade, not a replacement for the broader `PLAN.md`.
 
 ## Outcome
 

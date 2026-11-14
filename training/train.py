@@ -58,6 +58,10 @@ PER_EPOCH = {
 
 
 BIAS_FILE = DATA_DIR / "cache" / "class_bias.json"
+THRESHOLD_FILE = DATA_DIR / "cache" / "class_thresholds.json"
+# Hard-negative mining: every MINE_EVERY epochs (from MINE_FROM) the model scores training
+# background windows per source category; categories it calls a target get sampled more.
+MINE_FROM, MINE_EVERY, MINE_PER_CATEGORY, MINE_GAIN, MINE_MAX_WEIGHT = 8, 4, 48, 12.0, 6.0
 
 
 class Sampler:
@@ -77,6 +81,10 @@ class Sampler:
             if len(starts):
                 key = f"{clips.dataset[i]}/{clips.category[i]}"
                 self.groups[label][key].append((int(i), starts))
+        # sampling weight per category; hard-negative mining raises it for confusing sources
+        self.weights: dict[int, dict[str, float]] = {
+            label: dict.fromkeys(cats, 1.0) for label, cats in self.groups.items()
+        }
         for label, cats in self.groups.items():
             n = sum(len(v) for v in cats.values())
             print(f"  {SoundClass(label).name.lower():10s} {n:5d} clips, {len(cats)} categories")
@@ -84,7 +92,12 @@ class Sampler:
     def window(self, label: int, speed: float = 1.0) -> np.ndarray:
         """A random window; speed != 1 plays the source faster/slower (engine RPM, pitch)."""
         cats = self.groups[label]
-        cat = list(cats)[self.rng.integers(len(cats))]
+        w = np.fromiter(self.weights[label].values(), float, len(cats))
+        cat = list(cats)[self.rng.choice(len(cats), p=w / w.sum())]
+        return self.window_from(label, cat, speed)
+
+    def window_from(self, label: int, cat: str, speed: float = 1.0) -> np.ndarray:
+        cats = self.groups[label]
         i, starts = cats[cat][self.rng.integers(len(cats[cat]))]
         o, n = self.clips.offsets[i], self.clips.lengths[i]
         if n < WINDOW_SAMPLES:  # short clip: drop it at a random spot in a silent window
@@ -109,6 +122,27 @@ class Sampler:
                 xs.append(self.window(int(sc), speed))
             ys += [CLASSES.index(sc)] * n
         return np.stack(xs), np.array(ys)
+
+
+def mine_hard_negatives(model, sampler: Sampler) -> dict[str, float]:
+    """Score plain training background windows per source category and raise the sampling
+    weight of the categories the model calls a target. Returns the false-alarm rate per
+    category. Training folds only: no validation or test audio is touched."""
+    cats = list(sampler.groups[int(SoundClass.BACKGROUND)])
+    x = np.stack(
+        [
+            sampler.window_from(int(SoundClass.BACKGROUND), cat)
+            for cat in cats
+            for _ in range(MINE_PER_CATEGORY)
+        ]
+    )
+    pred = model.predict(log_mel(x)[..., None], batch_size=512, verbose=0).argmax(1)
+    fp = (pred != BG).reshape(len(cats), MINE_PER_CATEGORY).mean(1)
+    rates = dict(zip(cats, (float(v) for v in fp)))
+    sampler.weights[int(SoundClass.BACKGROUND)] = {
+        cat: min(MINE_MAX_WEIGHT, 1.0 + MINE_GAIN * r) for cat, r in rates.items()
+    }
+    return rates
 
 
 _NOISE_BANK: list[np.ndarray] = []
@@ -203,24 +237,76 @@ def quick_metrics(probs: np.ndarray, y: np.ndarray) -> dict:
 
 
 def calibrate_bias(probs: np.ndarray, y: np.ndarray, max_fp: float = 0.04) -> np.ndarray:
-    """Per-class log-probability offsets that maximise target recall (chainsaw counted twice)
-    while keeping the background false-positive rate <= max_fp. Background offset stays 0."""
+    """Per-class log-probability offsets, tuned on validation windows. Background offset is 0.
+
+    Every point of background false alarms costs as much as five points of chainsaw recall,
+    so an offset is only worth it when it buys recall cheaply. (The first version maximised
+    recall right up to the false-positive cap, which pushed chainsaw to +2.5 and left
+    chainsaw precision near 8% on the test folds.) Offsets that keep chainsaw recall >= 90%
+    are preferred when any exist.
+    """
     logp = np.log(np.clip(probs, 1e-7, 1.0))
     grid = np.arange(-3.0, 3.01, 0.25)
-    best, best_b = -1.0, np.zeros(N_CLASSES)
     bg = y == BG
+    cs = CLASSES.index(SoundClass.CHAINSAW)
+    best = {True: (-np.inf, np.zeros(N_CLASSES)), False: (-np.inf, np.zeros(N_CLASSES))}
     for b1 in grid:
         for b2 in grid:
             for b3 in grid:
                 b = np.array([0.0, b1, b2, b3])
                 pred = (logp + b).argmax(1)
-                if (pred[bg] != BG).mean() > max_fp:
+                fp = (pred[bg] != BG).mean()
+                if fp > max_fp:
                     continue
-                rec = [(pred[y == c] == c).mean() for c in range(1, N_CLASSES)]
-                score = sum(rec) + rec[0] - 1e-3 * np.abs(b).sum()
-                if score > best:
-                    best, best_b = score, b
-    return best_b
+                rec = [(pred[y == c] == c).mean() for c in range(N_CLASSES)]
+                as_chainsaw = (pred[(y != cs) & ~bg] == cs).mean()  # vehicle/gunshot -> chainsaw
+                score = (
+                    rec[cs]
+                    + 0.5 * sum(rec[c] for c in range(1, N_CLASSES) if c != cs)
+                    - 5.0 * fp
+                    - 1.0 * as_chainsaw
+                    - 1e-3 * np.abs(b).sum()
+                )
+                ok = bool(rec[cs] >= 0.90)
+                if score > best[ok][0]:
+                    best[ok] = (score, b)
+    return best[True][1] if np.isfinite(best[True][0]) else best[False][1]
+
+
+def calibrate_thresholds(
+    probs: np.ndarray,
+    y: np.ndarray,
+    max_class_fp: float = 0.01,
+    keep_recall: float = 0.85,
+    floor: float = 0.7,
+    ceiling: float = 0.97,
+) -> dict[str, float]:
+    """A confidence threshold per target class for the node's debounce (replaces the single
+    0.8). For each class: the lowest threshold at which at most max_class_fp of background
+    windows are called that class, but never so high that the class loses more than
+    1 - keep_recall of the windows it gets right at argmax."""
+    pred, conf = probs.argmax(1), probs.max(1)
+    bg = y == BG
+    out = {}
+    for c in range(N_CLASSES):
+        if c == BG:
+            continue
+        hit_at_argmax = max(int(((pred == c) & (y == c)).sum()), 1)
+        chosen = ceiling
+        for t in np.arange(floor, ceiling + 1e-9, 0.01):
+            # Compare the exact decimal that is exported; arange drift can admit a
+            # boundary false alarm after the threshold is rounded into metadata.
+            t = round(float(t), 2)
+            fp = ((pred[bg] == c) & (conf[bg] >= t)).mean()
+            kept = ((pred == c) & (y == c) & (conf >= t)).sum() / hit_at_argmax
+            if kept < keep_recall:  # raising further costs too much recall: stop just below
+                chosen = max(floor, t - 0.01)
+                break
+            if fp <= max_class_fp:
+                chosen = t
+                break
+        out[CLASSES[c].name.lower()] = round(float(chosen), 2)
+    return out
 
 
 def to_tflite(model, representative: np.ndarray) -> bytes:
@@ -298,6 +384,10 @@ def main() -> None:
             m = quick_metrics(model.predict(fv, batch_size=512, verbose=0), yv)
             line += "  val " + " ".join(f"{k[:5]} {v:.2f}" for k, v in m["recall"].items())
             line += f"  bgFP {m['bg_fp']:.3f}  bal {m['bal_acc']:.3f}"
+        if epoch >= MINE_FROM and (epoch - MINE_FROM) % MINE_EVERY == 0 and epoch < args.epochs:
+            rates = mine_hard_negatives(model, sampler)
+            worst = sorted(rates.items(), key=lambda kv: -kv[1])[:5]
+            line += "  hard: " + " ".join(f"{k.split('/')[-1]} {v:.2f}" for k, v in worst)
         print(line, flush=True)
 
     # Final (EMA) weights are always used; no checkpoint is picked. Class biases are tuned on
@@ -317,13 +407,21 @@ def main() -> None:
         w, b = dense.get_weights()
         dense.set_weights([w, b + bias.astype(b.dtype)])
         if args.val:
-            m = quick_metrics(model.predict(fv, batch_size=512, verbose=0), yv)
-            print("val after bias:", m)
+            pv = model.predict(fv, batch_size=512, verbose=0)
+            print("val after bias:", quick_metrics(pv, yv))
+            thresholds = calibrate_thresholds(pv, yv)
+            THRESHOLD_FILE.write_text(json.dumps(thresholds) + "\n")
+            print(f"wrote {THRESHOLD_FILE}: {thresholds}")
+    if not args.val:
+        t_file = args.bias.with_name(THRESHOLD_FILE.name) if args.bias else None
+        thresholds = json.loads(t_file.read_text()) if t_file and t_file.is_file() else {}
 
     # representative data for int8 calibration: augmented *training* windows only
     xr, yr = sampler.batch({sc: 250 for sc in CLASSES})
     rep = augment(xr, yr, sampler, rng)
     tfl = to_tflite(model, rep)
+    if len(tfl) > 100_000:
+        raise ValueError(f"int8 model is {len(tfl)} bytes; device budget is 100000")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(tfl)
     float_path = DATA_DIR / "cache" / "classifier_float.keras"
@@ -340,6 +438,8 @@ def main() -> None:
         "test_folds": "ESC-50 fold 5, UrbanSound8K folds 9-10",
         "epochs": args.epochs,
         "class_bias": [round(float(v), 3) for v in bias],
+        "thresholds": thresholds,
+        "hard_negative_mining": True,
         "seed": args.seed,
     }
     args.out.with_suffix(".json").write_text(json.dumps(meta, indent=2) + "\n")

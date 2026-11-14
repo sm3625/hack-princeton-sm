@@ -39,6 +39,18 @@ INCIDENT_LOOKBACK_S = 300  # get_detections always reaches this far before the i
 _SECTOR = re.compile(r"^\s*([A-Za-z])\s*(\d{1,2})\s*$")
 
 
+def camera_uncertain(text: str) -> bool:
+    """Explicit negative/limited-coverage reports, not a vision classifier.
+
+    Unrecognized reports remain unclassified; this never fabricates positive confirmation.
+    """
+    text = text.lower()
+    return any(term in text for term in (
+        "inconclusive", "no activity", "nothing seen", "no people", "no evidence",
+        "only wildlife", "authorized", "view blocked", "limited visibility",
+    ))
+
+
 class ApprovalGate:
     """A dispatch runs only after the station recorded a person's approval for that incident.
 
@@ -126,6 +138,29 @@ class Services:
         return lines
 
 
+    def rain_split(self, inc: Incident) -> tuple[list[int], list[int]]:
+        """The incident's node ids: (in dry weather now, in rain now)."""
+        dry, wet = [], []
+        for n in inc.node_ids():
+            (wet if self.sim.weather(self.world.node(n).sector).rain else dry).append(n)
+        return dry, wet
+
+    def false_alarm_history(self, node_id: int, exclude: str = "") -> int:
+        """Earlier incidents this node was part of that ended dismissed."""
+        return sum(
+            1
+            for i in self.incidents.all()
+            if i.status == "dismissed" and i.id != exclude and node_id in i.node_ids()
+        )
+
+    def response_limitations(self, inc: Incident) -> str:
+        if not inc.observations:
+            return "No recorded aerial verification."
+        observation = inc.observations[-1]
+        if observation["availability"] != "observed":
+            return "No aerial verification: " + observation["content"][:140].rstrip(".") + "."
+        return "Camera report (limited coverage): " + observation["content"][:140].rstrip(".") + "."
+
     def incident_evidence(self, inc: Incident) -> str:
         """Code-counted evidence so a small model does not have to count or search for it."""
         wanted = {(int(n), int(q)) for n, q in inc.records}
@@ -152,8 +187,9 @@ class Services:
                 out.append("Corroborated: YES, two or more nodes in dry weather heard it.")
             elif len(by_node) > 1:
                 out.append(
-                    "Corroborated: NO. Several nodes heard it, but rain can fool neighbouring nodes "
-                    "together, so nodes in rain do not confirm each other."
+                    "Corroborated: UNCERTAIN. Rain can fool neighbouring nodes together, but does "
+                    "not rule out real activity. Compare timing, sound classes and persistence; "
+                    "seek camera or ranger assessment when multiple strong threat reports agree."
                 )
             else:
                 out.append("Corroborated: NO, only one node heard it.")
@@ -168,6 +204,8 @@ class Services:
         w = self.sim.weather(inc.sector)
         out.append(f"Weather in {inc.sector}: {'raining' if w.rain else 'dry'}, wind {w.wind_kph:.0f} kph.")
         out.append(f"Valid node names (use only these): {self.node_names()}.")
+        out.append("Recent camera observations: " + json.dumps(inc.observations[-3:]))
+        out.append("Ranger updates (human reports, not sensor truth): " + json.dumps(inc.ranger_updates[-3:]))
         return "\n".join(out)
 
 
@@ -216,6 +254,46 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         if inc is None:
             return "No active incident."
         return s.incident_evidence(inc)
+
+    @tool
+    def compare_response_options(config: RunnableConfig) -> str:
+        """Read current drone feasibility, observations and ranger corrections before choosing
+        a response. No flight is launched. Waiting, ranger assessment and approval-gated dispatch
+        remain alternatives; missing camera coverage is never confirmation."""
+        inc = s.current(config)
+        if inc is None:
+            return "No active incident."
+        route = s.sim.plan_route(inc.x_m, inc.y_m) if s.deployment.has_drones else None
+        return json.dumps({
+            "drone_feasible": bool(route and route.feasible),
+            "drone_limitation": (route.reason or "route not feasible") if route and not route.feasible
+                                else "no drone at this site" if route is None else "",
+            "observations": inc.observations[-3:], "ranger_updates": inc.ranger_updates[-3:],
+            "ranger_outcome": inc.ranger_outcome(), "already_dispatched": bool(inc.dispatches),
+            "options": ["observe_by_drone", "wait_recheck", "request_ranger_assessment", "propose_dispatch"],
+            "limitation": "Camera observations have limited time and coverage; silence is not proof of absence.",
+        })
+
+    @tool
+    def record_assessment(
+        explanation: str, alternative: str,
+        next_action: Literal["wait_recheck", "request_ranger_assessment", "propose_dispatch", "dismiss"],
+        reason: str, config: RunnableConfig,
+    ) -> str:
+        """Record a revised assessment and why this action is preferable to an alternative.
+        This is an interpretation, not a new observation or a dispatch authorization."""
+        inc = s.current(config)
+        if inc is None:
+            return "No active incident."
+        expected = (config.get("configurable") or {}).get("ranger_revision", len(inc.ranger_updates))
+        if expected != len(inc.ranger_updates):
+            return "Refused: ranger information changed during this assessment; reassess on the next wake."
+        entry = {"time": fmt_time(s.sim.now()), "explanation": explanation[:500],
+                 "alternative": alternative[:500], "next_action": next_action, "reason": reason[:500],
+                 "records": [{"node": s.world.node(n).name, "seq": seq} for n, seq in inc.records],
+                 "observation_count": len(inc.observations), "ranger_update_count": len(inc.ranger_updates)}
+        s.incidents.update(inc.id, assessments=[*inc.assessments, entry], updated_at=s.sim.now())
+        return "Assessment recorded. Actions still require their tools and ranger approval."
 
     @tool
     def get_node_info(node_name: str) -> str:
@@ -297,13 +375,23 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             return "Refused: no active incident."
         if sec is None:
             return _bad_sector(sector)
+        if inc.ranger_outcome() in ("authorized_activity", "false_alarm"):
+            return "Refused: ranger correction requires a new human outcome before dispatch."
+        if (inc.observations and inc.observations[-1]["availability"] == "observed"
+                and camera_uncertain(inc.observations[-1]["content"])
+                and inc.ranger_outcome() != "confirmed_threat"):
+            return "Refused: inconclusive camera report requires ranger confirmation before dispatch."
         if not s.gate.consume(inc.id):
             return "Refused: dispatch needs a ranger's approval. The station has not recorded one."
         now = s.sim.now()
         text = note or ""
         if not s.deployment.has_drones and NO_AERIAL.lower() not in text.lower():
             text = f"{NO_AERIAL} {text}"
-        entry = {"time": fmt_time(now), "sector": sec, "note": text[:MAX_NOTE]}
+        entry = {
+            "time": fmt_time(now), "timestamp": now, "sector": sec, "note": text[:MAX_NOTE],
+            "limitation": s.response_limitations(inc),
+            "records": [{"node": s.world.node(n).name, "seq": seq} for n, seq in inc.records],
+        }
         s.incidents.update(
             inc.id,
             status="dispatched",
@@ -375,6 +463,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             return _bad_sector(sector)
         route = s.sim.plan_route(*_target(sec, config))
         status = _status_of(route.drone_id)
+        if not route.feasible:
+            _observation(config, sec, "unavailable", route.reason or "route not feasible")
         return json.dumps(
             {
                 **({"drone": route.drone_id} if multi else {}),
@@ -386,6 +476,16 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
                 "reason": route.reason,
             }
         )
+
+    def _observation(config, sector, availability, text):
+        inc = s.current(config)
+        if inc is not None:
+            entry = {"source": "drone", "timestamp": s.sim.now(), "sector": sector,
+                     "availability": availability, "content": text,
+                     "requires_ranger_review": availability == "observed" and camera_uncertain(text),
+                     "limitation": ("One camera visit; limited time and coverage. Does not establish legality."
+                                    if availability == "observed" else "No camera observation was obtained.")}
+            s.incidents.update(inc.id, observations=[*inc.observations, entry], updated_at=s.sim.now())
 
     @tool
     def fly_drone(sector: str, config: RunnableConfig) -> str:
@@ -399,8 +499,13 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             return _bad_sector(sector)
         route = s.sim.plan_route(*_target(sec, config))
         if not route.feasible:
+            _observation(config, sec, "unavailable", route.reason or "route not feasible")
             return f"Not flown: {route.reason or 'route not feasible'}."
         seen = s.sim.fly(route)
+        if seen.startswith(("Not flown:", "Not completed:")):
+            _observation(config, sec, "unavailable", seen)
+            return seen
+        _observation(config, sec, "observed", seen)
         status = _status_of(route.drone_id)
         km = route.distance_m / 1000
         who = f" {route.drone_id}" if multi and route.drone_id else ""
@@ -449,6 +554,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
     all_tools = [
         get_incident_evidence,
+        compare_response_options,
+        record_assessment,
         get_detections,
         get_node_info,
         get_weather,
@@ -465,7 +572,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
 TOOLSETS = {
     "commander": [
-        "get_incident_evidence",
+        "get_incident_evidence", "compare_response_options", "record_assessment",
         "get_detections",
         "get_node_info",
         "get_weather",

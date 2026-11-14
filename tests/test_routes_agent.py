@@ -137,3 +137,17 @@ def test_dashboard_decision_is_recorded_as_dashboard_and_via_is_validated(api):
     actions = client.get(f"/api/incidents/{inc_id}").json()["ranger_actions"]
     assert actions[0] == {"time": actions[0]["time"], "decision": "rejected", "by": "ranger", "via": "dashboard",
                           "sector": actions[0]["sector"], "note": "rain"}
+
+
+def test_ranger_outcome_route_revises_pending_proposal(api):
+    h, client = api
+    inc_id = raise_incident(h)
+    old = h.pending()[0].id
+    url = f"/api/incidents/{inc_id}/messages"
+    assert client.post(url, json={"text": " ", "outcome": "false_alarm"}).status_code == 422
+    assert client.post(url, json={"text": "Permit verified", "outcome": "authorized_activity"}).status_code == 202
+    assert client.post(f"/api/approvals/{old}", json={"decision": "approve"}).status_code == 409
+    h.tick("02:15:00")
+    detail = client.get(f"/api/incidents/{inc_id}").json()["incident"]
+    assert detail["ranger_updates"][-1]["outcome"] == "authorized_activity"
+    assert detail["assessment"]["next_action"] == "dismiss"

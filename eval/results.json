@@ -662,7 +662,291 @@
           }
         ]
       }
+    },
+    "night1:mock:fresh:lockstep": {
+      "scenario": "night1",
+      "mode": "mock",
+      "memory": "fresh",
+      "model": "mock",
+      "pace": "lockstep",
+      "speed": null,
+      "partial": null,
+      "wall_s": 7.15,
+      "classifier_sha256": "0ebd8641251a43f65bfa6b053a2a7ea66e09dc042a912f169190df4f3b573ef1",
+      "synthetic_clips": 40,
+      "events_processed": 40,
+      "real_incidents": [
+        "logging-e4",
+        "poaching-g2"
+      ],
+      "detections": {
+        "verified": 29,
+        "events": 40
+      },
+      "baseline": {
+        "alerts": 29,
+        "real_caught": 2,
+        "real_missed": 0,
+        "false_alerts": 20,
+        "caught": [
+          "logging-e4",
+          "poaching-g2"
+        ]
+      },
+      "commander": {
+        "scoring_version": 2,
+        "incidents": 7,
+        "requests": 10,
+        "real_detected": 2,
+        "real_caught": 2,
+        "real_missed": 0,
+        "false_requests": 8,
+        "false_dispatches": 0,
+        "caught": [
+          "logging-e4",
+          "poaching-g2"
+        ],
+        "triage_steps_total": 103,
+        "steps_total": 379,
+        "wall_s_total": 5.4,
+        "wall_s_per_incident": 0.8,
+        "wall_s_per_real_incident": 0.5,
+        "noisy_node": {
+          "node": "El Bajo",
+          "incidents": 1,
+          "triage_steps": 17,
+          "steps": 38,
+          "wall_s": 0.5
+        },
+        "per_incident": [
+          {
+            "id": "2026-11-15_C1",
+            "nodes": [
+              "Puesto Sur"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 1,
+            "dispatched": false,
+            "wall_s": 0.94,
+            "steps": 52,
+            "triage_steps": 5
+          },
+          {
+            "id": "2026-11-15_B3",
+            "nodes": [
+              "El Bajo",
+              "Hondonada"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 6,
+            "dispatched": false,
+            "wall_s": 2.3,
+            "steps": 162,
+            "triage_steps": 59
+          },
+          {
+            "id": "2026-11-15_G8",
+            "nodes": [
+              "Cedro Viejo"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 0.18,
+            "steps": 13,
+            "triage_steps": 4
+          },
+          {
+            "id": "2026-11-15_B6",
+            "nodes": [
+              "Hondonada"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 0.51,
+            "steps": 31,
+            "triage_steps": 4
+          },
+          {
+            "id": "2026-11-15_H2",
+            "nodes": [
+              "Brecha Vieja",
+              "Orilla San Pedro"
+            ],
+            "real": [
+              "poaching-g2"
+            ],
+            "status": "closed",
+            "approvals": 1,
+            "dispatched": true,
+            "wall_s": 0.37,
+            "steps": 27,
+            "triage_steps": 5
+          },
+          {
+            "id": "2026-11-15_B3-2",
+            "nodes": [
+              "El Bajo"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 1,
+            "dispatched": false,
+            "wall_s": 0.52,
+            "steps": 38,
+            "triage_steps": 17
+          },
+          {
+            "id": "2026-11-15_E5",
+            "nodes": [
+              "Arroyo Recodo",
+              "Brecha Vieja",
+              "Paso Musgo"
+            ],
+            "real": [
+              "logging-e4"
+            ],
+            "status": "closed",
+            "approvals": 1,
+            "dispatched": true,
+            "wall_s": 0.55,
+            "steps": 56,
+            "triage_steps": 9
+          }
+        ]
+      }
+    },
+    "night2:mock:fresh:lockstep": {
+      "scenario": "night2",
+      "mode": "mock",
+      "memory": "fresh",
+      "model": "mock",
+      "pace": "lockstep",
+      "speed": null,
+      "partial": null,
+      "wall_s": 4.94,
+      "classifier_sha256": "0ebd8641251a43f65bfa6b053a2a7ea66e09dc042a912f169190df4f3b573ef1",
+      "synthetic_clips": 27,
+      "events_processed": 27,
+      "real_incidents": [
+        "logging-c7"
+      ],
+      "detections": {
+        "verified": 22,
+        "events": 27
+      },
+      "baseline": {
+        "alerts": 22,
+        "real_caught": 1,
+        "real_missed": 0,
+        "false_alerts": 16,
+        "caught": [
+          "logging-c7"
+        ]
+      },
+      "commander": {
+        "scoring_version": 2,
+        "incidents": 5,
+        "requests": 2,
+        "real_detected": 1,
+        "real_caught": 1,
+        "real_missed": 0,
+        "false_requests": 1,
+        "false_dispatches": 0,
+        "caught": [
+          "logging-c7"
+        ],
+        "triage_steps_total": 49,
+        "steps_total": 183,
+        "wall_s_total": 3.7,
+        "wall_s_per_incident": 0.7,
+        "wall_s_per_real_incident": 0.8,
+        "noisy_node": {
+          "node": "El Bajo",
+          "incidents": 1,
+          "triage_steps": 0,
+          "steps": 0,
+          "wall_s": 0.0
+        },
+        "per_incident": [
+          {
+            "id": "2026-11-16_B6",
+            "nodes": [
+              "Hondonada"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 1,
+            "dispatched": false,
+            "wall_s": 1.08,
+            "steps": 54,
+            "triage_steps": 5
+          },
+          {
+            "id": "2026-11-16_G6",
+            "nodes": [
+              "Vado de Piedra"
+            ],
+            "real": [],
+            "status": "watching",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 0.25,
+            "steps": 17,
+            "triage_steps": 4
+          },
+          {
+            "id": "2026-11-16_B3",
+            "nodes": [
+              "El Bajo"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 0.0,
+            "steps": 0,
+            "triage_steps": 0
+          },
+          {
+            "id": "2026-11-16_B8",
+            "nodes": [
+              "Hondonada",
+              "Loma Este",
+              "Loma Norte"
+            ],
+            "real": [
+              "logging-c7"
+            ],
+            "status": "closed",
+            "approvals": 1,
+            "dispatched": true,
+            "wall_s": 0.77,
+            "steps": 52,
+            "triage_steps": 9
+          },
+          {
+            "id": "2026-11-15_B3",
+            "nodes": [
+              "El Bajo",
+              "Puesto Sur"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 1.58,
+            "steps": 60,
+            "triage_steps": 31
+          }
+        ]
+      }
     }
   },
-  "updated": "2026-11-14T10:41:54"
+  "updated": "2026-11-14T14:03:22"
 }

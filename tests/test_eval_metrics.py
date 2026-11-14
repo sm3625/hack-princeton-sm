@@ -55,6 +55,8 @@ def view(iid, records, approvals=(), steps=None, wall=1.0, nodes=None):
         "incident": {"id": iid, "nodes": nodes or sorted({r[0] for r in records}), "status": "open"},
         "records": [{"node": n, "seq": s} for n, s in records],
         "approvals": [{"status": a} for a in approvals],
+        "dispatches": [{"records": [{"node": n, "seq": s} for n, s in records]}
+                       for a in approvals if a in ("approved", "edited")],
         "stats": {"runs": 1, "wall_s": wall, "steps": steps or {}},
     }
 
@@ -232,3 +234,18 @@ def test_eval_latest_route_serves_results_or_404(tmp_path, monkeypatch):
     path.write_text(json.dumps({"runs": {"night1:mock:fresh": run_result()}}))
     res = client.get("/api/eval/latest")
     assert res.status_code == 200 and "night1:mock:fresh" in res.json()["runs"]
+
+
+def test_approval_without_executed_dispatch_does_not_catch():
+    v = view("a", [("Arroyo Recodo", 1)], approvals=["approved"])
+    v["dispatches"] = []
+    assert metrics.score_commander([v], ROWS, EVENTS, START)["real_caught"] == 0
+
+
+def test_later_real_evidence_cannot_rescue_false_dispatch():
+    v = view("a", [("El Bajo", 1), ("Arroyo Recodo", 1)], approvals=["approved"])
+    v["dispatches"] = [{"records": [{"node": "El Bajo", "seq": 1}]}]
+    v["approvals"][0]["records"] = [{"node": "El Bajo", "seq": 1}]
+    score = metrics.score_commander([v], ROWS, EVENTS, START)
+    assert score["real_caught"] == 0
+    assert score["false_dispatches"] == score["false_requests"] == 1

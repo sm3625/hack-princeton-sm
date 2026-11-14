@@ -109,3 +109,16 @@ def test_ws_rejects_foreign_origins_and_accepts_own_or_none(monkeypatch):
         with client.websocket_connect("/ws", headers=headers) as ws:
             bus.publish({"type": "clock", "sim_time": 5})
             assert ws.receive_json()["type"] == "clock"
+
+
+def test_other_sites_cannot_write_or_rebind(monkeypatch):
+    client = make_client(monkeypatch, LLM_MODE="mock")
+    # DNS rebinding: an outside name pointed at 127.0.0.1
+    assert client.get("/api/health", headers={"host": "evil.example"}).status_code == 403
+    # a page on another site posting to the station
+    cross = client.post("/api/sim/pause", json={"paused": True}, headers={"origin": "https://evil.example"})
+    assert cross.status_code == 403 and cross.json() == {"detail": "Cross-site request refused."}
+    # the station's own page, and scripts without an Origin, still work
+    assert client.post("/api/sim/pause", json={"paused": True}, headers={"origin": "http://testserver"}).status_code == 200
+    assert client.post("/api/sim/pause", json={"paused": False}).status_code == 200
+    assert client.get("/api/health", headers={"origin": "https://evil.example"}).status_code == 200
