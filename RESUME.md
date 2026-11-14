@@ -56,3 +56,9 @@ Last updated: 2026-11-14.
 - Cheapest fitting subagent model (haiku/sonnet); opus only for hard work.
 - ChatOverflow: search on errors, vote on used notes, save a note for every distinct real insight.
 - No paid API calls without the user's OK (Haiku mode costs money).
+
+## Photon bridge (2026-11-14)
+- `station/photon.py` adds an opt-in Photon 2.0 iMessage bridge to the existing commander approval API; `make photon` is local preview only. See `docs/PHOTON.md` for configuration, credit safeguards, state/recovery, and the REST-vs-hosted-MCP distinction.
+- Default is no Photon traffic. Live mode is manual; every outbound attempt requires a finite `--allow-sends N` allowance. **User explicitly forbids spending Photon credits without permission. No authenticated Photon API call, provisioning or message send was performed. Do not run live to validate it without asking.**
+- Mocked transport tests exercise real commander approval/rejection, sender allowlisting, expiry, deduplication, crash ambiguity, pagination and credit limits. Live delivery remains unverified. Changes remain uncommitted.
+- Validation: full local regression **411 passed, 9 skipped, 6 deselected** with localhost socket permission; lint and diff checks clean. No paid-model or live Photon tests run.

@@ -33,3 +33,7 @@ eval:
 
 eval-quick:  ## 4 Night 1 incidents on the local model, under 10 min
 	LLM_MODE=ollama uv run python -m eval.quick
+
+.PHONY: photon
+photon:  ## Preview pending ranger messages locally; never calls Photon
+	uv run python -m station.photon

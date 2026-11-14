@@ -305,6 +305,9 @@ def test_repeat_dispatch_after_reject_is_refused_by_code(h, monkeypatch):
     assert h.pending() == []  # the repeat never reached a ranger
     assert any("repeat dispatch request blocked" in m["summary"] for m in h.of_type("agent_step"))
     assert h.commander.incidents.get(inc_id).dispatches == []
+    rows = [json.loads(r) for r in h.file(inc_id, "approvals.jsonl").splitlines()]
+    assert [r["decision"] for r in rows] == ["rejected", "auto_rejected"]
+    assert rows[1]["by"] == "station"
 
     # new evidence lifts the block: the next request goes to a ranger again
     h.hear("Creek Bend", 42, "02:51:00", S.CHAINSAW, 0.95)
@@ -322,3 +325,23 @@ def test_rain_incident_does_not_absorb_dry_detections(h):
     incs = h.commander.incidents.all()
     assert len(incs) == 2
     assert {i.in_rain for i in incs} == {True, False}
+
+
+def test_rain_starting_mid_event_does_not_split_the_incident(h):
+    """Finding 5: weather changing during a real event must not split it into lone incidents."""
+    h.hear("Creek Bend", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.sim.rain = {"D4"}  # rain reaches Mossy Gap
+    h.hear("Mossy Gap", 17, "02:19:40", S.CHAINSAW, 0.84)
+    (inc,) = h.commander.incidents.all()
+    assert inc.in_rain is False and len(inc.records) == 2
+
+
+def test_dry_detection_after_rain_only_incident_still_separates(h):
+    h.sim.rain = {"B3"}
+    h.hear("Low Marsh", 1, "01:33:10", S.CHAINSAW, 0.80)
+    h.hear("Low Marsh", 2, "01:34:10", S.CHAINSAW, 0.81)
+    h.sim.rain = set()
+    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Low Marsh", 3, "02:15:00", S.CHAINSAW, 0.82)  # now dry: joins neither rain-only incident
+    rain_inc = next(i for i in h.commander.incidents.all() if i.in_rain)
+    assert len(rain_inc.records) == 2

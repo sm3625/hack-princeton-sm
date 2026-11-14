@@ -41,6 +41,12 @@ def test_blocks_anthropic_key(repo):
     assert commit(repo, "config.py", f'KEY = "{fake}"\n').returncode != 0
 
 
+@pytest.mark.parametrize("prefix", ["pho_sk_", "pho_ask_"])
+def test_blocks_photon_keys(repo, prefix):
+    fake = prefix + "A" * 32
+    assert commit(repo, "config.py", f'KEY = "{fake}"\n').returncode != 0
+
+
 def test_blocks_private_key(repo):
     pem = "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nabc\n"
     assert commit(repo, "notes.txt", pem).returncode != 0
@@ -57,3 +63,10 @@ def test_blocks_node_keys(repo):
 def test_allows_env_example_and_normal_code(repo):
     assert commit(repo, ".env.example", "ANTHROPIC_API_KEY=\n").returncode == 0
     assert commit(repo, "app.py", "print('hello')\n").returncode == 0
+
+
+def test_blocks_key_at_top_of_large_file(repo):
+    """grep -q in a pipe exits early; printf then dies of SIGPIPE and the check passed (pipefail)."""
+    fake = "sk-" + "ant-" + "api03-" + "A" * 40
+    filler = "".join(f"line {i} of harmless text\n" for i in range(8000))  # ~200 KB
+    assert commit(repo, "big.txt", f'KEY = "{fake}"\n' + filler).returncode != 0

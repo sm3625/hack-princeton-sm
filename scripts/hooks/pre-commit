@@ -20,6 +20,8 @@ done < <(git diff --cached --name-only --diff-filter=ACMR)
 patterns=(
   'sk-ant-[A-Za-z0-9_-]{20,}'          # Anthropic
   'sk-(proj-)?[A-Za-z0-9_-]{32,}'      # OpenAI
+  'pho_sk_[A-Za-z0-9_-]{20,}'          # Photon project key
+  'pho_ask_[A-Za-z0-9_-]{20,}'         # Photon account service key
   'lsv2_[a-z]{2}_[A-Za-z0-9]{20,}'     # LangSmith
   'AKIA[0-9A-Z]{16}'                   # AWS
   'ghp_[A-Za-z0-9]{30,}'               # GitHub
@@ -28,7 +30,9 @@ patterns=(
 )
 added=$(git diff --cached -U0 --diff-filter=ACMR | grep -E '^\+' | grep -vE '^\+\+\+' || true)
 for p in "${patterns[@]}"; do
-  if printf '%s\n' "$added" | grep -qE -- "$p"; then
+  # Here-string, not a pipe: grep -q exits at the first match, and with pipefail a printf
+  # killed by SIGPIPE (staged diff > pipe buffer) would make the check silently pass.
+  if grep -qE -- "$p" <<<"$added"; then
     echo "pre-commit: blocked a staged line matching a secret pattern ($p)" >&2
     fail=1
   fi

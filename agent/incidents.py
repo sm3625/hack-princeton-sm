@@ -133,7 +133,7 @@ class Incident:
     sounds: list[str] = field(default_factory=list)
     next_check_at: int | None = None
     dispatches: list[dict] = field(default_factory=list)
-    in_rain: bool | None = None  # weather at the first detection's node; None = unknown
+    in_rain: bool | None = None  # True while every record so far was heard in rain; None = unknown
     rejected_at_records: int | None = None  # record count when a ranger last rejected dispatch
 
     @property
@@ -324,9 +324,10 @@ class IncidentManager:
                 continue
             if abs(d.timestamp - inc.last_detection_at) > JOIN_WINDOW_S:
                 continue
-            # Rain false alarms and a real sound heard in dry weather are different incidents,
-            # even when they are close in place and time.
-            if inc.in_rain is not None and self._rain_at(node) not in (None, inc.in_rain):
+            # A sound heard in dry weather does not join an incident made only of rain detections:
+            # rain false alarms and a real event nearby are different incidents. Rain detections
+            # may still join an incident with dry evidence (rain starting mid-event).
+            if inc.in_rain is True and self._rain_at(node) is False:
                 continue
             dist = math.hypot(node.x_m - inc.x_m, node.y_m - inc.y_m)
             if dist <= best_dist:
@@ -357,6 +358,8 @@ class IncidentManager:
 
     def _attach(self, inc: Incident, d: Detection, node: Node, family: str) -> None:
         inc.records.append([d.node_id, d.seq])
+        if self._rain_at(node) is False:
+            inc.in_rain = False  # it now has dry evidence
         key = str(d.node_id)
         inc.weights[key] = max(inc.weights.get(key, 0.0), float(d.confidence))
         name = sound_name(d.sound)

@@ -545,7 +545,14 @@ class Commander:
                 interrupts = result.get("__interrupt__") or []
                 if not interrupts or not self._repeat_after_reject(incident_id):
                     break
-                n = len((interrupts[0].value or {}).get("action_requests", [])) or 1
+                requests = (interrupts[0].value or {}).get("action_requests", [])
+                n = len(requests) or 1
+                args = (requests[0].get("args") or {}) if requests else {}
+                self.files.append_jsonl(  # audit trail: the ranger never saw this request
+                    inc.folder + "approvals.jsonl",
+                    {"time": fmt_time(self.sim.now()), "decision": "auto_rejected", "by": "station",
+                     "sector": str(args.get("sector", ""))[:8], "note": REPEAT_REJECT},
+                )
                 reporter.step("commander", "repeat dispatch request blocked: a ranger rejected it and nothing new has arrived")
                 result = self.agent.invoke(
                     Command(resume={"decisions": [{"type": "reject", "message": REPEAT_REJECT}] * n}), config
