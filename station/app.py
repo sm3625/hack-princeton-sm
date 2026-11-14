@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from station import routes_ws
+from station import routes_sim, routes_ws
 from station.config import ROOT, load_settings
 
 UI_DIR = ROOT / "ui"
@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
 
     # Track routers: each track adds ONE include line here for its own router.
     app.include_router(routes_ws.router)
+    app.include_router(routes_sim.router)
 
     app.mount("/ui", StaticFiles(directory=UI_DIR), name="ui")
     return app
