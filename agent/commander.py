@@ -486,6 +486,7 @@ class Commander:
             return
         if wake.check_due:
             self.incidents.update(inc.id, next_check_at=None)
+        self._ensure_plan(inc)
         text = self.wake_text(inc, wake)
         try:
             self._run(inc.id, {"messages": [{"role": "user", "content": text}]})
@@ -501,6 +502,23 @@ class Commander:
                 self._step(inc.id, "commander", f"agent unavailable ({type(e).__name__}); gave up on this wake-up")
             return
         self._failures.pop(inc.id, None)
+
+    def _ensure_plan(self, inc: Incident) -> None:
+        """Small local models often skip bookkeeping, so code seeds plan.md; the agent edits it."""
+        path = inc.folder + "plan.md"
+        if self.files.read(path):
+            return
+        markdown = (
+            f"# {inc.title}\n\n"
+            "- [ ] Triage: real threat or false alarm?\n"
+            "- [ ] If real: drone check of the estimated location\n"
+            "- [ ] If confirmed: ask a ranger to approve dispatch\n"
+            "- [ ] Follow up, then write the case file\n"
+        )
+        self.files.write(path, markdown)
+        self.publish(
+            {"type": "plan", "incident_id": inc.id, "markdown": markdown, "html": render_markdown(markdown)}
+        )
 
     def _run(self, incident_id: str, payload: Any) -> None:
         inc = self.incidents.get(incident_id)
