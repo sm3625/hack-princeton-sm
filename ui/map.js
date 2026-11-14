@@ -2,6 +2,7 @@
 // World metres: x east, y north. Fills and grid live in a scaled layer; markers, labels and
 // paths live in a screen-space overlay so they stay crisp and the same size at every zoom.
 
+import { buildGeoLayer, geoLabels } from "./geo.js";
 import { el, icon, reducedMotion, svg } from "./util.js";
 
 const PAD = 24; // px of margin around the forest at "fit"
@@ -79,7 +80,13 @@ export class ForestMap {
       { id: "nofly-hatch", width: 7, height: 7, patternUnits: "userSpaceOnUse" },
       svg("line", { x1: 0, y1: 0, x2: 0, y2: 7, class: "hatch-line" }),
     );
-    this.svg.append(svg("defs", {}, this.hatch));
+    this.wetHatch = svg(
+      "pattern",
+      { id: "wetland-hatch", width: 6, height: 6, patternUnits: "userSpaceOnUse" },
+      svg("rect", { width: 6, height: 6, class: "wet-bg" }),
+      svg("line", { x1: 0, y1: 3, x2: 6, y2: 3, class: "wet-line" }),
+    );
+    this.svg.append(svg("defs", {}, this.hatch, this.wetHatch));
 
     // Scaled layer (world metres, y flipped).
     this.gWorld = svg("g", { class: "world" });
@@ -96,7 +103,8 @@ export class ForestMap {
     grid.append(
       svg("rect", { class: "border", x: 0, y: 0, width: W, height: H, "vector-effect": "non-scaling-stroke" }),
     );
-    this.gWorld.append(this.gRain, this.gIncidents, grid);
+    this.gGeo = svg("g", { class: "geo-slot" });
+    this.gWorld.append(this.gGeo, this.gRain, this.gIncidents, grid);
 
     // Screen-space overlay.
     this.gOverlay = svg("g", { class: "overlay" });
@@ -163,7 +171,9 @@ export class ForestMap {
       svg("circle", { class: "body", r: 6.5 }),
     );
 
-    this.gOverlay.append(this.gAxis, this.gSectorLabels, this.planLine, this.trailLine, this.base, this.gNodes, this.droneG);
+    this.gGeoLabels = svg("g", { class: "geo-labels", "aria-hidden": "true" });
+    this.geoLabels = [];
+    this.gOverlay.append(this.gGeoLabels, this.gAxis, this.gSectorLabels, this.planLine, this.trailLine, this.base, this.gNodes, this.droneG);
     this.svg.append(this.gWorld, this.gOverlay);
 
     this.calloutText = el("div", { class: "callout-bubble" });
@@ -191,6 +201,19 @@ export class ForestMap {
       )),
     );
     this.root.append(this.svg, this.callout, this.controls);
+  }
+
+  // Real OpenStreetMap layers under the grid and nodes (data from ui/geo, see geo.js).
+  setGeo(block) {
+    if (!block?.features?.length) return;
+    this.gGeo.replaceChildren(buildGeoLayer(block, this.W, this.H));
+    this.gGeoLabels.replaceChildren();
+    this.geoLabels = geoLabels(block, this.W, this.H).map((l) => {
+      const t = svg("text", { class: `geo-label ${l.cls}`, "text-anchor": "middle", text: l.name });
+      this.gGeoLabels.append(t);
+      return { ...l, t };
+    });
+    this.requestFrame();
   }
 
   sectorRect(name) {
@@ -655,6 +678,12 @@ export class ForestMap {
     const { w, h } = this.size;
     this.gWorld.setAttribute("transform", `matrix(${k} 0 0 ${k} ${tx} ${ty})`);
     this.hatch.setAttribute("patternTransform", `translate(${tx} ${ty}) rotate(45)`);
+    this.wetHatch.setAttribute("patternTransform", `scale(${1 / k})`);
+    for (const l of this.geoLabels) {
+      const show = l.cls === "river" || l.cls === "stream" || this.S * k >= 110;
+      l.t.classList.toggle("shown", show);
+      if (show) l.t.setAttribute("transform", `translate(${this.sx(l.x)} ${this.sy(l.y)}) rotate(${l.deg}) translate(0 -5)`);
+    }
 
     const sectorPx = this.S * k;
     for (const z of this.noFly) {
