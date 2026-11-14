@@ -1,0 +1,33 @@
+[project]
+name = "forest-guardian"
+version = "0.1.0"
+description = "Offline acoustic sensors + an incident-commander agent against illegal logging"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "ollama: needs a running local Ollama model",
+    "haiku: calls the Claude API and costs money",
+]
+addopts = "-m 'not ollama and not haiku'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

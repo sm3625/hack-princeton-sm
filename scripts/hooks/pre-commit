@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Blocks commits that contain secrets: API keys, private keys, .env files.
+# Installed by `make setup` (git config core.hooksPath scripts/hooks).
+set -euo pipefail
+
+fail=0
+
+# 1. Forbidden files
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    .env|*/.env|.env.*|*/.env.*|keys/*|*/keys/*|*.key|*.pem)
+      case "$f" in *.env.example) continue ;; esac
+      echo "pre-commit: blocked file '$f' (secrets must stay out of git)" >&2
+      fail=1 ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+# 2. Key-shaped strings in added lines
+patterns=(
+  'sk-ant-[A-Za-z0-9_-]{20,}'          # Anthropic
+  'sk-(proj-)?[A-Za-z0-9_-]{32,}'      # OpenAI
+  'lsv2_[a-z]{2}_[A-Za-z0-9]{20,}'     # LangSmith
+  'AKIA[0-9A-Z]{16}'                   # AWS
+  'ghp_[A-Za-z0-9]{30,}'               # GitHub
+  'ei_[a-f0-9]{40,}'                   # Edge Impulse
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+)
+added=$(git diff --cached -U0 --diff-filter=ACMR | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+for p in "${patterns[@]}"; do
+  if printf '%s\n' "$added" | grep -qE -- "$p"; then
+    echo "pre-commit: blocked a staged line matching a secret pattern ($p)" >&2
+    fail=1
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: put secrets in .env (git-ignored). Commit aborted." >&2
+  exit 1
+fi

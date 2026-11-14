@@ -1,2 +1,27 @@
 .DS_Store
 .claude/settings.local.json
+
+# secrets
+.env
+keys/
+*.key
+*.pem
+
+# runtime data
+node_data/
+agent_fs/
+*.sqlite
+*.sqlite3
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# datasets (downloaded, large)
+data/
+
+# local tool config (contains absolute paths)
+.claude/launch.json
