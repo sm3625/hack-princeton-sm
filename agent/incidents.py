@@ -41,12 +41,13 @@ NODES_MEMORY = "# Node notes\n\nWhat the station has learned about individual se
 SECTORS_MEMORY = "# Sector notes\n\nPast incidents and patterns per sector.\n\n"
 
 
+# Station-local clock, like the scenario files and the dashboard clock. ISO stamps stay UTC.
 def fmt_time(ts: float) -> str:
-    return time.strftime("%H:%M:%S", time.gmtime(ts))
+    return time.strftime("%H:%M:%S", time.localtime(ts))
 
 
 def fmt_date(ts: float) -> str:
-    return time.strftime("%Y-%m-%d", time.gmtime(ts))
+    return time.strftime("%Y-%m-%d", time.localtime(ts))
 
 
 def fmt_iso(ts: float) -> str:

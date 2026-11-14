@@ -1,6 +1,7 @@
 """Grouping detections into incidents, location estimates, and wake-up timing (plain code)."""
 
 import json
+import time
 
 import pytest
 from agent_fakes import Nodes, at
@@ -96,7 +97,8 @@ def test_detections_jsonl_uses_names_and_record_tags(world, mgr):
     (row,) = [json.loads(x) for x in mgr.files.read(inc.folder + "detections.jsonl").splitlines()]
     assert row["record"] == "[Creek Bend #41]" and row["node"] == "Creek Bend" and row["seq"] == 41
     assert "node_id" not in row and "signature" not in row
-    assert row["time"] == "2026-11-14T02:14:05Z" and row["confidence"] == 0.91
+    utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(at("02:14:05")))  # ISO stays UTC
+    assert row["time"] == utc and row["confidence"] == 0.91
 
 
 def test_incidents_persist(world, tmp_path, mgr):

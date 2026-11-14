@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import calendar
 import hashlib
 import math
 import struct
+import time
 from pathlib import Path
 
 from nacl.signing import SigningKey
@@ -17,7 +17,7 @@ from agent.llm import ROLES
 from agent.mock import MockChatModel
 from common.contracts import Detection, DroneStatus, Route, SoundClass, Weather, World, load_world
 
-NIGHT = calendar.timegm((2026, 11, 14, 0, 0, 0))
+NIGHT = int(time.mktime((2026, 11, 14, 0, 0, 0, 0, 0, -1)))  # station-local midnight
 
 
 def at(hhmmss: str) -> int:
