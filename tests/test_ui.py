@@ -20,14 +20,22 @@ NODE_NAMES = {
 
 
 @pytest.fixture(scope="module")
-def server():
+def server(tmp_path_factory):
+    import station.receiver as receiver_module
     from sim import engine as engine_mod
 
-    engine_mod.reset_engine(None)
-    srv = LiveServer().start()
-    yield srv
-    srv.stop()
-    engine_mod.reset_engine(None)
+    tmp = tmp_path_factory.mktemp("station")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("EVENTS_DB", str(tmp / "events.sqlite"))
+        mp.setenv("KEYS_DIR", str(tmp / "keys"))
+        mp.setenv("NODE_DATA_DIR", str(tmp / "node_data"))
+        mp.setenv("LORA_UDP_PORT", "off")
+        mp.setattr(receiver_module, "_default", None)
+        engine_mod.reset_engine(None)
+        srv = LiveServer().start()
+        yield srv
+        srv.stop()
+        engine_mod.reset_engine(None)
 
 
 @pytest.fixture(scope="module")
@@ -102,6 +110,28 @@ def test_detection_shows_in_feed_and_lights_node(browser, server):
     expect(item).to_contain_text("Low Marsh")
     expect(page.locator('[data-node-name="Low Marsh"]')).to_have_class("node amber")
     assert "7" not in item.inner_text().split()  # names, never numeric ids
+
+
+def test_feed_survives_a_page_refresh(browser, server):
+    from common.contracts import Detection, SoundClass
+    from node.keys import load_signing_key
+    from node.record import pack
+    from station.receiver import get_receiver
+
+    det = Detection(
+        node_id=7, seq=int(time.time()), timestamp=int(time.time()), lat=1.0, lon=2.0,
+        sound=SoundClass.CHAINSAW, confidence=0.9, model_version=1, clip_hash="ab" * 16,
+    )  # fmt: skip
+    outcome = server.call(get_receiver().handle, pack(det, load_signing_key(7)))
+    assert outcome.accepted
+    page = open_page(browser, server)  # fresh page: nothing arrives live, history only
+    page.click("#tab-feed")
+    expect(page.locator(".feed-item")).to_have_count(1)
+    expect(page.locator(".feed-item").first).to_contain_text("Low Marsh")
+    page.reload()
+    page.click("#tab-feed")
+    expect(page.locator(".feed-item")).to_have_count(1)  # reload and resync do not duplicate
+    assert page.errors == []
 
 
 def test_rejected_record_turns_node_red(browser, server):

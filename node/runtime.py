@@ -40,6 +40,11 @@ log = logging.getLogger(__name__)
 DEBOUNCE_WINDOWS = 5
 DEBOUNCE_HITS = 3
 DEBOUNCE_CONFIDENCE = 0.8
+# A gunshot is an impulse: with 1 s windows every 0.5 s one shot lights up at most 2 windows,
+# so "3 of 5" could never fire. Two confident windows of five (the two that share the same
+# crack) still rejects a lone spurious window, and a volley fires as well. SPEC 3.2 updated.
+IMPULSE_HITS = 2
+HITS_REQUIRED = {SoundClass.GUNSHOT: IMPULSE_HITS}
 SUPPRESS_S = 30.0
 CLIP_S = 5.0
 
@@ -197,9 +202,16 @@ class NodeRuntime:
         ]
         if not hits:
             return None
-        sound, count = Counter(p.sound for p in hits).most_common(1)[0]
-        if count < DEBOUNCE_HITS or t < self._suppressed_until.get(sound, -math.inf):
+        counts = Counter(p.sound for p in hits)
+        ready = [
+            (sound, n)
+            for sound, n in counts.most_common()
+            if n >= HITS_REQUIRED.get(sound, DEBOUNCE_HITS)
+            and t >= self._suppressed_until.get(sound, -math.inf)
+        ]
+        if not ready:
             return None
+        sound, count = ready[0]
         self._suppressed_until[sound] = t + SUPPRESS_S
         if not self._within_budget(t):
             self.counters["budget_dropped"] += 1

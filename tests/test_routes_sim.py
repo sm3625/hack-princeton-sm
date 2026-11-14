@@ -19,6 +19,7 @@ events:
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_MODE", "mock")
+    monkeypatch.setenv("NODE_PIPELINE", "off")  # these tests are about the stub feed
     import shutil
 
     from sim.scenario import SCENARIO_DIR

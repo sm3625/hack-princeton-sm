@@ -202,3 +202,20 @@ def test_accepts_int16_and_column_audio(tmp_path):
     rig.rt.feed(np.full(SAMPLE_RATE, 16384, dtype=np.int16))
     assert rig.rt.counters["windows"] == 3
     assert np.isclose(rig.classifier.windows[-1].max(), 0.5)
+
+
+def test_single_gunshot_spanning_two_windows_fires(tmp_path):
+    # One shot is only confident in the two overlapping windows that contain it.
+    rig = Rig(tmp_path, [BG] * 4 + [GUN] * 2 + [BG] * 6)
+    events = rig.run(7.0)
+    assert [e.sound for e in events] == [SoundClass.GUNSHOT]
+
+
+def test_one_lone_gunshot_window_does_not_fire(tmp_path):
+    rig = Rig(tmp_path, [BG] * 4 + [GUN] + [BG] * 10)
+    assert rig.run(8.0) == []
+
+
+def test_chainsaw_still_needs_three_of_five(tmp_path):
+    rig = Rig(tmp_path, [BG] * 4 + [SAW] * 2 + [BG] * 8)
+    assert rig.run(8.0) == []

@@ -2,6 +2,7 @@
 
 GET  /api/detections?limit=50&verified_only=false   most recent first
 POST /api/dev/tamper/{node_id}/{seq}?byte=20         flip one stored byte, re-verify
+                                                     (demo only: 404 unless STATION_DEV is truthy)
 
 The router's lifespan starts the UDP listener with the app (FastAPI merges router lifespans
 on include_router), so station/app.py only needs include_router.
@@ -9,6 +10,7 @@ on include_router), so station/app.py only needs include_router.
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -54,7 +56,16 @@ def detections(
     }
 
 
-@router.post("/api/dev/tamper/{node_id}/{seq}")
+def dev_enabled() -> bool:
+    return os.getenv("STATION_DEV", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def require_dev() -> None:
+    if not dev_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post("/api/dev/tamper/{node_id}/{seq}", dependencies=[Depends(require_dev)])
 def tamper(
     node_id: int,
     seq: int,

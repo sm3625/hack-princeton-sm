@@ -57,6 +57,7 @@ const state = {
   rain: new Set(),
   drone: null,
   lastByNode: new Map(),
+  seenDetections: new Set(), // "node:seq:verified": a refresh or reconnect must not duplicate rows
   selectedNode: null,
   map: null,
 };
@@ -234,8 +235,15 @@ async function tamper(e, item) {
 }
 
 function onDetection(m) {
-  const d = m.detection || {};
+  showDetection(m.detection || {}, !!m.stub, true);
+}
+
+// live: flash the node. History rows (loaded on page load/reconnect) just fill the feed.
+function showDetection(d, stub, live) {
   const verified = d.verified === true;
+  const key = `${d.node_id}:${d.seq}:${verified}`;
+  if (d.seq !== undefined && state.seenDetections.has(key)) return;
+  state.seenDetections.add(key);
   const item = {
     kind: verified ? "detection" : "rejected",
     t: d.timestamp ?? simNow(),
@@ -244,11 +252,11 @@ function onDetection(m) {
     confidence: d.confidence,
     seq: d.seq,
     clip: d.clip_hash,
-    stub: !!m.stub,
+    stub,
     reason: verified ? null : "bad_signature",
   };
   addFeed(item);
-  if (state.map) state.map.flashNode(Number(d.node_id), verified ? "amber" : "red");
+  if (live && state.map) state.map.flashNode(Number(d.node_id), verified ? "amber" : "red");
   if (verified) state.lastByNode.set(Number(d.node_id), item);
   renderNodeCard();
 }
@@ -874,6 +882,13 @@ async function resync() {
     applySimState(await api("/api/sim/state"));
   } catch {
     /* sim routes missing: the map still works from bus messages */
+  }
+  try {
+    // Recent detections, newest first from the API; add oldest first so the feed keeps its order.
+    const data = await api("/api/detections?limit=50");
+    for (const d of [...(data?.detections || [])].reverse()) showDetection(d, false, false);
+  } catch {
+    /* no detections API: the feed fills from live messages */
   }
   try {
     const data = await api("/api/incidents");

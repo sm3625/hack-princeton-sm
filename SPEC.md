@@ -43,7 +43,7 @@ Offline sensor nodes classify forest sounds on-device and send small **signed** 
 
 ### 3.2 Node runtime (`node/`)
 Simulated nodes run on the laptop. One real node uses the live mic; others replay scenario clips.
-- **Debounce:** emit an event when the same non-background class is ≥0.8 confidence in ≥3 of the last 5 windows; then suppress that class for 30 s.
+- **Debounce:** emit an event when the same non-background class is ≥0.8 confidence in ≥3 of the last 5 windows; then suppress that class for 30 s. Gunshots are impulses (one shot spans at most 2 windows), so for `gunshot` the rule is ≥2 of 5.
 - **Clip storage:** save the 5 s of audio around the event to `node_data/<node_id>/clips/` (stands in for SD card, collected later as evidence).
 - **Device limits enforced in code:** model size, max record size, events/hour budget. Log and display them.
 - **Keys:** each node has an Ed25519 keypair generated at provisioning; station holds the public keys.

@@ -19,6 +19,7 @@ PUBLIC = {i: k.verify_key for i, k in KEYS.items()}
 @pytest.fixture
 def app_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_MODE", "mock")
+    monkeypatch.setenv("STATION_DEV", "1")
     monkeypatch.setenv("EVENTS_DB", str(tmp_path / "events.sqlite"))
     monkeypatch.setenv("KEYS_DIR", str(tmp_path / "keys"))
     monkeypatch.setenv("LORA_UDP_PORT", "0")
@@ -135,3 +136,12 @@ def test_udp_can_be_turned_off(app_env, monkeypatch):
     monkeypatch.setenv("LORA_UDP_PORT", "off")
     with TestClient(app_env) as client:
         assert client.app.state.lora_udp is None
+
+
+def test_tamper_endpoint_is_off_unless_station_dev(client, monkeypatch):
+    for value in (None, "", "0", "false"):
+        if value is None:
+            monkeypatch.delenv("STATION_DEV", raising=False)
+        else:
+            monkeypatch.setenv("STATION_DEV", value)
+        assert client.post("/api/dev/tamper/5/8").status_code == 404
