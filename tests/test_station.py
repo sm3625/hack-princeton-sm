@@ -43,3 +43,12 @@ def test_unknown_mode_rejected(monkeypatch):
 
     with pytest.raises(ConfigError, match="LLM_MODE"):
         make_client(monkeypatch, LLM_MODE="gpt")
+
+
+def test_ws_forwards_bus_messages(monkeypatch):
+    from station.bus import bus
+
+    client = make_client(monkeypatch, LLM_MODE="mock")
+    with client.websocket_connect("/ws") as ws:
+        bus.publish({"type": "clock", "sim_time": 123})
+        assert ws.receive_json() == {"type": "clock", "sim_time": 123}
