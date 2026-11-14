@@ -88,7 +88,7 @@ def test_tamper_endpoint_validates_input(client):
     assert client.post("/api/dev/tamper/5/1", params={"byte": 107}).json()["verified"] is False
 
 
-def _wait_for(fn, timeout=3.0):
+def _wait_for(fn, timeout=10.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         value = fn()

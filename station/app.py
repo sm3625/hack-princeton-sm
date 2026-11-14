@@ -4,8 +4,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from station import routes_events, routes_ws
+from station import routes_agent, routes_events, routes_ws
 from station.config import ROOT, load_settings
+from station.receiver import get_receiver
 
 UI_DIR = ROOT / "ui"
 
@@ -25,6 +26,14 @@ def create_app() -> FastAPI:
     # Track routers: each track adds ONE include line here for its own router.
     app.include_router(routes_ws.router)
     app.include_router(routes_events.router)
+    app.include_router(routes_agent.router)  # incident commander API + its startup (lifespan)
+
+    # Integration: the commander reads verified records from the pipeline's store and
+    # re-verifies signatures with the pipeline's keys.
+    receiver = get_receiver()
+    app.state.receiver = receiver
+    app.state.event_store = receiver.store
+    app.state.verify_record = lambda _node_id, _seq, raw: receiver.reverify(raw)
 
     app.mount("/ui", StaticFiles(directory=UI_DIR), name="ui")
     return app
