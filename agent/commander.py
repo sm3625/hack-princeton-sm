@@ -64,6 +64,7 @@ from agent.llm import ROLES, get_chat_model
 from agent.tools import TOOLSETS, Services, camera_uncertain, make_tools
 from common.contracts import ROOT, Detection, EventStore, Sim, World, load_world
 from common.deployment import NO_AERIAL, Deployment, load_deployment
+from station.config import Settings
 
 log = logging.getLogger("agent.commander")
 
@@ -547,7 +548,8 @@ class Commander:
         )
         models = models or {role: get_chat_model(role) for role in ROLES}
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self.agent = build_agent(self.services, models, SqliteSaver(self._conn))
+        self._checkpointer = SqliteSaver(self._conn)
+        self.agent = build_agent(self.services, models, self._checkpointer)
         self.approvals: dict[str, Approval] = {a["id"]: Approval(**a) for a in self.repo.load_approvals()}
         self._executor = PriorityExecutor() if background else None
         self._busy: set[str] = set()
@@ -1035,6 +1037,13 @@ class Commander:
 
         self._submit(a.incident_id, resume)
         return a
+
+    def switch_model(self, settings: Settings) -> None:
+        with self._lock:
+            if self._busy or any(a.status == "pending" for a in self.approvals.values()):
+                raise Conflict("Finish the active investigation or approval before switching models.")
+            models = {role: get_chat_model(role, settings) for role in ROLES}
+            self.agent = build_agent(self.services, models, self._checkpointer)
 
     def busy(self) -> bool:
         """Is the commander working, or about to? Eval uses it to hold the sim while the model thinks."""

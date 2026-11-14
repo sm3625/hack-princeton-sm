@@ -120,3 +120,33 @@ def test_scenario_stops_at_its_end(client, tmp_path):
     assert state["running"] is False and state["paused"] is True
     assert 0 <= state["sim_time"] - state["end"] <= 1
     assert "type" not in state
+
+
+def test_runs_clear_incidents_events_and_old_commander(client, tmp_path):
+    from station.routes_agent import get_commander
+    from common.contracts import Detection, SoundClass
+
+    old = get_commander()
+    old.on_verified(Detection(node_id=5, seq=919, timestamp=old.sim.now(),
+                              sound=SoundClass.CHAINSAW, confidence=0.95,
+                              lat=1, lon=2, verified=True, model_version=1, clip_hash="00" * 8))
+    assert client.get("/api/incidents").json()["incidents"]
+    (tmp_path / "short.yaml").write_text('start: "22:00"\nend: "22:00:30"\nevents: []\n')
+    assert client.post("/api/sim/scenario", json={"name": "short", "speed": 60}).status_code == 200
+    assert client.get("/api/incidents").json()["incidents"] == []
+    assert client.get("/api/detections").json()["detections"] == []
+    assert not old.sim.active
+    with pytest.raises(RuntimeError, match="ended"):
+        old.sim.plan_route(1000, 1000)
+    current = get_commander()
+    current.on_verified(Detection(node_id=5, seq=920, timestamp=current.sim.now(),
+                                  sound=SoundClass.CHAINSAW, confidence=0.95,
+                                  lat=1, lon=2, verified=True, model_version=1, clip_hash="00" * 8))
+    assert client.get("/api/incidents").json()["incidents"]
+    for _ in range(80):
+        if not client.get("/api/sim/state").json()["running"]:
+            break
+        time.sleep(0.05)
+    assert client.get("/api/incidents").json()["incidents"] == []
+    assert not current.sim.active
+    assert get_commander() is not current

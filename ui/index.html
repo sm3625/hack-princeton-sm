@@ -10,6 +10,7 @@
   <link rel="icon" href="/ui/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/ui/style.css">
   <link rel="stylesheet" href="/ui/edge.css">
+  <link rel="stylesheet" href="/ui/refinement.css">
 </head>
 <body>
   <header class="bar" id="bar">
@@ -34,7 +35,11 @@
     </div>
     <button id="controls-toggle" class="icon-btn controls-toggle" type="button" aria-label="Simulation" aria-expanded="false" aria-controls="controls"></button>
     <span id="conn" class="chip offline" hidden>Offline</span>
-    <span id="model" class="pill" hidden></span>
+    <select id="model" class="pill" aria-label="Commander model" hidden>
+      <option value="" disabled>Commander model</option>
+      <option value="haiku">Haiku</option>
+      <option value="gemini">Gemini</option>
+    </select>
   </header>
 
   <main class="layout">

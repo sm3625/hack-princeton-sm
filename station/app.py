@@ -81,13 +81,14 @@ class LocalGuard:
 
 
 def create_app() -> FastAPI:
-    settings = load_settings()
     app = FastAPI(title="Forest Guardian", docs_url=None, redoc_url=None)
+    app.state.settings = load_settings()
     app.state.deployment = load_deployment()  # fail fast on a bad DEPLOYMENT
     app.add_middleware(LocalGuard)
 
     @app.get("/api/health")
     def health() -> dict:
+        settings = app.state.settings
         return {"ok": True, "model": settings.model_label, "mode": settings.llm_mode}
 
     @app.get("/", include_in_schema=False)

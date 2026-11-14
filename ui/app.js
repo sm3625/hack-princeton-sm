@@ -364,14 +364,20 @@ function incidentRow(inc) {
 function renderDetail() {
   const view = $("view-incident");
   const inc = state.incidents.get(state.selected);
-  const back = el(
-    "button",
-    { class: "back", type: "button", onclick: () => closeIncident() },
-    icon("chevronLeft"),
-    "Incidents",
-  );
+  // Keep navigation/actions attached while live messages replace the detail content.
+  if (!view.querySelector('.detail-content')) {
+    view.replaceChildren(
+      el('button', {class: 'back', type: 'button', onclick: () => closeIncident()}, icon('chevronLeft'), 'Back to incidents'),
+      el('div', {class: 'detail-actions'},
+        el('button', {class: 'btn', type: 'button', onclick: () => openTrail(state.selected)}, 'Decision trail'),
+        el('button', {class: 'btn', type: 'button', onclick: () => openCaseFile(state.incidents.get(state.selected))}, icon('doc'), 'Case file & evidence')),
+      el('div', {class: 'detail-content'}));
+  }
+  const content = view.querySelector('.detail-content');
+  // Do not detach a focused form while a ranger is writing an update.
+  if (content.contains(document.activeElement) && document.activeElement.matches('textarea, select, input')) return;
   if (!inc) {
-    view.replaceChildren(back, el("p", { class: "empty" }, "Not found"));
+    content.replaceChildren(el("p", { class: "empty" }, "Incident details are loading or unavailable."));
     return;
   }
   const plan = inc.planHtml
@@ -402,8 +408,7 @@ function renderDetail() {
   const ranger = rangerSection(inc);
 
   // replaceChildren() turns null into the text "null", so drop the empty sections.
-  view.replaceChildren(...[
-    back,
+  content.replaceChildren(...[
     el("h2", { class: "detail-title" }, inc.title || "Incident"),
     el(
       "div",
@@ -417,7 +422,7 @@ function renderDetail() {
     assessmentSection(inc),
     el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
     decisionTrail(inc, steps),
-    el("button", { class: "btn wide", type: "button", onclick: () => openCaseFile(inc) }, icon("doc"), "Case file"),
+
   ].filter(Boolean));
 }
 
@@ -466,6 +471,7 @@ function renderMapIncidents() {
 }
 
 async function openCaseFile(inc) {
+  if (!inc) return;
   const dialog = $("casefile");
   const body = $("casefile-body");
   $("casefile-title").textContent = inc.title || "Case file";
@@ -476,11 +482,23 @@ async function openCaseFile(inc) {
     if (data && typeof data.html === "string" && data.html.trim()) setSanitizedHtml(body, data.html);
     else body.replaceChildren(el("p", { class: "empty" }, "Not ready"));
   } catch (e) {
-    body.replaceChildren(el("p", { class: "empty" }, e instanceof HttpError && e.status === 404 ? "Not ready" : "Unavailable"));
+    if (e instanceof HttpError && e.status === 404) {
+      body.replaceChildren(el('p', {class: 'evidence-note'}, 'No authored case file has been saved for this incident. The recorded evidence is available below.'));
+      try {
+        const data = await api(`/api/incidents/${encodeURIComponent(inc.id)}`);
+        body.append(el('h2', {}, 'Recorded incident'), el('p', {}, data.incident?.summary || inc.title),
+          el('p', {}, `Status: ${statusLabel(data.incident?.status || inc.status)}`));
+        for (const [label, markup] of [['Plan', data.plan?.html], ['Triage', data.triage_html], ['Drone observations', data.drone_log_html]]) {
+          if (markup) { const section = el('section', {}, el('h2', {}, label)); const text = el('div', {class: 'rendered'}); setSanitizedHtml(text, markup); section.append(text); body.append(section); }
+        }
+        body.append(el('h2', {}, 'Detection records'), el('pre', {class: 'evidence-records'}, JSON.stringify(data.records || [], null, 2)));
+      } catch { body.append(el('p', {}, 'Evidence could not be loaded. Close this window and try again.')); }
+    } else body.replaceChildren(el('p', {class: 'empty'}, 'Case file could not be loaded. Close this window and try again.'));
   }
 }
 
 function openIncident(id, push = true) {
+  const generation = runGeneration;
   state.selected = String(id);
   if (push) history.pushState({ incident: state.selected }, "", `/incident/${encodeURIComponent(state.selected)}`);
   setTab("incidents");
@@ -490,13 +508,15 @@ function openIncident(id, push = true) {
   if (inc && inc.sector && state.map) state.map.focusSector(inc.sector);
   document.title = `${inc?.title || "Incident"} · Forest Guardian`;
   $("panel").scrollTop = 0;
+  if (matchMedia("(max-width: 900px)").matches) $("view-incident").querySelector(".back")?.scrollIntoView({block: "nearest"});
   api(`/api/incidents/${encodeURIComponent(state.selected)}`)
     .then((raw) => {
+      if (generation !== runGeneration) return;
       const got = upsertIncident(detailToIncident(raw));
       if (got) {
         incidentsChanged(got.id);
         if (got.sector && state.map && !inc) state.map.focusSector(got.sector);
-        document.title = `${got.title || "Incident"} · Forest Guardian`;
+        if (state.selected === got.id) document.title = `${got.title || "Incident"} · Forest Guardian`;
       }
     })
     .catch(() => {});
@@ -572,8 +592,10 @@ function detailToIncident(raw) {
 }
 
 function refreshIncident(id) {
+  const generation = runGeneration;
   api(`/api/incidents/${encodeURIComponent(id)}`)
     .then((raw) => {
+      if (generation !== runGeneration) return;
       const got = upsertIncident(detailToIncident(raw));
       if (got) incidentsChanged(got.id);
     })
@@ -820,11 +842,20 @@ function decisionTrail(inc, fallback) {
   );
 }
 
-function openTrail(id) {
+async function openTrail(id) {
+  const generation = runGeneration;
   state.trailOpen = id;
   renderTrailDialog();
   const d = $("trail-dialog");
   if (!d.open) d.showModal();
+  try {
+    const raw = await api(`/api/incidents/${encodeURIComponent(id)}`);
+    if (generation !== runGeneration) return;
+    upsertIncident(detailToIncident(raw));
+    if (state.trailOpen === id) renderTrailDialog();
+  } catch {
+    if (state.trailOpen === id) $('trail-body').append(el('p', {class:'empty'}, 'Could not refresh the saved trail. Showing available history.'));
+  }
 }
 
 function renderTrailDialog() {
@@ -833,7 +864,8 @@ function renderTrailDialog() {
   const body = $("trail-body");
   const keep = body.scrollTop;
   $("trail-subtitle").textContent = [inc.title, inc.sector].filter(Boolean).join(" · ");
-  body.replaceChildren(fullTrail(inc));
+  body.replaceChildren((inc.trace || []).length ? fullTrail(inc) :
+    el('p', {class: 'empty'}, 'No decision trail was recorded for this incident. Older incidents may predate trace recording; new agent activity will appear here.'));
   body.scrollTop = keep;
 }
 
@@ -1148,6 +1180,8 @@ function applySimState(s) {
 }
 
 function onClock(m) {
+  if (m.run_id && state.runId && m.run_id !== state.runId) resetRunView(m);
+  if (m.run_id) state.runId = m.run_id;
   Object.assign(state.sim, {
     sim_time: Number(m.sim_time) || state.sim.sim_time,
     speed: Number(m.speed) || state.sim.speed,
@@ -1161,7 +1195,22 @@ function onClock(m) {
   refreshTimes();
 }
 
-function onScenario(m) {
+let runGeneration = 0;
+function resetRunView(message = {}) {
+  if (message.run_id) state.runId = message.run_id;
+  runGeneration++;
+  state.incidents.clear();
+  state.approvals.clear();
+  state.seenDetections.clear();
+  state.selectedNode = null;
+  state.trailOpen = null;
+  state.rain.clear();
+  $("approvals").replaceChildren();
+  layoutApprovals();
+  for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+  closeIncident(false);
+  history.replaceState({}, '', '/');
+  incidentsChanged();
   // A new night: clear what belonged to the previous run.
   for (const item of state.feed) item.el.remove();
   state.feed = [];
@@ -1169,6 +1218,14 @@ function onScenario(m) {
   state.lastByNode.clear();
   $("feed-empty").hidden = false;
   if (state.map) state.map.clearNodes();
+  if (state.map) state.map.clearRain();
+  window.dispatchEvent(new Event('demo-run-reset'));
+  renderCounts();
+  renderNodeCard();
+}
+
+function onScenario(m) {
+  resetRunView();
   state.sim.scenario = m.name;
   if ($("scenario").value !== m.name && [...$("scenario").options].some((o) => o.value === m.name)) {
     $("scenario").value = m.name;
@@ -1272,6 +1329,7 @@ function bindControls() {
 
 function setTab(tab) {
   state.tab = tab;
+  if (tab === 'results' || state.selected !== null) $('edge-panel').open = false;
   document.body.classList.toggle("incident-open", tab === "incidents" && state.selected !== null);
   prefs.set("tab", tab);
   $("view-incidents").hidden = tab !== "incidents" || state.selected !== null;
@@ -1287,7 +1345,7 @@ function setTab(tab) {
 
 // ---------- results (eval/results.json via /api/eval/latest) ----------
 
-const MODE_LABELS = { mock: "Mock", ollama: "Local" };
+const MODE_LABELS = { mock: "Mock", ollama: "Local", haiku: "Haiku", gemini: "Gemini" };
 
 function resultsTable(r) {
   const total = r.real_incidents.length;
@@ -1325,14 +1383,43 @@ function resultsCard(r, nights) {
 }
 
 function renderResults() {
-  const runs = state.results?.runs || {};
-  const cards = Object.values(runs)
-    .filter((r) => r.scenario === "night1" && r.memory === "fresh")
-    .sort((a, b) => (a.mode === "ollama" ? 0 : 1) - (b.mode === "ollama" ? 0 : 1) || (a.pace === "waits" ? 0 : 1) - (b.pace === "waits" ? 0 : 1))
-    .map((r) => resultsCard(r, runs));
-  $("tab-results").hidden = cards.length === 0;
-  $("view-results").replaceChildren(...cards);
-  if (cards.length === 0 && state.tab === "results") setTab("incidents");
+  const data = state.results || {};
+  const runs = data.runs || {};
+  const header = el('div', {class: 'results-heading'}, el('h2', {}, 'Evaluation results'),
+    el('button', {class: 'btn small', type:'button', onclick: () => loadResults()}, 'Refresh'));
+  const parts = [header, el('p', {class:'muted'}, 'Saved test runs. These measurements are separate from the live incident feed.')];
+  const cloud = data.cloud_comparison;
+  if (cloud?.rows?.length) {
+    const rows = Object.entries(cloud.summary || {});
+    const table = el('table', {class:'res-table'},
+      el('thead', {}, el('tr', {}, ...['Agent', 'Completed', 'Median time', 'Approval requests'].map(x => el('th', {scope:'col'}, x)))),
+      el('tbody', {}, ...rows.map(([mode, r]) => el('tr', {},
+        el('th', {scope:'row'}, MODE_LABELS[mode] || mode),
+        el('td', {}, `${r.completed}/${r.attempted}`),
+        el('td', {}, Number.isFinite(r.median_decision_s) ? `${r.median_decision_s.toFixed(1)} s` : 'Not measured'),
+        el('td', {}, String(cloud.rows.filter(x => x.mode === mode && x.decision === 'dispatch_requested').length))))));
+    const details = el('details', {class:'results-details'}, el('summary', {}, 'Case-by-case decisions'));
+    for (const r of cloud.rows) details.append(el('p', {}, `${MODE_LABELS[r.mode] || r.mode} · ${r.title}: ${String(r.decision || r.status).replaceAll('_',' ')}${Number.isFinite(r.wall_s) ? ` · ${r.wall_s.toFixed(1)} s` : ''}`));
+    parts.push(el('section', {class:'results-section'}, el('h3', {}, 'Cloud agent comparison'),
+      el('p', {class:'result-date'}, cloud.started_utc ? `Recorded ${new Date(cloud.started_utc).toLocaleString()}` : 'Saved comparison'),
+      el('div', {class:'table-scroll'}, table), details,
+      el('p', {class:'result-note'}, 'Four synthetic incident fixtures, one pass per provider. Approval requests are not dispatches. This sample does not establish accuracy or statistical equivalence.')));
+  }
+  const edge = data.edge_benchmark;
+  if (edge) {
+    parts.push(el('section', {class:'results-section'}, el('h3', {}, 'Local sound classifier'),
+      el('p', {class:'result-date'}, `${edge.platform || 'Local host'} · saved benchmark`),
+      el('dl', {class:'result-metrics'},
+        el('div', {}, el('dt', {}, 'Model size'), el('dd', {}, `${(edge.model_bytes/1024).toFixed(1)} KiB`)),
+        el('div', {}, el('dt', {}, 'P95 inference'), el('dd', {}, `${edge.p95_ms.toFixed(2)} ms`)),
+        el('div', {}, el('dt', {}, 'Deadline misses'), el('dd', {}, String(edge.deadline_misses)))),
+      el('p', {class:'result-note'}, 'Measured on this computer. Raspberry Pi hardware performance has not been measured.')));
+  }
+  const historical = Object.values(runs).filter(r => r.scenario === 'night1' && r.memory === 'fresh' && r.commander && r.baseline);
+  if (historical.length) parts.push(el('details', {class:'results-section results-details'}, el('summary', {}, `Scenario evaluations · ${historical.length} saved runs`), ...historical.map(r => resultsCard(r, runs))));
+  if (!cloud && !edge && !historical.length) parts.push(el('p', {class:'empty'}, 'No saved results are available. Run an evaluation, then select Refresh.'));
+  $('tab-results').hidden = false;
+  $('view-results').replaceChildren(...parts);
 }
 
 async function loadResults() {
@@ -1401,6 +1488,8 @@ function handle(m) {
       return onClock(m);
     case "scenario":
       return onScenario(m);
+    case "run_reset":
+      return resetRunView(m);
     case "detection":
       return onDetection(m);
     case "rejected":
@@ -1445,15 +1534,18 @@ async function resync() {
   } catch {
     /* sim routes missing: the map still works from bus messages */
   }
+  const generation = runGeneration;
   try {
     // Recent detections, newest first from the API; add oldest first so the feed keeps its order.
     const data = await api("/api/detections?limit=50");
+    if (generation !== runGeneration) return;
     for (const d of [...(data?.detections || [])].reverse()) showDetection(d, false, false);
   } catch {
     /* no detections API: the feed fills from live messages */
   }
   try {
     const data = await api("/api/incidents");
+    if (generation !== runGeneration) return;
     const list = Array.isArray(data) ? data : data?.incidents || [];
     for (const raw of list) upsertIncident(raw);
     incidentsChanged(state.selected ?? undefined);
@@ -1464,20 +1556,32 @@ async function resync() {
   }
 }
 
+function showModel(data) {
+  const select = $("model");
+  select.options[0].textContent = String(data.model).split(" · ").pop();
+  select.value = ["haiku", "gemini"].includes(data.mode) ? data.mode : "";
+  select.title = `Commander model: ${data.model}`;
+  select.hidden = false;
+}
+
+$("model").addEventListener("change", async (event) => {
+  const select = event.currentTarget;
+  select.disabled = true;
+  try {
+    showModel(await api("/api/commander/model", { method: "PUT", body: { mode: select.value } }));
+  } catch (error) {
+    toast(error.status === 409 ? "Finish the active investigation or approval first."
+      : error.status === 422 ? "Check the selected provider’s credentials on the station."
+      : "Could not switch models.");
+    await loadHealth();
+  } finally {
+    select.disabled = false;
+  }
+});
+
 async function loadHealth() {
   try {
-    const data = await api("/api/health");
-    // Phones show just the model name ("qwen3:8b" rather than "Local · qwen3:8b").
-    const short = String(data.model).split(" · ").pop();
-    if (short === data.model) $("model").textContent = data.model;
-    else {
-      $("model").replaceChildren(
-        el("span", { class: "model-long" }, data.model),
-        el("span", { class: "model-short" }, short),
-      );
-    }
-    $("model").title = `Model: ${data.model}`;
-    $("model").hidden = false;
+    showModel(await api("/api/health"));
   } catch {
     setConnected(false);
   }

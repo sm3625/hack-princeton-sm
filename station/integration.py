@@ -106,6 +106,24 @@ class Pipeline:
             log.exception("node %s failed to process a clip", runtime.node.name)
             return {"error": str(exc)}
 
+    async def drain(self) -> None:
+        """Finish queued clips before clearing a demo run's event store."""
+        await self._loop.run_in_executor(self._pool, lambda: None)
+        await asyncio.sleep(0)  # deliver loop-scheduled receiver callbacks first
+        for heard in self.heard.values():
+            heard.clear()
+        for runtime in self.runtimes.values():
+            runtime.reset()
+            runtime._suppressed_until.clear()
+            runtime._emitted_at.clear()
+            runtime._last_t = -float("inf")
+            runtime.counters = dict.fromkeys(runtime.counters, 0)
+            runtime.thresholds.rate.clear()
+            runtime._save_baseline()
+        reset_metrics = getattr(self.classifier, "reset_metrics", None)
+        if reset_metrics is not None:
+            reset_metrics()
+
     def close(self) -> None:
         self._pool.shutdown(wait=True, cancel_futures=True)
         close = getattr(self.classifier, "close", None)
@@ -132,6 +150,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             float(os.getenv("LORA_LOSS", DEFAULT_LOSS)),
         )
         app.state.pipeline = pipeline
+        if os.getenv("DEMO_RESET_RUNS", "1") == "1":
+            await pipeline.drain()
         engine.set_feed(pipeline.feed)
     try:
         yield

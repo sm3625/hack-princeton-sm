@@ -20,14 +20,16 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from agent.commander import Commander, Conflict, NotFound
 from common.contracts import ROOT
+from station.config import ConfigError
 
 log = logging.getLogger("station.routes_agent")
 
@@ -55,7 +57,17 @@ def _hooks(app: FastAPI) -> list | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from sim.engine import SimEngine
+
     started = None
+    session = None
+    if (_commander is None and os.getenv("DEMO_RESET_RUNS", "1") == "1"
+            and isinstance(getattr(app.state, "sim", None), SimEngine)):
+        from station.demo_session import DemoSession
+
+        session = DemoSession(app, configure, _hooks(app))
+        await session.reset()
+        app.state.sim.on_reset = session.reset
     if _commander is None:
         try:
             started = Commander(
@@ -78,13 +90,36 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        if started is not None:
+        if session is not None:
+            app.state.sim.on_reset = None
+            session.retire()
+            configure(None)
+        elif started is not None:
             started.stop()
             configure(None)
 
 
 router = APIRouter(lifespan=lifespan)
 CommanderDep = Annotated[Commander, Depends(get_commander)]
+
+
+class ModelSelection(BaseModel):
+    mode: Literal["haiku", "gemini"]
+
+
+@router.put("/api/commander/model")
+async def set_model(body: ModelSelection, request: Request, c: CommanderDep) -> dict:
+    settings = request.app.state.settings
+    if settings.llm_mode != body.mode:
+        settings = replace(settings, llm_mode=body.mode)
+        try:
+            c.switch_model(settings)
+        except Conflict as exc:
+            raise HTTPException(409, str(exc)) from None
+        except ConfigError as exc:
+            raise HTTPException(422, str(exc)) from None
+        request.app.state.settings = settings
+    return {"mode": settings.llm_mode, "model": settings.model_label}
 
 
 class Decision(BaseModel):

@@ -1,6 +1,11 @@
 const byId = (id) => document.getElementById(id);
 let populated = false;
 let busy = false;
+window.addEventListener('demo-run-reset', () => {
+  byId('edge-result').textContent = '';
+  byId('edge-predictions').textContent = '';
+  refresh();
+});
 async function refresh() {
   try {
     const response = await fetch('/api/edge/status', {cache: 'no-store', signal: AbortSignal.timeout(10000)});
@@ -21,7 +26,7 @@ async function refresh() {
         byId('edge-node').add(option);
       }
       populated = true;
-      byId('edge-panel').open = true;
+      byId('edge-panel').open = !location.pathname.startsWith('/incident/') && byId('tab-results').getAttribute('aria-selected') !== 'true';
     }
     if (state.connected) {
       const last = state.recent.at(-1);

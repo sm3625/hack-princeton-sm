@@ -125,6 +125,11 @@ class EdgeClassifier:
                 self.close()
                 raise
 
+    def reset_metrics(self):
+        with self._lock:
+            self._recent.clear()
+            self._count = 0
+
     def status(self):
         # Snapshot on the inference lock so worker updates cannot race deque iteration.
         with self._lock:

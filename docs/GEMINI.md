@@ -40,6 +40,9 @@ means the running server needs a restart. The edge panel now explains this expli
 The health endpoint should show `mode: gemini`, and the edge panel should show **Connected**.
 
 Haiku remains selectable with `LLM_MODE=haiku` for controlled comparisons and rollback.
+With both providers configured, use the dashboard's **Commander model** selector to switch
+between Haiku and Gemini while the station is running. Finish active investigations and pending
+approvals first. The selection applies to the running station and resets to `LLM_MODE` on restart.
 No model call is made simply by changing the configuration; live agent work invokes the API.
 A provider startup error is logged and is not silently replaced by Haiku or a mock.
 

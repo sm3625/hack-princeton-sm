@@ -13,6 +13,7 @@ from agent.fallbacks import MemoryEventStore
 from common.contracts import SoundClass as S
 from common.contracts import load_world
 from station import routes_agent
+from station.config import ConfigError, Settings
 
 
 @pytest.fixture
@@ -30,6 +31,34 @@ def raise_incident(h):
     h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
     h.tick("02:14:20")
     return h.commander.incidents.all()[0].id
+
+
+def test_switch_model_rebuilds_agent_and_keeps_checkpoint(api, monkeypatch):
+    h, client = api
+    client.app.state.settings = Settings("mock", "qwen3:8b", "127.0.0.1", 8000)
+    original = h.commander.agent
+    original_checkpointer = original.checkpointer
+
+    def model(role, settings):
+        if settings.llm_mode == "gemini":
+            raise ConfigError("Missing Gemini credentials")
+        from agent.mock import MockChatModel
+
+        return MockChatModel(role=role)
+
+    monkeypatch.setattr("agent.commander.get_chat_model", model)
+    assert client.put("/api/commander/model", json={"mode": "gemini"}).status_code == 422
+    assert h.commander.agent is original
+    assert client.app.state.settings.llm_mode == "mock"
+
+    response = client.put("/api/commander/model", json={"mode": "haiku"})
+    assert response.json() == {"mode": "haiku", "model": "Claude Haiku"}
+    assert h.commander.agent is not original
+    assert h.commander.agent.checkpointer is original_checkpointer
+    assert client.app.state.settings.llm_mode == "haiku"
+
+    raise_incident(h)
+    assert client.put("/api/commander/model", json={"mode": "gemini"}).status_code == 409
 
 
 def test_list_and_get_incident(api):

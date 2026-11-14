@@ -96,7 +96,7 @@ def test_world_renders_twelve_named_nodes(browser, server):
     expect(nodes).to_have_count(12)
     names = {nodes.nth(i).get_attribute("data-node-name") for i in range(12)}
     assert names == NODE_NAMES
-    expect(page.locator("#model")).to_have_text("Mock")
+    expect(page.locator("#model option:checked")).to_have_text("Mock")
     expect(page.locator("#scenario option")).to_have_count(3)  # night1, night2, demo
     assert page.errors == []
 
@@ -207,7 +207,7 @@ def test_deep_link_opens_incident(browser, server):
     page.goto(server.url + "/incident/inc-7")
     expect(page.locator(".detail-title")).to_have_text("Chainsaw near Arroyo Recodo")
     expect(page.locator("pre.plan")).to_have_text("- [ ] triage")
-    page.get_by_role("button", name="Incidents").first.click()
+    page.get_by_role("button", name="Back to incidents").click()
     expect(page).to_have_url(server.url + "/")
 
 
@@ -317,6 +317,7 @@ def page_with_results(browser, server, status, body=None, **context):
 def test_results_tab_shows_baseline_against_commander(browser, server):
     page = page_with_results(browser, server, 200, RESULTS)
     page.click("#tab-results")
+    page.get_by_text("Scenario evaluations · 1 saved runs", exact=True).click()
     card = page.locator(".res-card")
     expect(card).to_have_count(1)
     expect(card.locator("tr", has_text="Baseline")).to_contain_text("31")
@@ -326,9 +327,11 @@ def test_results_tab_shows_baseline_against_commander(browser, server):
     expect(card).to_contain_text("Memory: 40 → 25 triage steps")
 
 
-def test_results_tab_is_hidden_without_results(browser, server):
+def test_results_tab_has_actionable_empty_state_without_results(browser, server):
     page = page_with_results(browser, server, 404, {"detail": "No evaluation yet."})
-    expect(page.locator("#tab-results")).to_be_hidden()
+    page.click("#tab-results")
+    expect(page.locator("#view-results")).to_contain_text("No saved results are available")
+    expect(page.get_by_role("button", name="Refresh", exact=True)).to_be_visible()
 
 
 def test_results_fit_a_phone(browser, server):
@@ -337,6 +340,7 @@ def test_results_fit_a_phone(browser, server):
         viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True,
     )  # fmt: skip
     page.click("#tab-results")
+    page.get_by_text("Scenario evaluations · 1 saved runs", exact=True).click()
     expect(page.locator(".res-card")).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth") <= 375
 
@@ -353,6 +357,7 @@ def test_results_keep_live_and_waiting_memory_runs_separate(browser, server):
     page = page_with_results(browser, server, 200, results)
     page.click("#tab-results")
     live = page.locator(".res-card").filter(has=page.get_by_role("heading", name="Night 1 · Local · live 30×"))
+    page.get_by_text("Scenario evaluations · 3 saved runs", exact=True).click()
     waits = page.locator(".res-card").filter(has=page.get_by_role("heading", name="Night 1 · Local · sim waits"))
     expect(live).to_contain_text("Memory: 40 → 31 triage steps")
     expect(waits).to_contain_text("Memory: 40 → 17 triage steps")
@@ -380,3 +385,20 @@ def test_ranger_feedback_form_preserves_draft_and_submits(browser, server, width
     assert posted == [{"text": "Permit verified <script>not markup</script>", "outcome": "authorized_activity"}]
     assert page.errors == []
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_run_reset_clears_incidents_approvals_and_feed(browser, server):
+    page = open_page(browser, server)
+    server.publish({"type": "incident", "incident": {
+        "id": "reset-test", "title": "Previous run", "sector": "E4", "status": "open"}})
+    server.publish(approval("reset-approval", "reset-test"))
+    server.publish(detection(7, seq=9876))
+    expect(page.locator('.approval[data-approval-id="reset-approval"]')).to_be_visible()
+    server.publish({"type": "run_reset"})
+    expect(page.locator('.incident-row')).to_have_count(0)
+    expect(page.locator('.approval')).to_have_count(0)
+    page.click('#tab-feed')
+    expect(page.locator('#feed-empty')).to_be_visible()
+    server.publish(detection(7, seq=9876))
+    expect(page.locator('#feed-empty')).not_to_be_visible()
+    assert page.errors == []

@@ -54,7 +54,8 @@ def get_chat_model(role: str = "commander", settings: Settings | None = None) ->
     if settings.llm_mode == "haiku":
         from langchain_anthropic import ChatAnthropic
 
-        # Costs money: only reached when the person sets LLM_MODE=haiku themselves.
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            raise ConfigError("Haiku needs ANTHROPIC_API_KEY.")
         # No temperature: current Claude models reject sampling parameters (400 "Extra inputs").
         return ChatAnthropic(
             model=HAIKU_MODEL, max_tokens=2048, max_retries=2,

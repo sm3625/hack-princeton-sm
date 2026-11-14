@@ -86,6 +86,9 @@ class SimEngine:
         self._loop_thread: int | None = None
         self._ticker: asyncio.Task | None = None
         self._run_task: asyncio.Task | None = None
+        self.on_reset = None  # station-owned async cleanup at demo run boundaries
+        self.run_id = None
+        self._control_lock = asyncio.Lock()
         self._clock_dirty = True
         self.clock.on_change(self._mark_clock)
 
@@ -201,6 +204,10 @@ class SimEngine:
     async def start_scenario(
         self, name: str, speed: float | None = None, from_time: str | None = None
     ) -> dict:
+        async with self._control_lock:
+            return await self._start_scenario(name, speed, from_time)
+
+    async def _start_scenario(self, name, speed, from_time) -> dict:
         """Start (or restart) a scenario. from_time ('02:10') skips the night up to then."""
         self.attach()
         scenario = load_scenario(name, self.scenario_dir, self.world)
@@ -208,6 +215,8 @@ class SimEngine:
         if self._run_task is not None and not self._run_task.done():
             self._run_task.cancel()
         self.clock.set_paused(True)
+        if self.on_reset is not None:
+            await self.on_reset()
         self.clock.set_time(scenario.start + skip)
         self.clock.set_speed(speed if speed is not None else scenario.speed)
         self.weather_model.reset()
@@ -264,6 +273,11 @@ class SimEngine:
             # Scheduler latency is not simulated activity. At 60x, a busy local
             # model can otherwise move the end of a scenario several seconds.
             self.clock.set_time(runner.scenario.end)
+            if self.on_reset is not None:
+                await self.on_reset()
+                self.weather_model.reset()
+                self.demo.reset()
+                self._publish_drones()
             self.publish(self.clock_message())
             log.info("scenario %s finished (%d events)", runner.scenario.name, runner.fired)
 
@@ -289,6 +303,7 @@ class SimEngine:
             "paused": self.clock.paused,
             "running": self.running,
             "scenario": self.scenario.name if self.scenario else None,
+            "run_id": self.run_id,
             "feed": self.feed_kind,
         }
 

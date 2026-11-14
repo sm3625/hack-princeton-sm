@@ -222,6 +222,7 @@ def test_report_explains_sim_waits_pacing_limit(tmp_path):
 
 
 def test_eval_latest_route_serves_results_or_404(tmp_path, monkeypatch):
+    monkeypatch.setattr(routes_eval, "ROOT", tmp_path)
     app = FastAPI()
     app.include_router(routes_eval.router)
     client = TestClient(app)
@@ -234,6 +235,20 @@ def test_eval_latest_route_serves_results_or_404(tmp_path, monkeypatch):
     path.write_text(json.dumps({"runs": {"night1:mock:fresh": run_result()}}))
     res = client.get("/api/eval/latest")
     assert res.status_code == 200 and "night1:mock:fresh" in res.json()["runs"]
+
+
+def test_eval_latest_serves_measurements_without_scenario_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(routes_eval, "ROOT", tmp_path)
+    monkeypatch.setenv("EVAL_RESULTS", str(tmp_path / "missing.json"))
+    (tmp_path / "eval").mkdir()
+    comparison = {"rows": [{"mode": "gemini", "wall_s": 2}]}
+    (tmp_path / "eval/cloud_comparison.json").write_text(json.dumps(comparison))
+    app = FastAPI()
+    app.include_router(routes_eval.router)
+    response = TestClient(app).get("/api/eval/latest")
+    assert response.status_code == 200
+    assert response.json()["cloud_comparison"] == comparison
+    assert response.json()["edge_benchmark"] is None
 
 
 def test_approval_without_executed_dispatch_does_not_catch():
