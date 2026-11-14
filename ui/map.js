@@ -217,31 +217,40 @@ export class ForestMap {
     const box = this.root.getBoundingClientRect();
     const w = Math.max(1, box.width);
     const h = Math.max(1, box.height);
-    const old = { ...this.size, midY: this.midY };
+    const old = { ...this.size, midX: this.midX, midY: this.midY };
     const oldFit = this.kFit;
     this.size = { w, h };
-    this.inset = parseFloat(getComputedStyle(this.root).getPropertyValue("--map-inset-bottom")) || 0;
-    this.midY = (h - this.inset) / 2;
+    // Floating glass chrome (header, side panel) covers part of the map: centre in what is left.
+    const css = getComputedStyle(this.root);
+    const px = (name) => parseFloat(css.getPropertyValue(name)) || 0;
+    this.inset = px("--map-inset-bottom");
+    this.insetTop = Math.min(px("--map-inset-top"), h * 0.4);
+    this.insetRight = Math.min(px("--map-inset-right"), w * 0.6);
+    this.midX = (w - this.insetRight) / 2;
+    this.midY = this.insetTop + (h - this.inset - this.insetTop) / 2;
     this.svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    this.kFit = Math.min((w - 2 * PAD) / this.W, (h - this.inset - 2 * PAD) / this.H);
+    this.kFit = Math.min(
+      (w - this.insetRight - 2 * PAD) / this.W,
+      (h - this.inset - this.insetTop - 2 * PAD) / this.H,
+    );
     this.overlaysDirty = true;
     if (!old.w) {
       this.fit(false);
       return;
     }
-    const c = this.toWorld(old.w / 2, old.midY);
+    const c = this.toWorld(old.midX ?? old.w / 2, old.midY);
     const k = (this.view.k / oldFit) * this.kFit;
     this.setView(this.viewCentered(c.x, c.y, k));
   }
 
   viewCentered(x, y, k) {
-    return { k, tx: this.size.w / 2 - x * k, ty: this.midY - (this.H - y) * k };
+    return { k, tx: this.midX - x * k, ty: this.midY - (this.H - y) * k };
   }
 
   clampView(v) {
     // The centre may roam the whole forest once zoomed in; near "fit" it eases back to the middle.
     const k = clamp(v.k, this.kFit * 0.85, this.kFit * MAX_ZOOM);
-    const cx = (this.size.w / 2 - v.tx) / v.k;
+    const cx = (this.midX - v.tx) / v.k;
     const cy = this.H - (this.midY - v.ty) / v.k;
     const f = clamp((k / this.kFit - 1) / 0.6, 0, 1);
     const x = clamp(cx, (this.W / 2) * (1 - f), this.W - (this.W / 2) * (1 - f));
@@ -273,7 +282,7 @@ export class ForestMap {
     this.flyTo(this.viewCentered((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, k));
   }
 
-  zoomBy(factor, ax = this.size.w / 2, ay = this.midY, animate = true) {
+  zoomBy(factor, ax = this.midX, ay = this.midY, animate = true) {
     if (!animate || reducedMotion()) {
       const k = clamp(this.view.k * factor, this.kFit * 0.85, this.kFit * MAX_ZOOM);
       const w = this.toWorld(ax, ay);
@@ -308,11 +317,11 @@ export class ForestMap {
       const e = ease(p);
       if (a.type === "fly") {
         const k = a.from.k * (a.to.k / a.from.k) ** e;
-        const c0 = { x: (this.size.w / 2 - a.from.tx) / a.from.k, y: (this.midY - a.from.ty) / a.from.k };
-        const c1 = { x: (this.size.w / 2 - a.to.tx) / a.to.k, y: (this.midY - a.to.ty) / a.to.k };
+        const c0 = { x: (this.midX - a.from.tx) / a.from.k, y: (this.midY - a.from.ty) / a.from.k };
+        const c1 = { x: (this.midX - a.to.tx) / a.to.k, y: (this.midY - a.to.ty) / a.to.k };
         const cx = c0.x + (c1.x - c0.x) * e;
         const cy = c0.y + (c1.y - c0.y) * e;
-        this.view = { k, tx: this.size.w / 2 - cx * k, ty: this.midY - cy * k };
+        this.view = { k, tx: this.midX - cx * k, ty: this.midY - cy * k };
       } else if (a.type === "zoom") {
         const k = a.k0 * (a.k1 / a.k0) ** (1 - (1 - p) ** 3);
         this.view = this.clampView({ k, tx: a.ax - a.w.x * k, ty: a.ay - (this.H - a.w.y) * k });

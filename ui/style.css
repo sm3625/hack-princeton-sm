@@ -1167,3 +1167,220 @@ li + li > .incident-row::after,
 .ranger-time { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .ranger-via { color: var(--muted); font-size: 0.9em; }
 .ranger-note { grid-column: 1 / -1; color: var(--muted); font-size: 0.9em; overflow-wrap: anywhere; }
+
+/* =====================================================================
+   Visual layer v2: full-bleed map with floating glass chrome (Apple Maps style).
+   Material weight encodes hierarchy: header and panel are translucent layers over the map;
+   cards that need a decision sit on solid surfaces (never light glass on light glass).
+   ===================================================================== */
+
+:root {
+  --spring: linear(0, 0.109, 0.309, 0.501, 0.656, 0.77, 0.849, 0.903, 0.938, 0.961, 0.976, 0.985, 0.991, 0.994, 0.997, 0.998, 1); /* critically damped, response 0.35 s */
+  --glass-panel: color-mix(in srgb, var(--surface) 74%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --gutter: 14px;
+  --panel-w: 392px;
+  --bar-h: 58px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-panel: color-mix(in srgb, #1c1c1e 70%, transparent);
+    --glass-edge: rgba(255, 255, 255, 0.09);
+  }
+}
+
+/* Map: depth instead of a flat rectangle */
+.map-wrap {
+  background:
+    radial-gradient(120% 90% at 40% 45%, color-mix(in srgb, var(--accent) 7%, var(--map-bg)) 0%, var(--map-bg) 70%);
+}
+
+.map-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(130% 100% at 45% 50%, transparent 60%, rgba(0, 0, 0, 0.14) 100%);
+}
+
+.land { fill: var(--land); fill-opacity: 0.92; }
+
+.node .dot { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--node) 55%, transparent)); }
+.node.amber .dot { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--amber) 70%, transparent)); }
+.node.red .dot { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--red) 70%, transparent)); }
+
+.incident-cell { rx: 6px; }
+.incident-cell.urgent { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--amber) 45%, transparent)); }
+
+/* Typography: tracking tightens as size grows */
+.bar h1 { font-size: 16px; letter-spacing: -0.015em; }
+.detail-title { font-size: 24px; letter-spacing: -0.024em; line-height: 1.12; }
+.incident-title { letter-spacing: -0.01em; }
+.clock-time { font-size: 16px; letter-spacing: -0.02em; }
+
+/* Status summary */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 12px 0;
+}
+
+.sum-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  transition: background-color 0.3s;
+}
+
+.sum-n { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.sum-label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.01em; }
+.sum-tile.t-urgent:not(.zero) { background: color-mix(in srgb, var(--amber) 16%, transparent); }
+.sum-tile.t-urgent:not(.zero) .sum-n { color: var(--amber-text); }
+.sum-tile.t-active:not(.zero) .sum-n { color: var(--blue); }
+.sum-tile.t-done .sum-n { color: var(--accent); }
+.sum-tile.zero .sum-n { color: var(--muted); opacity: 0.7; }
+
+/* Approval: the one thing that needs the ranger. Solid surface, warm glow, springs in. */
+.approval {
+  border-radius: 16px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--amber) 9%, var(--surface)) 0%, var(--surface) 60%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent),
+    0 10px 30px color-mix(in srgb, var(--amber) 16%, transparent),
+    var(--shadow-strong);
+  animation: card-in 0.5s var(--spring);
+}
+
+@keyframes card-in {
+  from { transform: translateY(-10px); opacity: 0; } /* no scale: touch targets keep their size */
+  to { transform: none; opacity: 1; }
+}
+
+.ap-title { font-size: 17px; letter-spacing: -0.015em; }
+.btn { border-radius: 12px; transition: background-color 0.15s, transform 0.1s ease-out; }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent-fill) 88%, #fff) 0%, var(--accent-fill) 100%); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+
+/* Incidents: inset grouped list */
+#incident-list {
+  margin: 8px 12px 12px;
+  padding: 0;
+  border-radius: 14px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+#incident-list:empty { display: none; }
+
+.incident-row { min-height: 64px; padding: 12px 12px 12px 14px; transition: background-color 0.15s; }
+.incident-row:active { background: var(--fill-strong); }
+.incident-row::before { width: 10px; height: 10px; }
+.incident-row.s-urgent::before { animation: beacon 2.4s ease-out infinite; }
+
+@keyframes beacon {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 50%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+li + li > .incident-row::after { left: 38px; }
+
+/* Detail sections read as cards */
+.detail-section h3 { font-size: 11.5px; letter-spacing: 0.06em; }
+.plan, .ranger-action { border-radius: 12px; }
+.ranger-action { padding: 10px 12px; border-left-width: 0; box-shadow: inset 3px 0 0 var(--muted); }
+.ranger-action.d-approved, .ranger-action.d-edited, .ranger-action.d-dispatched { box-shadow: inset 3px 0 0 var(--accent); }
+.ranger-action.d-rejected { box-shadow: inset 3px 0 0 var(--red); }
+.ranger-action.d-auto_rejected { box-shadow: inset 3px 0 0 var(--amber); }
+
+.segmented { border-radius: 10px; }
+.segmented button { border-radius: 8px; transition: background-color 0.25s var(--spring), color 0.2s, box-shadow 0.25s; }
+
+/* ---------- desktop: floating chrome over a full-bleed map ---------- */
+@media (min-width: 901px) {
+  body { display: block; }
+
+  .bar {
+    position: fixed;
+    top: var(--gutter);
+    left: var(--gutter);
+    right: var(--gutter);
+    min-height: var(--bar-h);
+    padding: 10px 12px 10px 16px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--glass-panel);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow: inset 0 0.5px 0 var(--glass-edge), 0 0 0 0.5px var(--line), var(--shadow);
+  }
+
+  .layout { display: block; height: 100vh; height: 100dvh; padding: 0; }
+
+  .map-wrap {
+    position: fixed;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: none;
+    /* plain px: map.js reads these with getComputedStyle, which leaves calc() unresolved */
+    --map-inset-top: 86px;      /* bar 58 + 2 x gutter 14 */
+    --map-inset-right: 420px;   /* panel 392 + 2 x gutter 14 */
+  }
+
+  .panel {
+    position: fixed;
+    z-index: 10;
+    top: calc(var(--bar-h) + var(--gutter) * 2);
+    right: var(--gutter);
+    bottom: var(--gutter);
+    width: var(--panel-w);
+    border-radius: 20px;
+    background: var(--glass-panel);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    box-shadow: inset 0 0.5px 0 var(--glass-edge), 0 0 0 0.5px var(--line), var(--shadow-strong);
+    animation: panel-in 0.6s var(--spring);
+  }
+
+  @keyframes panel-in {
+    from { transform: translateX(16px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+
+  /* Map overlays move clear of the floating chrome */
+  .node-card { top: calc(var(--bar-h) + var(--gutter) * 2); left: var(--gutter); }
+  .drone-chip { top: calc(var(--bar-h) + var(--gutter) * 2); right: calc(var(--panel-w) + var(--gutter) * 2); }
+  .map-controls { right: calc(var(--panel-w) + var(--gutter) * 2); bottom: var(--gutter); }
+
+  .segmented { position: sticky; top: 0; z-index: 2; margin: 12px 12px 4px; background: color-mix(in srgb, var(--fill-strong) 80%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+}
+
+@media (min-width: 1500px) {
+  :root { --panel-w: 420px; }
+  .map-wrap { --map-inset-right: 448px; }
+}
+
+/* Accessibility: frostier or solid surfaces when transparency is reduced or contrast raised */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .bar, .panel, .control-group, .map-btn.solo, .node-card, .drone-chip, .callout-bubble {
+    background: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .bar, .panel { box-shadow: 0 0 0 1.5px var(--text) !important; }
+}
+
+/* Agent-written markdown inside the plan card stays at card scale */
+.plan.rendered h1, .plan.rendered h2, .plan.rendered h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; margin: 0.4em 0 0.3em; }
+.plan.rendered > :first-child { margin-top: 0; }
+.plan.rendered ul, .plan.rendered ol { padding-left: 1.2em; margin: 0.3em 0; }

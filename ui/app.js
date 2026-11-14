@@ -314,6 +314,20 @@ function renderIncidents() {
   $("incident-list").replaceChildren(...list.map(incidentRow));
   $("incidents-empty").hidden = list.length > 0;
   renderCounts();
+  renderSummary(list);
+}
+
+// Three numbers a ranger scans first: what needs a decision, what is live, what was handled.
+function renderSummary(list) {
+  const box = $("summary");
+  if (!box) return;
+  const awaiting = list.filter((inc) => hasPendingApproval(inc.id)).length;
+  const live = list.filter((inc) => !hasPendingApproval(inc.id) && !isClosed(inc.status)).length;
+  const done = list.filter((inc) => isClosed(inc.status)).length;
+  const tile = (n, label, cls) =>
+    el("div", { class: `sum-tile ${cls}${n ? "" : " zero"}` }, el("span", { class: "sum-n" }, String(n)), el("span", { class: "sum-label" }, label));
+  box.replaceChildren(tile(awaiting, "Need you", "t-urgent"), tile(live, "Active", "t-active"), tile(done, "Handled", "t-done"));
+  box.hidden = list.length === 0;
 }
 
 function incidentRow(inc) {
@@ -507,6 +521,7 @@ function detailToIncident(raw) {
     ranger_actions: raw.ranger_actions,
     dispatches: raw.dispatches,
     approvals: raw.approvals,
+    pending_approval: raw.pending_approval,
   };
 }
 
@@ -1017,6 +1032,8 @@ async function resync() {
     const list = Array.isArray(data) ? data : data?.incidents || [];
     for (const raw of list) upsertIncident(raw);
     incidentsChanged(state.selected ?? undefined);
+    // The list carries no approvals: fetch the ones already waiting so their cards show after a reload.
+    for (const raw of list) if (raw?.status === "awaiting_approval") refreshIncident(String(raw.id));
   } catch {
     /* agent not running yet */
   }
