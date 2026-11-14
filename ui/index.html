@@ -2,18 +2,82 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <title>Forest Guardian</title>
+  <link rel="icon" href="/ui/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
-  <header class="bar">
-    <h1>Forest Guardian</h1>
+  <header class="bar" id="bar">
+    <h1><img class="brand-icon" src="/ui/icon.svg" alt=""><span class="brand-text">Forest Guardian</span></h1>
+    <div class="clock" id="clock" aria-live="off">
+      <span id="clock-time" class="clock-time">--:--</span>
+      <span id="clock-speed" class="clock-sub"></span>
+      <span id="rain" class="chip rain" hidden></span>
+      <span id="stub" class="chip stub" hidden>Stub</span>
+    </div>
+    <div class="controls" id="controls">
+      <select id="scenario" aria-label="Scenario"></select>
+      <select id="speed" aria-label="Speed">
+        <option value="1">1×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+        <option value="30">30×</option>
+        <option value="60">60×</option>
+      </select>
+      <button id="play" class="icon-btn" type="button" aria-label="Play"></button>
+      <button id="restart" class="icon-btn" type="button" aria-label="Restart" hidden></button>
+    </div>
+    <button id="controls-toggle" class="icon-btn controls-toggle" type="button" aria-label="Simulation" aria-expanded="false" aria-controls="controls"></button>
+    <span id="conn" class="chip offline" hidden>Offline</span>
     <span id="model" class="pill" hidden></span>
   </header>
-  <main class="empty">
-    <p id="status">Connecting…</p>
+
+  <main class="layout">
+    <section class="map-wrap" id="map" aria-label="Map">
+      <div id="node-card" class="node-card" hidden></div>
+      <div id="drone-chip" class="drone-chip" hidden></div>
+    </section>
+
+    <aside class="panel" id="panel">
+      <div id="approvals" class="approvals" aria-live="polite"></div>
+
+      <div class="segmented" role="tablist" aria-label="Panel">
+        <button role="tab" id="tab-incidents" data-tab="incidents" aria-selected="true" aria-controls="view-incidents" type="button">
+          Incidents <span class="count" id="count-incidents" hidden></span>
+        </button>
+        <button role="tab" id="tab-feed" data-tab="feed" aria-selected="false" aria-controls="view-feed" type="button">
+          Feed <span class="count" id="count-feed" hidden></span>
+        </button>
+      </div>
+
+      <div class="views">
+        <section id="view-incidents" role="tabpanel" aria-labelledby="tab-incidents">
+          <ul id="incident-list" class="list"></ul>
+          <p id="incidents-empty" class="empty">No incidents</p>
+        </section>
+        <section id="view-incident" class="incident-detail" hidden></section>
+        <section id="view-feed" role="tabpanel" aria-labelledby="tab-feed" hidden>
+          <ul id="feed-list" class="list feed"></ul>
+          <p id="feed-empty" class="empty">Quiet</p>
+        </section>
+      </div>
+    </aside>
   </main>
-  <script src="/ui/app.js" defer></script>
+
+  <dialog id="casefile" class="sheet" aria-labelledby="casefile-title">
+    <div class="sheet-head">
+      <h2 id="casefile-title">Case file</h2>
+      <button id="casefile-close" class="icon-btn" type="button" aria-label="Close"></button>
+    </div>
+    <article id="casefile-body" class="casefile-body"></article>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="/ui/app.js"></script>
 </body>
 </html>
