@@ -1,6 +1,7 @@
 """WebSocket /ws: forwards every bus message to the browser (shapes in common/contracts.py)."""
 
 import asyncio
+import os
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -12,11 +13,17 @@ router = APIRouter()
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
+def public_origin_allowed(origin: str) -> bool:
+    return bool(os.getenv("STATION_JUDGE_PASSWORD")) and origin.startswith("https://") and origin in {
+        value.strip() for value in os.getenv("STATION_HTTPS_ORIGINS", "").split(",")
+    }
+
+
 def origin_allowed(origin: str | None, server_port: int | None) -> bool:
     """A browser page may open /ws only if it was served by this station (localhost, same port).
     A missing Origin means a non-browser client (scripts, tests), which is allowed. This stops
     any other website the ranger visits from reading the live feed (cross-site WebSocket)."""
-    if origin is None:
+    if origin is None or public_origin_allowed(origin):
         return True
     try:
         parts = urlsplit(origin)

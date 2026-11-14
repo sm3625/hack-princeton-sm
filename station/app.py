@@ -1,7 +1,11 @@
 """Ranger station web server. Serves the UI and the station API on localhost."""
 
+import base64
+import hashlib
+import hmac
 import json
 import os
+from http.cookies import CookieError, SimpleCookie
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI
@@ -27,6 +31,48 @@ UI_DIR = ROOT / "ui"
 
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "[::1]", "testserver")
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+DEMO_COOKIE = "__Host-forest-judge"
+
+
+class JudgeAccess:
+    """Require a shared judge credential for the dashboard, API and WebSocket."""
+
+    def __init__(self, app, password: str) -> None:
+        self.app = app
+        self.authorization = b"Basic " + base64.b64encode(f"judge:{password}".encode())
+        self.cookie = hmac.new(password.encode(), b"forest-guardian/judge-session", hashlib.sha256).hexdigest()
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        headers = dict(scope["headers"])
+        cookies = SimpleCookie()
+        try:
+            cookies.load(headers.get(b"cookie", b"").decode("latin-1"))
+        except CookieError:
+            cookies.clear()
+        session = cookies.get(DEMO_COOKIE)
+        authenticated = session is not None and hmac.compare_digest(session.value.encode(), self.cookie.encode())
+        if scope["type"] == "websocket":
+            if authenticated:
+                return await self.app(scope, receive, send)
+            return await send({"type": "websocket.close", "code": 1008})
+        if authenticated or hmac.compare_digest(headers.get(b"authorization", b""), self.authorization):
+            async def send_cookie(message):
+                if message["type"] == "http.response.start":
+                    response_headers = [(k, v) for k, v in message.get("headers", []) if k != b"cache-control"]
+                    response_headers.append((b"cache-control", b"private, no-store"))
+                    if not authenticated:
+                        cookie = f"{DEMO_COOKIE}={self.cookie}; Path=/; Secure; HttpOnly; SameSite=Strict"
+                        response_headers.append((b"set-cookie", cookie.encode()))
+                    message["headers"] = response_headers
+                await send(message)
+
+            return await self.app(scope, receive, send_cookie)
+        await send({"type": "http.response.start", "status": 401, "headers": [
+            (b"www-authenticate", b'Basic realm="Forest Guardian demo"'), (b"cache-control", b"no-store")
+        ]})
+        await send({"type": "http.response.body", "body": b"Judge login required."})
 
 
 def allowed_hosts() -> set[str]:
@@ -65,7 +111,9 @@ class LocalGuard:
                 try:
                     parsed = urlsplit(origin)
                     scheme = "https" if scope.get("scheme") in ("https", "wss") else "http"
-                    if parsed.scheme != scheme or parsed.netloc.lower() != host:
+                    if not routes_ws.public_origin_allowed(origin) and (
+                        parsed.scheme != scheme or parsed.netloc.lower() != host
+                    ):
                         problem = "Cross-site request refused."
                 except ValueError:
                     problem = "Malformed origin."
@@ -85,6 +133,8 @@ def create_app() -> FastAPI:
     app.state.settings = load_settings()
     app.state.deployment = load_deployment()  # fail fast on a bad DEPLOYMENT
     app.add_middleware(LocalGuard)
+    if password := os.getenv("STATION_JUDGE_PASSWORD"):
+        app.add_middleware(JudgeAccess, password=password)
 
     @app.get("/api/health")
     def health() -> dict:
