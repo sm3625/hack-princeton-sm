@@ -62,3 +62,10 @@ Last updated: 2026-11-14.
 - Default is no Photon traffic. Live mode is manual; every outbound attempt requires a finite `--allow-sends N` allowance. **User explicitly forbids spending Photon credits without permission. No authenticated Photon API call, provisioning or message send was performed. Do not run live to validate it without asking.**
 - Mocked transport tests exercise real commander approval/rejection, sender allowlisting, expiry, deduplication, crash ambiguity, pagination and credit limits. Live delivery remains unverified. Changes remain uncommitted.
 - Validation: full local regression **411 passed, 9 skipped, 6 deselected** with localhost socket permission; lint and diff checks clean. No paid-model or live Photon tests run.
+
+## 2026-11-14 late: Maya Biosphere Reserve, deployment profiles, OSM map
+- World is a 4x4 km pilot block in Laguna del Tigre NP (origin 17.248, -90.382), Peten-style illustrative node names (Arroyo Recodo, Brecha Vieja, El Bajo, ...). Real OSM geography in `ui/geo/*.json` (`scripts/fetch_osm.py`), attribution on the map.
+- Deployment profiles: `deployments/*.yaml`, `DEPLOYMENT=` (laguna_del_tigre_pilot default, no_drone, well_resourced); `GET /api/deployment`; docs/DEPLOYMENTS.md. Approval gate cannot be disabled. UI draws only one drone (multi-drone flickers): open item.
+- Dashboard: full-bleed map, floating glass header/panel, reserve inset, Ranger section (decisions + via iMessage/dashboard), local-time text.
+- Photon bridge works live (user: messages are free; still pass --allow-sends). Notes: docs/SCALING_NOTES.md, docs/DEPLOYMENT_SITES.md.
+- Known flaky under load: tests/test_ws_shutdown.py (6 s start), test_scenario_stops_at_its_end.
