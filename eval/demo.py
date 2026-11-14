@@ -6,8 +6,9 @@
 
 The realistic evaluation is eval/run.py (whole nights, scored against a baseline). This one is
 for showing the system: it plays scenarios/demo.yaml (three incidents and follow-up sounds over
-~36 sim-minutes at 20x), prints a live timeline of what the agent does, and ends with a short
-scorecard against the scenario's labels. Open the dashboard URL it prints to watch the map.
+~36 sim-minutes at 20x), streams the agent's steps live, and ends with a short scorecard against
+the scenario's labels. With the local Ollama model the sim clock slows to 2x while the agent thinks
+(full speed during drone flights), so incidents are handled one at a time instead of all at once. Open the dashboard URL it prints to watch the map.
 
 Approvals are left to a person (dashboard or Photon) unless --auto-ranger is given. Never calls a
 paid model by itself: the station uses whatever LLM_MODE your environment sets.
@@ -21,6 +22,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,7 +39,7 @@ REAL_EXPECTS_REQUEST = {"real"}  # labels whose incident should reach a ranger
 def http(method: str, url: str, body: dict | None = None, timeout: float = 10.0):
     data = None if body is None else json.dumps(body).encode()
     req = Request(url, data=data, method=method, headers={"Content-Type": "application/json"})
-    with urlopen(req, timeout=timeout) as r:  # noqa: S310 - localhost station only
+    with urlopen(req, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -144,6 +146,51 @@ def wait_ready(url: str, seconds: float = 60) -> None:
     raise SystemExit(f"station at {url} did not come up in {seconds:.0f}s")
 
 
+def stream_steps(url: str, tracker: Tracker, stop: threading.Event) -> None:
+    """Print the agent's steps as they happen (the station's WebSocket), so the model is seen working."""
+    from websockets.sync.client import connect
+
+    ws_url = url.replace("http://", "ws://", 1) + "/ws"
+    try:
+        with connect(ws_url, origin=url, open_timeout=5) as ws:
+            while not stop.is_set():
+                try:
+                    msg = json.loads(ws.recv(timeout=0.5))
+                except TimeoutError:
+                    continue
+                if msg.get("type") == "agent_step":
+                    text = " ".join(str(msg.get("summary", "")).split())
+                    tracker.say(f"  {msg.get('agent', 'agent')}: {text[:96]}")
+    except Exception as e:  # noqa: BLE001 - the step stream is a nicety; the demo goes on
+        tracker.say(f"(live steps unavailable: {type(e).__name__})")
+
+
+class Pacer:
+    """Slow the sim clock while the agent is thinking, so a local model handles incidents one at a
+    time at full speed instead of all at once. Slow, never paused: the agent's own wake-up and
+    drone timers run on sim time, and a paused clock would stall them. Full speed during flights."""
+
+    SLOW = 2.0
+
+    def __init__(self, url: str, speed: float) -> None:
+        self.url, self.speed, self.current = url, speed, speed
+
+    def tick(self, busy: bool, state: dict) -> None:
+        flying = any(d.get("flying") for d in (state.get("drones") or [state.get("drone") or {}]))
+        want = self.SLOW if busy and not flying else self.speed
+        if want != self.current and state.get("running", False):
+            http("POST", self.url + "/api/sim/speed", {"speed": want})
+            self.current = want
+
+    def release(self) -> None:
+        if self.current != self.speed:
+            try:
+                http("POST", self.url + "/api/sim/speed", {"speed": self.speed})
+            except (URLError, HTTPError, OSError):
+                pass
+            self.current = self.speed
+
+
 def auto_ranger(url: str, tracker: Tracker, groups: dict[str, dict], decided: set[str]) -> None:
     """Approve requests for incidents whose nodes match a real group; reject the rest."""
     real_nodes = set().union(*(g["nodes"] for g in groups.values() if g["label"] == "real"))
@@ -170,7 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--url", help="use a station already running here instead of starting one")
     ap.add_argument("--port", type=int, default=8010, help="port for the fresh station (default 8010)")
     ap.add_argument("--speed", type=float, default=SPEED, help="sim speed (default 20x, about 2 min)")
-    ap.add_argument("--minutes", type=float, default=2.5, help="wall-time cap (default 2.5)")
+    ap.add_argument("--minutes", type=float, default=3.0, help="wall-time cap (default 3)")
+    ap.add_argument("--pace", choices=("auto", "on", "off"), default="auto",
+                    help="slow the clock while the agent thinks (auto: only for the local Ollama model)")
+    ap.add_argument("--quiet", action="store_true", help="hide the live agent steps")
     ap.add_argument("--auto-ranger", action="store_true", help="approve real incidents, reject others")
     args = ap.parse_args(argv)
 
@@ -182,10 +232,16 @@ def main(argv: list[str] | None = None) -> int:
             tmp = Path(tempfile.mkdtemp(prefix="fg-demo-"))
             proc = start_station(args.port, tmp)
         wait_ready(url)
-        mode = http("GET", url + "/api/health").get("model") or "unknown model"
+        health = http("GET", url + "/api/health")
+        mode = health.get("model") or "unknown model"
+        pace = args.pace == "on" or (args.pace == "auto" and health.get("mode") == "ollama")
         print(f"Forest Guardian demo: open {url} to watch. Model: {mode}. Speed {args.speed:g}x.")
         http("POST", url + "/api/sim/scenario", {"name": SCENARIO, "speed": args.speed})
         tracker = Tracker(t0=time.monotonic())
+        stop = threading.Event()
+        if not args.quiet:
+            threading.Thread(target=stream_steps, args=(url, tracker, stop), daemon=True).start()
+        pacer = Pacer(url, args.speed) if pace else None
         tracker.say("scenario started: rain on the west side, then a chainsaw, then gunshots")
         decided: set[str] = set()
         cap = args.minutes * 60
@@ -196,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.auto_ranger:
                 auto_ranger(url, tracker, groups, decided)
             state = http("GET", url + "/api/sim/state")
+            if pacer is not None:
+                pacer.tick(bool(data.get("busy")), state)
             if not state.get("running") and ended_at is None and tracker.elapsed() > 5:
                 ended_at = tracker.elapsed()
                 tracker.say("all sounds played")
@@ -203,7 +261,10 @@ def main(argv: list[str] | None = None) -> int:
             done = all(r["verdict"] in ("correct", "wrong") for r in tracker.score(groups))
             if done and ended_at is not None and not data.get("busy"):
                 break
-            time.sleep(1.0)
+            time.sleep(0.5)
+        stop.set()
+        if pacer is not None:
+            pacer.release()
         rows = tracker.score(groups)
         print("\nScorecard")
         for r in rows:
