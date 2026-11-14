@@ -74,6 +74,7 @@ RECURSION_LIMIT = 300
 MAX_NOTE = 500
 MAX_RETRIES = 3  # failed wake-ups (e.g. model server down) are retried with backoff
 RETRY_S = 30
+VIAS = {"dashboard": "dashboard", "imessage": "iMessage"}
 MAX_AUTO_REJECTS = 2  # repeat dispatch requests code turns down per run before a ranger sees one
 REPEAT_REJECT = (
     "Refused by the station: a ranger already rejected dispatch for this incident and no new "
@@ -348,6 +349,7 @@ class Approval:
     status: str = "pending"  # pending | approved | edited | rejected | stale
     decided_at: int | None = None
     decision_note: str = ""
+    decided_via: str = ""  # "dashboard" or "imessage": where the ranger decided
 
     def public(self) -> dict:
         return {
@@ -359,6 +361,9 @@ class Approval:
             "sector": self.sector,
             "note": self.note,
             "status": self.status,
+            "decided_at": self.decided_at,
+            "decision_note": self.decision_note,
+            "decided_via": self.decided_via,
         }
 
 
@@ -645,7 +650,7 @@ class Commander:
         state = self.agent.get_state({"configurable": {"thread_id": inc.thread_id}})
         return {i.id for i in state.interrupts}
 
-    def decide(self, approval_id: str, decision: str, note: str = "") -> Approval:
+    def decide(self, approval_id: str, decision: str, note: str = "", via: str = "dashboard") -> Approval:
         """Act on a ranger's decision. Only a currently pending interrupt can be resumed."""
         if decision not in ("approve", "edit", "reject"):
             raise ValueError("decision must be approve, edit or reject")
@@ -665,6 +670,7 @@ class Commander:
             now = self.sim.now()
             a.status = {"approve": "approved", "edit": "edited", "reject": "rejected"}[decision]
             a.decided_at, a.decision_note = now, note
+            a.decided_via = via if via in VIAS else "dashboard"
             self._save_approval(a)
             self._busy.add(a.incident_id)
         if decision == "reject":
@@ -679,15 +685,15 @@ class Commander:
         inc = self.incidents.get(a.incident_id)
         self.files.append_jsonl(
             inc.folder + "approvals.jsonl",
-            {"time": fmt_time(now), "decision": a.status, "by": "ranger", "sector": a.sector,
-             "note": note if decision != "approve" else a.note},
+            {"time": fmt_time(now), "decision": a.status, "by": "ranger", "via": a.decided_via,
+             "sector": a.sector, "note": note if decision != "approve" else a.note},
         )
         self.incidents.update(
             a.incident_id, status="open", summary=f"Ranger {a.status} dispatch", updated_at=now,
             rejected_at_records=len(inc.records) if decision == "reject" else None,
         )
         self.publish(a.public())
-        self._step(a.incident_id, "commander", f"ranger {a.status} dispatch to {a.sector}")
+        self._step(a.incident_id, "commander", f"ranger {a.status} dispatch to {a.sector} (via {VIAS[a.decided_via]})")
 
         def resume() -> None:
             try:
@@ -736,10 +742,24 @@ class Commander:
             "files": [n for n in names if self.files.read(inc.folder + n) is not None],
             "records": rows,
             "dispatches": inc.dispatches,
+            "ranger_actions": self._ranger_actions(inc),
             "approvals": [a.public() for a in list(self.approvals.values()) if a.incident_id == inc.id],
             "pending_approval": pending,
             "stats": self._stats.get(inc.id, {"runs": 0, "wall_s": 0.0, "steps": {}}),
         }
+
+    def _ranger_actions(self, inc: Incident) -> list[dict]:
+        """Every decision on a dispatch request, in order: the ranger's (dashboard or iMessage)
+        and the station's own refusals of repeat requests. From the code-owned approvals.jsonl."""
+        out = []
+        for line in (self.files.read(inc.folder + "approvals.jsonl") or "").splitlines():
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(r, dict):
+                out.append({k: _one_line(str(r.get(k) or ""), MAX_NOTE) for k in ("time", "decision", "by", "via", "sector", "note")})
+        return out
 
     def case_file(self, incident_id: str) -> dict:
         """Render the case file sanitized and re-check it: signatures, clips, citations."""

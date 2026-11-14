@@ -1152,3 +1152,18 @@ li + li > .incident-row::after,
 .res-table tbody tr + tr { border-top: 0.5px solid var(--line); }
 
 .res-line { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+
+/* ranger decisions in the incident detail */
+.ranger-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ranger-action {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px;
+  border-radius: 8px; background: var(--fill);
+  border-left: 3px solid var(--muted);
+}
+.ranger-action.d-approved, .ranger-action.d-edited, .ranger-action.d-dispatched { border-left-color: var(--accent); }
+.ranger-action.d-rejected { border-left-color: var(--red); }
+.ranger-action.d-auto_rejected { border-left-color: var(--amber); }
+.ranger-what { font-weight: 600; }
+.ranger-time { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.ranger-via { color: var(--muted); font-size: 0.9em; }
+.ranger-note { grid-column: 1 / -1; color: var(--muted); font-size: 0.9em; overflow-wrap: anywhere; }

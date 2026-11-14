@@ -267,7 +267,8 @@ class Bridge:
                                   (match[2].upper(),)).fetchone()
             if row and self.current(row):
                 self.station.call("POST", f'/api/approvals/{row["approval"]}',
-                                  {"decision": match[1].lower(), "note": match[3] or ""})
+                                  {"decision": match[1].lower(), "note": match[3] or "",
+                                   "via": "imessage"})
                 result = f"{match[2].upper()}: {match[1].lower()} decision recorded. Check dashboard."
             else:
                 result = "Unknown, expired or already decided approval. Check dashboard."

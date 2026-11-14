@@ -281,6 +281,8 @@ function upsertIncident(raw) {
   const plan = raw.plan ?? raw.plan_markdown ?? raw.markdown;
   if (typeof plan === "string") inc.plan = plan;
   if (typeof raw.plan_html === "string") inc.planHtml = raw.plan_html;
+  if (Array.isArray(raw.ranger_actions)) inc.rangerActions = raw.ranger_actions;
+  if (Array.isArray(raw.dispatches)) inc.dispatches = raw.dispatches;
   const steps = raw.steps || raw.agent_steps;
   if (Array.isArray(steps)) inc.steps = steps.slice(-STEPS_MAX).map(normalizeStep);
   state.incidents.set(id, inc);
@@ -376,6 +378,8 @@ function renderDetail() {
       )
     : el("p", { class: "muted" }, "—");
 
+  const ranger = rangerSection(inc);
+
   view.replaceChildren(
     back,
     el("h2", { class: "detail-title" }, inc.title || "Incident"),
@@ -386,6 +390,7 @@ function renderDetail() {
       el("span", { class: `status ${statusClass(inc)}` }, hasPendingApproval(inc.id) ? "Awaiting approval" : statusLabel(inc.status)),
       inc.updated_at !== undefined ? timeEl(inc.updated_at) : null,
     ),
+    ranger,
     el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
     el("section", { class: "detail-section" }, el("h3", {}, "Activity"), steps),
     el("button", { class: "btn wide", type: "button", onclick: () => openCaseFile(inc) }, icon("doc"), "Case file"),
@@ -428,7 +433,7 @@ function openIncident(id, push = true) {
   $("panel").scrollTop = 0;
   api(`/api/incidents/${encodeURIComponent(state.selected)}`)
     .then((raw) => {
-      const got = upsertIncident(raw?.incident || raw);
+      const got = upsertIncident(detailToIncident(raw));
       if (got) {
         incidentsChanged(got.id);
         if (got.sector && state.map && !inc) state.map.focusSector(got.sector);
@@ -459,6 +464,61 @@ function routeFromLocation() {
   } else if (state.selected !== null) closeIncident(false);
 }
 
+// ---------- ranger actions ----------
+
+const DECISIONS = { approved: "Approved", rejected: "Rejected", edited: "Approved with edits", auto_rejected: "Repeat request refused" };
+const VIA = { imessage: "iMessage", dashboard: "Dashboard" };
+
+function rangerSection(inc) {
+  const actions = inc.rangerActions || [];
+  const sent = inc.dispatches || [];
+  if (!actions.length && !sent.length) return null;
+  const rows = [
+    ...actions.map((a) =>
+      el(
+        "li",
+        { class: `ranger-action d-${String(a.decision).replace(/[^a-z_]/gi, "")}` },
+        el("span", { class: "ranger-what" }, `${DECISIONS[a.decision] || titleCase(a.decision || "")}${a.sector ? ` · ${a.sector}` : ""}`),
+        el("span", { class: "ranger-via" }, a.by === "station" ? "Station" : VIA[a.via] ? `Ranger · ${VIA[a.via]}` : "Ranger"),
+        el("span", { class: "ranger-time" }, a.time || ""),
+        a.note && (a.decision === "rejected" || a.decision === "edited") ? el("span", { class: "ranger-note" }, a.note) : null,
+      ),
+    ),
+    ...sent.map((d) =>
+      el(
+        "li",
+        { class: "ranger-action d-dispatched" },
+        el("span", { class: "ranger-what" }, `Rangers dispatched · ${d.sector || ""}`),
+        el("span", { class: "ranger-via" }, "Station"),
+        el("span", { class: "ranger-time" }, d.time || ""),
+      ),
+    ),
+  ];
+  return el("section", { class: "detail-section" }, el("h3", {}, "Ranger"), el("ol", { class: "ranger-actions" }, ...rows));
+}
+
+// GET /api/incidents/{id} nests the incident; its plan, decisions and dispatches sit beside it.
+function detailToIncident(raw) {
+  if (!raw?.incident) return raw;
+  return {
+    ...raw.incident,
+    plan: raw.plan?.markdown,
+    plan_html: raw.plan?.html,
+    ranger_actions: raw.ranger_actions,
+    dispatches: raw.dispatches,
+    approvals: raw.approvals,
+  };
+}
+
+function refreshIncident(id) {
+  api(`/api/incidents/${encodeURIComponent(id)}`)
+    .then((raw) => {
+      const got = upsertIncident(detailToIncident(raw));
+      if (got) incidentsChanged(got.id);
+    })
+    .catch(() => {});
+}
+
 // ---------- approvals ----------
 
 function onApproval(m) {
@@ -467,6 +527,7 @@ function onApproval(m) {
   const status = String(m.status || m.state || "pending");
   if (!/pending|open|wait/i.test(status)) {
     removeApproval(id);
+    if (m.incident_id !== undefined && String(m.incident_id) === state.selected) refreshIncident(String(m.incident_id));
     return;
   }
   if (state.approvals.has(id)) return;

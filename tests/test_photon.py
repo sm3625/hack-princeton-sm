@@ -322,3 +322,14 @@ def test_shared_line_needs_no_resource_id(monkeypatch):
     photon.page("2026-11-14T00:00:00.000Z", "2026-11-14T00:01:00.000Z")
     q = parse_qs(urlsplit(seen[0]).query)
     assert "resourceId" not in q and "spaceId" not in q
+
+
+def test_imessage_decision_shows_on_dashboard_as_imessage(setup):
+    h, bridge, _provider, code, _now = setup
+    bridge.receive(incoming(f"APPROVE {code}"))
+    inc = h.commander.incidents.all()[0]
+    view = h.commander.incident_view(inc.id)
+    (action,) = view["ranger_actions"]
+    assert action["decision"] == "approved" and action["via"] == "imessage" and action["by"] == "ranger"
+    assert view["approvals"][0]["decided_via"] == "imessage"
+    assert any("via iMessage" in m["summary"] for m in h.of_type("agent_step"))

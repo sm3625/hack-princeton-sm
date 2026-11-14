@@ -126,3 +126,14 @@ def test_station_startup_wires_commander_into_receiver(monkeypatch, tmp_path):
         assert row["nodes"] == ["Creek Bend"]
     assert routes_agent._commander is None  # stopped and cleared on shutdown
     assert (tmp_path / "agent_fs" / "memories" / "nodes.md").exists()
+
+
+def test_dashboard_decision_is_recorded_as_dashboard_and_via_is_validated(api):
+    h, client = api
+    inc_id = raise_incident(h)
+    approval_id = h.pending()[0].id
+    assert client.post(f"/api/approvals/{approval_id}", json={"decision": "approve", "via": "fax"}).status_code == 422
+    assert client.post(f"/api/approvals/{approval_id}", json={"decision": "reject", "note": "rain"}).status_code == 200
+    actions = client.get(f"/api/incidents/{inc_id}").json()["ranger_actions"]
+    assert actions[0] == {"time": actions[0]["time"], "decision": "rejected", "by": "ranger", "via": "dashboard",
+                          "sector": actions[0]["sector"], "note": "rain"}

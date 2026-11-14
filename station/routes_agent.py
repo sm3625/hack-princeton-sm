@@ -89,6 +89,7 @@ CommanderDep = Annotated[Commander, Depends(get_commander)]
 class Decision(BaseModel):
     decision: Literal["approve", "edit", "reject"]
     note: str = Field("", max_length=500)
+    via: Literal["dashboard", "imessage"] = "dashboard"  # shown on the dashboard; not a permission
 
 
 class RangerMessage(BaseModel):
@@ -128,7 +129,7 @@ def post_message(incident_id: str, body: RangerMessage, c: CommanderDep) -> dict
 @router.post("/api/approvals/{approval_id}")
 def post_approval(approval_id: str, body: Decision, c: CommanderDep) -> dict:
     try:
-        approval = c.decide(approval_id, body.decision, body.note)
+        approval = c.decide(approval_id, body.decision, body.note, body.via)
     except NotFound:
         raise HTTPException(404, "No such approval.") from None
     except Conflict as e:
