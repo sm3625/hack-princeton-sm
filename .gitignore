@@ -25,3 +25,6 @@ data/
 
 # local tool config (contains absolute paths)
 .claude/launch.json
+
+# agent worktrees (local only)
+.claude/worktrees/
