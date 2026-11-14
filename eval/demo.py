@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="keep the commander's assessment step (default for --mode haiku)")
     ap.add_argument("--deployment", default="no_drone",
                     help="site profile from deployments/ (default no_drone; e.g. well_resourced for drones)")
-    ap.add_argument("--mode", choices=("ollama", "haiku", "mock"),
+    ap.add_argument("--mode", choices=("ollama", "haiku", "gemini", "mock"),
                     help="model for the fresh station (default: LLM_MODE in .env). haiku costs a few cents")
     ap.add_argument("--auto-ranger", action="store_true", help="approve real incidents, reject others")
     args = ap.parse_args(argv)
@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not args.url:
             tmp = Path(tempfile.mkdtemp(prefix="fg-demo-"))
-            full = args.full_investigation or args.mode == "haiku"  # Haiku is fast enough for it
+            full = args.full_investigation or args.mode in ("haiku", "gemini")  # Haiku is fast enough for it
             proc = start_station(args.port, tmp, full, args.mode, args.deployment)
         wait_ready(url)
         health = http("GET", url + "/api/health")

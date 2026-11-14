@@ -14,6 +14,7 @@ from station import (
     routes_agent,
     routes_clips,
     routes_deployment,
+    routes_edge,
     routes_eval,
     routes_events,
     routes_sim,
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_ws.router)
     app.include_router(routes_sim.router)
     app.include_router(routes_events.router)
+    app.include_router(routes_edge.router)
     app.include_router(routes_eval.router)
     app.include_router(routes_deployment.router)
     app.include_router(routes_clips.router)

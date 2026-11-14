@@ -305,6 +305,7 @@ function normalizeStep(s) {
 function incidentsChanged(id) {
   renderIncidents();
   if (id !== undefined && state.selected === id) renderDetail();
+  if (id !== undefined && state.trailOpen === id) renderTrailDialog();
   renderMapIncidents();
 }
 
@@ -800,20 +801,56 @@ const trailClock = (t) =>
 const txt = (v) => (v === undefined || v === null ? "" : String(v));
 const agentOf = (e) => AGENT_INFO[e.agent] || { label: titleCase(txt(e.agent) || "agent"), cls: "a-station" };
 
+// In the side panel: the conclusion and a button; the full trail opens in a large popup.
 function decisionTrail(inc, fallback) {
   const trace = inc.trace || [];
   if (!trace.length) {
     return el("section", { class: "detail-section" }, el("h3", {}, "Activity"), fallback);
   }
+  const wakes = trace.filter((e) => e.kind === "wake").length;
+  const tools = trace.filter((e) => e.kind === "tool").length;
+  return el(
+    "section",
+    { class: "detail-section trail" },
+    el("h3", {}, "How the agent decided"),
+    trailOutcome(inc),
+    el("button", { class: "btn wide trail-open", type: "button", onclick: () => openTrail(inc.id) },
+      "Open the decision trail",
+      el("span", { class: "muted" }, ` · ${wakes} wake-up${wakes === 1 ? "" : "s"}, ${tools} step${tools === 1 ? "" : "s"}`)),
+  );
+}
+
+function openTrail(id) {
+  state.trailOpen = id;
+  renderTrailDialog();
+  const d = $("trail-dialog");
+  if (!d.open) d.showModal();
+}
+
+function renderTrailDialog() {
+  const inc = state.incidents.get(state.trailOpen);
+  if (!inc) return;
+  const body = $("trail-body");
+  const keep = body.scrollTop;
+  $("trail-subtitle").textContent = [inc.title, inc.sector].filter(Boolean).join(" · ");
+  body.replaceChildren(fullTrail(inc));
+  body.scrollTop = keep;
+}
+
+function trailOutcome(inc) {
   const status = hasPendingApproval(inc.id) ? "awaiting_approval" : inc.status;
   const [label, cls] = OUTCOME[status] || [statusLabel(status), "o-open"];
-  const outcome = el(
+  return el(
     "div",
     { class: `trail-outcome ${cls}` },
     el("span", { class: "trail-outcome-kicker" }, "Conclusion"),
     el("strong", {}, label),
     inc.summary ? el("p", {}, txt(inc.summary)) : null,
   );
+}
+
+function fullTrail(inc) {
+  const trace = inc.trace || [];
   const legend = el(
     "div",
     { class: "trail-legend" },
@@ -821,12 +858,19 @@ function decisionTrail(inc, fallback) {
       .filter((a) => a === "commander" || trace.some((e) => e.agent === a))
       .map((a) => el("span", { class: `legend-chip ${AGENT_INFO[a].cls}` }, AGENT_INFO[a].label)),
   );
+  const facts = el(
+    "dl",
+    { class: "trail-facts" },
+    el("dt", {}, "Wake-ups"), el("dd", {}, String(trace.filter((e) => e.kind === "wake").length)),
+    el("dt", {}, "Tool steps"), el("dd", {}, String(trace.filter((e) => e.kind === "tool").length)),
+    el("dt", {}, "Sub-agents asked"), el("dd", {}, String(trace.filter((e) => e.kind === "delegate").length)),
+    el("dt", {}, "Ranger decisions"), el("dd", {}, String(trace.filter((e) => e.kind === "ranger").length)),
+  );
   return el(
-    "section",
-    { class: "detail-section trail" },
-    el("h3", {}, "How the agent decided"),
-    outcome,
-    legend,
+    "div",
+    { class: "trail trail-full" },
+    el("aside", { class: "trail-side" }, trailOutcome(inc), legend, facts,
+      el("p", { class: "muted trail-hint" }, "Each block is one time the agent woke up. Coloured dots show which agent acted; sub-agents work in their own branch and report back. Highlighted steps are decisions; diamonds are milestones.")),
     el("ol", { class: "trail-blocks" }, ...trailBlocks(trace).map(renderBlock)),
   );
 }
@@ -1216,6 +1260,10 @@ function bindControls() {
   }
   $("casefile-close").append(icon("cross"));
   $("casefile-close").addEventListener("click", () => $("casefile").close());
+  $("trail-close").append(icon("cross"));
+  $("trail-close").addEventListener("click", () => $("trail-dialog").close());
+  $("trail-dialog").addEventListener("close", () => { state.trailOpen = null; });
+  $("trail-dialog").addEventListener("click", (e) => { if (e.target === $("trail-dialog")) $("trail-dialog").close(); });
   $("casefile").addEventListener("click", (e) => {
     if (e.target === $("casefile")) $("casefile").close();
   });

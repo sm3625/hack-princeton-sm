@@ -38,9 +38,9 @@ from eval.report import write_report
 from sim.scenario import load_scenario
 
 RESULTS = ROOT / "eval" / "results.json"
-MODES = ("mock", "ollama", "haiku")
-QUIET_S = {"mock": 20.0, "ollama": 150.0, "haiku": 60.0}  # no agent activity for this long = night is done
-DEFAULT_MAX_MIN = {"mock": 30.0, "ollama": 20.0, "haiku": 20.0}
+MODES = ("mock", "ollama", "haiku", "gemini")
+QUIET_S = {"mock": 20.0, "ollama": 150.0, "haiku": 60.0, "gemini": 60.0}  # no agent activity for this long = night is done
+DEFAULT_MAX_MIN = {"mock": 30.0, "ollama": 20.0, "haiku": 20.0, "gemini": 20.0}
 
 
 def free_port() -> int:
@@ -216,7 +216,7 @@ def run_night(
             "scenario": scenario_name,
             "mode": mode,
             "memory": "carried" if memory_from else "fresh",
-            "model": os.getenv("OLLAMA_MODEL", "qwen3:8b") if mode == "ollama" else HAIKU_MODEL if mode == "haiku" else "mock",
+            "model": os.getenv("OLLAMA_MODEL", "qwen3:8b") if mode == "ollama" else HAIKU_MODEL if mode == "haiku" else os.getenv("GEMINI_MODEL", "gemini-3.5-flash") if mode == "gemini" else "mock",
             "speed": speed,
             "pace": "waits" if sim_waits else "live",
             "from": from_time,

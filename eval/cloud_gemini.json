@@ -1,0 +1,89 @@
+{
+  "started_utc": "2026-11-14T22:12:23Z",
+  "models": {
+    "haiku": "claude-haiku-5-5",
+    "gemini": "gemini-3.5-flash",
+    "mock": "mock"
+  },
+  "blocked": {},
+  "repeats": 1,
+  "limits": "Four synthetic incidents; real agent/tools. No real dispatch. Single passes are not a reliable quality ranking.",
+  "rows": [
+    {
+      "mode": "gemini",
+      "repeat": 1,
+      "case": "A",
+      "title": "Logging: chainsaw at 3 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "dispatch_requested",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "wall_s": 65.3,
+      "model_steps": 33,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 66.095,
+      "passed": true
+    },
+    {
+      "mode": "gemini",
+      "repeat": 1,
+      "case": "C",
+      "title": "Rain cluster: chainsaw at 2 nodes in rain",
+      "expected": "no_request",
+      "decision": "dispatch_requested",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "wall_s": 80.3,
+      "model_steps": 39,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 81.105,
+      "passed": false
+    },
+    {
+      "mode": "gemini",
+      "repeat": 1,
+      "case": "B",
+      "title": "Gunshots: 2 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "dispatch_requested",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "wall_s": 32.8,
+      "model_steps": 15,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 33.62,
+      "passed": true
+    },
+    {
+      "mode": "gemini",
+      "repeat": 1,
+      "case": "D",
+      "title": "Single node in rain",
+      "expected": "no_request",
+      "decision": "dismissed",
+      "summary": "Single isolated chainsaw detection at Puesto Sur in rain and 25 kph wind is likely a false alarm.",
+      "wall_s": 33.7,
+      "model_steps": 14,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 34.477,
+      "passed": true
+    }
+  ],
+  "summary": {
+    "gemini": {
+      "attempted": 4,
+      "completed": 4,
+      "passed": 3,
+      "median_decision_s": 49.5
+    }
+  }
+}

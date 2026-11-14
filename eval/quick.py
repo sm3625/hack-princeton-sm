@@ -80,12 +80,13 @@ def run_case(case_id: str, out: Path) -> None:
             "model_steps": sum(stats.get("steps", {}).values()),
             "invented_names": invented,
             "dispatches": len(inc.dispatches),
+            "agent_failures": h.commander._failures.get(inc.id, 0),
         }))
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--mode", choices=("ollama", "haiku", "mock"))
+    ap.add_argument("--mode", choices=("ollama", "haiku", "gemini", "mock"))
     ap.add_argument("--case", help=argparse.SUPPRESS)
     ap.add_argument("--out", help=argparse.SUPPRESS)
     args = ap.parse_args()
@@ -129,7 +130,7 @@ def main() -> None:
         print(f"[{cid}] {title}: {got} ({'ok' if row['correct'] else 'WRONG'}, {row['case_wall_s']} s)", flush=True)
     total = round(time.monotonic() - start, 1)
     from agent.llm import HAIKU_MODEL
-    model = settings.ollama_model if settings.llm_mode == "ollama" else HAIKU_MODEL if settings.llm_mode == "haiku" else "mock"
+    model = settings.ollama_model if settings.llm_mode == "ollama" else HAIKU_MODEL if settings.llm_mode == "haiku" else settings.gemini_model if settings.llm_mode == "gemini" else "mock"
     result = {"mode": settings.llm_mode, "model": model, "total_s": total, "cases": rows,
               "correct": sum(r["correct"] for r in rows), "of": len(rows)}
     OUT_JSON.with_name(f"quick_{settings.llm_mode}.json").write_text(json.dumps(result, indent=2) + "\n")

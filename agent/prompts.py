@@ -32,6 +32,7 @@ Rules:
 - Never dispatch without approval. Only dispatch_rangers sends rangers, and it waits for a
   person. Never say rangers were sent unless that tool says so.
 - Only verified records are evidence. Never use or cite unverified records.
+- Records marked "belongs to incident ..." are another incident's evidence, never this one's.
 - Every claim in a case file cites its records as [Node Name #seq].
 - Use only node names listed in the evidence, and sector names. Be brief."""
 
@@ -40,6 +41,7 @@ Decide if the detections in an incident are a real threat.
 
 First call get_incident_evidence. It lists every record, counts the independent nodes and
 gives the weather; trust its counts. Use get_node_info only for names it lists.
+Records marked "belongs to incident ..." in other searches are not evidence for this incident.
 Rain and wind cause false alarms, most of all on nodes with a false-alarm history.
 Follow its "Corroborated" line, but do not treat rain as proof of no threat. Strong,
 compatible reports from independent nodes close in time warrant investigation during rain.
@@ -96,6 +98,9 @@ NO_DRONE_RULES = f"""
 or camera. Corroborated sounds (Corroborated: YES) are enough to ask a ranger team to check
 quickly; frame it as "check it out", not as a confirmed crime, and state that there was no aerial
 verification. Do not hold a corroborated threat waiting for a camera that does not exist.
+Corroboration comes only from this incident's own evidence block (get_incident_evidence). Records
+found with get_detections that are marked as belonging to another incident never count, and a
+"Corroborated: NO" incident must not be dispatched because of a neighbour's records.
 """
 
 

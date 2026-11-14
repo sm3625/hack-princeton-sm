@@ -9,11 +9,12 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-LLM_MODES = ("ollama", "haiku", "mock")
+LLM_MODES = ("ollama", "haiku", "gemini", "mock")
 
 MODEL_LABELS = {
     "ollama": "Local",
     "haiku": "Claude Haiku",
+    "gemini": "Gemini",
     "mock": "Mock",
 }
 
@@ -28,11 +29,16 @@ class Settings:
     ollama_model: str
     host: str
     port: int
+    gemini_model: str = "gemini-3.5-flash"
+    google_cloud_project: str = ""
+    google_cloud_location: str = "global"
 
     @property
     def model_label(self) -> str:
         if self.llm_mode == "ollama":
             return f"{MODEL_LABELS['ollama']} · {self.ollama_model}"
+        if self.llm_mode == "gemini":
+            return f"Gemini · {self.gemini_model} (ADC)"
         return MODEL_LABELS[self.llm_mode]
 
 
@@ -47,4 +53,7 @@ def load_settings() -> Settings:
         ollama_model=os.getenv("OLLAMA_MODEL", "qwen3:8b"),
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "8000")),
+        gemini_model=os.getenv("GEMINI_MODEL") or "gemini-3.5-flash",
+        google_cloud_project=os.getenv("GOOGLE_CLOUD_PROJECT") or "",
+        google_cloud_location=os.getenv("GOOGLE_CLOUD_LOCATION") or "global",
     )

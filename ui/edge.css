@@ -1,0 +1,31 @@
+.edge-panel { padding: 12px 16px; border-bottom: 1px solid var(--border, #ccc); font-size: 12px; }
+.edge-panel summary { cursor: pointer; font-weight: 600; }
+#edge-state { float: right; font-weight: 400; }
+.edge-panel p { margin: 8px 0; line-height: 1.5; overflow-wrap: anywhere; }
+.edge-panel small { opacity: .65; line-height: 1.5; }
+#edge-controls:not([hidden]) { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+#edge-controls label { display: grid; gap: 4px; flex: 1; }
+#edge-controls select { max-width: 155px; width: 100%; }
+#edge-play { padding: 8px 12px; }
+.edge-panel { margin: 8px 12px; padding: 16px; border: 1px solid #39896655; border-radius: 16px; background: linear-gradient(135deg, #39896612, transparent); }
+.edge-panel summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; list-style: none; }
+.edge-panel summary::-webkit-details-marker { display: none; }
+.edge-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; letter-spacing: .08em; }
+.edge-brand > svg { width: 32px; height: 32px; color: #398966; }
+.edge-brand small { display: block; font-size: 10px; letter-spacing: 0; font-weight: 400; margin-top: 3px; }
+#edge-state { float: none; border-radius: 20px; padding: 5px 8px; background: #8882; font-size: 10px; }
+.edge-panel[data-connected="true"] #edge-state { color: #26774f; background: #39896620; }
+.edge-panel[data-connected="true"] #edge-state::before { content: '● '; }
+.edge-flow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 18px 0 12px; }
+.edge-flow > div { display: grid; justify-items: center; gap: 6px; font-size: 10px; }
+.edge-flow svg { width: 24px; height: 24px; }
+.edge-flow .edge-chip { border: 1px solid #39896670; border-radius: 12px; padding: 10px 12px; color: #398966; background: #39896612; }
+.edge-arrow { opacity: .4; }
+.edge-panel .edge-explain { font-size: 11px; line-height: 1.5; }
+#edge-metrics { font-variant-numeric: tabular-nums; padding: 9px 0; border-top: 1px solid #8883; }
+#edge-play { color: white; background: #287a52; border: 0; border-radius: 8px; cursor: pointer; }
+#edge-play:disabled { opacity: .6; cursor: wait; }
+.edge-running .edge-chip { animation: edge-pulse .8s ease-in-out infinite alternate; }
+@keyframes edge-pulse { to { box-shadow: 0 0 0 6px #39896625; } }
+@media (prefers-reduced-motion: reduce) { .edge-running .edge-chip { animation: none; outline: 2px solid #398966; } }
+@media (prefers-color-scheme: dark) { .edge-panel[data-connected="true"] #edge-state, .edge-brand > svg, .edge-flow .edge-chip { color: #82d7a9; } }

@@ -36,6 +36,11 @@ MODEL_FILE = ROOT / "models" / "classifier.tflite"
 
 def pick_classifier(model_file: Path = MODEL_FILE) -> Classifier:
     """The real TFLite model when models/classifier.tflite exists, else the labelled fallback."""
+    backend = os.getenv("EDGE_BACKEND", "off").strip().lower()
+    if backend != "off":
+        from emulators.bridge import EdgeClassifier
+
+        return EdgeClassifier(backend, os.getenv("EDGE_PROFILE", "pi-zero2"))
     if model_file.exists():
         try:
             from node.classifier import TFLiteClassifier  # built by the classifier track
@@ -81,7 +86,7 @@ class Pipeline:
                 lambda: self._now,
             )
 
-    def feed(self, node_id: int, audio: np.ndarray) -> None:
+    def feed(self, node_id: int, audio: np.ndarray) -> asyncio.Future | None:
         """Sim callback (event-loop thread): hand the clip to the worker, return at once."""
         runtime = self.runtimes.get(node_id)
         if runtime is None:
@@ -89,18 +94,23 @@ class Pipeline:
             return
         stamp = float(self.engine.now())  # sim time the clip arrives, even if work queues up
         self.heard.setdefault(node_id, deque(maxlen=4)).append((stamp, audio))
-        self._loop.run_in_executor(self._pool, self._process, runtime, audio, stamp)
+        return self._loop.run_in_executor(self._pool, self._process, runtime, audio, stamp)
 
-    def _process(self, runtime: NodeRuntime, audio: np.ndarray, stamp: float) -> None:
+    def _process(self, runtime: NodeRuntime, audio: np.ndarray, stamp: float) -> dict:
         try:
             self._now = stamp
             runtime.reset()  # each scenario clip is a separate recording
-            runtime.feed(audio)
-        except Exception:
+            detections = runtime.feed(audio)
+            return {"emitted": len(detections), "node_id": runtime.node.id}
+        except Exception as exc:
             log.exception("node %s failed to process a clip", runtime.node.name)
+            return {"error": str(exc)}
 
     def close(self) -> None:
         self._pool.shutdown(wait=True, cancel_futures=True)
+        close = getattr(self.classifier, "close", None)
+        if close is not None:
+            close()
 
 
 @asynccontextmanager

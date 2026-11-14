@@ -153,3 +153,24 @@ def test_light_mode_drops_assessment_tools_and_rules(tmp_path, monkeypatch):
     h.hear("Brecha Vieja", 23, "02:14:12", S.CHAINSAW, 0.86)
     h.tick("02:14:20")
     assert h.pending(), "light mode still reaches the approval step (mock model)"
+
+
+def test_neighbouring_incident_records_are_labelled_not_evidence(tmp_path):
+    """Demo bug: an insect false alarm borrowed a nearby logging record as 'corroboration'."""
+    from agent_fakes import Harness
+
+    from common.contracts import SoundClass as S
+
+    h = Harness(tmp_path)
+    h.sim.rain = {"B3"}
+    h.hear("El Bajo", 1, "02:00:37", S.CHAINSAW, 0.98)  # rain-only incident
+    h.sim.rain = set()
+    h.hear("Paso Musgo", 1, "02:03:27", S.CHAINSAW, 1.00)  # dry: a separate incident
+    rain = next(i for i in h.commander.incidents.all() if i.in_rain)
+    tools = make_tools(h.commander.services)
+    out = tools["get_detections"].invoke({"sector": "B3", "window_s": 3600}, {"configurable": {"incident_id": rain.id}})
+    paso = next(ln for ln in out.splitlines() if "Paso Musgo #1" in ln)
+    assert "NOT evidence for this incident" in paso
+    bajo = next(ln for ln in out.splitlines() if "El Bajo #1" in ln)
+    assert "belongs to incident" not in bajo
+    assert "Corroborated: NO" in tools["get_incident_evidence"].invoke({}, {"configurable": {"incident_id": rain.id}})

@@ -1,0 +1,97 @@
+{
+  "started_utc": "2026-11-14T22:10:43Z",
+  "models": {
+    "haiku": "claude-haiku-5-5",
+    "gemini": "gemini-3.5-flash",
+    "mock": "mock"
+  },
+  "blocked": {
+    "gemini": "Gemini ADC is available, but GOOGLE_CLOUD_PROJECT is missing."
+  },
+  "repeats": 1,
+  "limits": "Four synthetic incidents; real agent/tools. No real dispatch. Single passes are not a reliable quality ranking.",
+  "rows": [
+    {
+      "mode": "haiku",
+      "repeat": 1,
+      "case": "A",
+      "title": "Logging: chainsaw at 3 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "watching",
+      "summary": "Triage real (0.85): 3 dry-weather chainsaw detections. Drone saw fresh clearing and one vehicle in E4, inconclusive for active cutting. Second look and recheck pending.",
+      "wall_s": 37.5,
+      "model_steps": 19,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 38.525,
+      "passed": false
+    },
+    {
+      "mode": "haiku",
+      "repeat": 1,
+      "case": "C",
+      "title": "Rain cluster: chainsaw at 2 nodes in rain",
+      "expected": "no_request",
+      "decision": "watching",
+      "summary": "Chainsaw-class sounds from 2 nodes in rain; drone saw one fresh clearing and one vehicle, inconclusive with limited coverage. No dispatch without confirming observation or ranger outcome.",
+      "wall_s": 35.4,
+      "model_steps": 18,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 36.201,
+      "passed": true
+    },
+    {
+      "mode": "haiku",
+      "repeat": 1,
+      "case": "B",
+      "title": "Gunshots: 2 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "watching",
+      "summary": "Two corroborated gunshots in G2; drone saw fresh clearing and one vehicle, no confirmed activity. Recheck scheduled, rangers not dispatched.",
+      "wall_s": 31.7,
+      "model_steps": 15,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 32.96,
+      "passed": false
+    },
+    {
+      "mode": "haiku",
+      "repeat": 1,
+      "case": "D",
+      "title": "Single node in rain",
+      "expected": "no_request",
+      "decision": "watching",
+      "summary": "Single uncorroborated chainsaw detection from Puesto Sur during rain; triage uncertain. Awaiting a second independent node.",
+      "wall_s": 13.2,
+      "model_steps": 8,
+      "invented_names": [],
+      "dispatches": 0,
+      "agent_failures": 0,
+      "status": "completed",
+      "total_s": 14.377,
+      "passed": true
+    }
+  ],
+  "summary": {
+    "haiku": {
+      "attempted": 4,
+      "completed": 4,
+      "passed": 2,
+      "median_decision_s": 33.55
+    },
+    "gemini": {
+      "attempted": 0,
+      "completed": 0,
+      "passed": 0,
+      "median_decision_s": null
+    }
+  }
+}

@@ -267,6 +267,14 @@ class IncidentManager:
 
     # --- reads ---
 
+    def incident_of(self, node_id: int, seq: int) -> str | None:
+        """The incident a record was grouped into, if any."""
+        with self._lock:
+            for inc in self._incidents.values():
+                if [node_id, seq] in inc.records:
+                    return inc.id
+        return None
+
     def get(self, incident_id: str) -> Incident | None:
         with self._lock:
             return self._incidents.get(incident_id)

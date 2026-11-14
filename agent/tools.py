@@ -125,16 +125,21 @@ class Services:
         inc_id = ((config or {}).get("configurable") or {}).get("incident_id")
         return self.incidents.get(inc_id) if inc_id else None
 
-    def detection_lines(self, detections) -> list[str]:
+    def detection_lines(self, detections, current: Incident | None = None) -> list[str]:
+        """One line per verified record. With `current`, records grouped into a different incident
+        are labelled so they are never read as this incident's evidence."""
         lines = []
         for d in detections:
             if not d.verified:  # belt and braces: the store query already excludes these
                 continue
             node = self.world.node(d.node_id)
-            lines.append(
-                f"- {record_tag(node.name, d.seq)} {fmt_time(d.timestamp)} "
-                f"{sound_name(d.sound)} {d.confidence:.2f} (sector {node.sector})"
-            )
+            line = (f"- {record_tag(node.name, d.seq)} {fmt_time(d.timestamp)} "
+                    f"{sound_name(d.sound)} {d.confidence:.2f} (sector {node.sector})")
+            if current is not None:
+                owner = self.incidents.incident_of(d.node_id, d.seq)
+                if owner and owner != current.id:
+                    line += f" [belongs to incident {owner}: NOT evidence for this incident]"
+            lines.append(line)
         return lines
 
 
@@ -261,7 +266,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         x, y = s.sector_centre(sec)
         node_ids = [n.id for n in s.nodes_near(x, y)]
         found = s.store.query(node_ids=node_ids, since=since, until=now, verified_only=True)
-        lines = s.detection_lines(found)
+        lines = s.detection_lines(found, current=inc)
         head = f"{len(lines)} verified records near {sec} from {fmt_time(since)} to {fmt_time(now)}"
         return head + (":\n" + "\n".join(lines) if lines else ".")
 
