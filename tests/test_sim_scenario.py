@@ -250,3 +250,21 @@ events:
     wall = time.monotonic() - t0
     assert stamps == [pytest.approx(12, abs=1), pytest.approx(30, abs=1)]
     assert 0.5 < wall < 2.0  # 40 sim-s at 60x is ~0.67 s
+
+
+def test_runner_can_start_part_way_through_the_night(tmp_path):
+    s = load_scenario("tiny", write_scenario(tmp_path, "tiny", TINY))
+    weather = WeatherModel(WORLD)
+    seen = []
+    runner = ScenarioRunner(
+        WORLD,
+        None,
+        scenario=s,
+        clock=FakeClock(s.start + 120),
+        weather=weather,
+        on_event=seen.append,
+        skip_to=120,
+    )
+    asyncio.run(runner.run())
+    assert [e.node for e in seen] == ["Mossy Gap"]  # the 22:00:30 and 22:01 events are skipped
+    assert weather.get("B3").rain  # but the 22:01 rain still applies

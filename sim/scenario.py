@@ -114,6 +114,18 @@ class Scenario:
 # ---------- parsing ----------
 
 
+def offset_of(scenario: Scenario, clock_time: str) -> float:
+    """Seconds after the scenario start for a clock time such as '02:10' (wraps midnight)."""
+    text = str(clock_time).strip()
+    if not _CLOCK_RE.match(text):
+        raise ScenarioError(f"bad clock time {clock_time!r} (use 'HH:MM')")
+    start = dt.datetime.fromtimestamp(scenario.start)
+    off = _offset(text, start.hour * 3600 + start.minute * 60 + start.second, "from")
+    if off >= scenario.duration_s:
+        raise ScenarioError(f"{clock_time} is after the scenario ends")
+    return off
+
+
 def _clock_seconds(text: str) -> int:
     parts = [int(p) for p in text.split(":")]
     h, m, s = (parts + [0])[:3]
@@ -278,6 +290,7 @@ class ScenarioRunner:
         weather: WeatherModel | None = None,
         on_event: Callable[[ScenarioEvent], None] | None = None,
         data_dir: Path = audiolib.DATA_DIR,
+        skip_to: float = 0.0,
     ) -> None:
         self.world = world
         self.feed = feed
@@ -286,6 +299,7 @@ class ScenarioRunner:
         self.weather = weather
         self.on_event = on_event
         self.data_dir = data_dir
+        self.skip_to = max(0.0, float(skip_to))  # offset: earlier events skipped, weather kept
         self.fired = 0
         self.synthetic = 0
         self.finished = False
@@ -338,7 +352,12 @@ class ScenarioRunner:
                 log.exception("on_event failed for %s at %s", event.sound, event.node)
 
     async def run(self) -> None:
+        skip_until = self.scenario.start + self.skip_to
         for i, (t, kind, item) in enumerate(self.timeline()):
+            if t < skip_until:
+                if kind == "weather":
+                    self.fire(kind, item, i)
+                continue
             await self.clock.sleep_until(t)
             self.fire(kind, item, i)
         await self.clock.sleep_until(self.scenario.end)

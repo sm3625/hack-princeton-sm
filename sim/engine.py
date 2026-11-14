@@ -26,7 +26,14 @@ from sim import world as worldmap
 from sim.clock import SimClock
 from sim.demo_feed import DemoFeed
 from sim.drone import Drone, Observation
-from sim.scenario import SCENARIO_DIR, Scenario, ScenarioRunner, list_scenarios, load_scenario
+from sim.scenario import (
+    SCENARIO_DIR,
+    Scenario,
+    ScenarioRunner,
+    list_scenarios,
+    load_scenario,
+    offset_of,
+)
 from sim.weather import WeatherModel
 
 log = logging.getLogger(__name__)
@@ -164,13 +171,17 @@ class SimEngine:
 
     # ---------- control ----------
 
-    async def start_scenario(self, name: str, speed: float | None = None) -> dict:
+    async def start_scenario(
+        self, name: str, speed: float | None = None, from_time: str | None = None
+    ) -> dict:
+        """Start (or restart) a scenario. from_time ('02:10') skips the night up to then."""
         self.attach()
         scenario = load_scenario(name, self.scenario_dir, self.world)
+        skip = offset_of(scenario, from_time) if from_time else 0.0
         if self._run_task is not None and not self._run_task.done():
             self._run_task.cancel()
         self.clock.set_paused(True)
-        self.clock.set_time(scenario.start)
+        self.clock.set_time(scenario.start + skip)
         self.clock.set_speed(speed if speed is not None else scenario.speed)
         self.weather_model.reset()
         self.drone.reset(100.0)
@@ -195,6 +206,7 @@ class SimEngine:
             weather=self.weather_model,
             on_event=None if self._feed is not None else self.demo.on_event,
             data_dir=self.data_dir,
+            skip_to=skip,
         )
         if self._feed is None:
             log.info("scenario %s: STUB detections (no NodeRuntime plugged in)", name)

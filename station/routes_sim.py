@@ -33,6 +33,7 @@ router = APIRouter(lifespan=lifespan)
 class ScenarioRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     speed: float | None = Field(default=None, ge=MIN_SPEED, le=MAX_SPEED)
+    from_time: str | None = Field(default=None, alias="from", pattern=r"^\d{1,2}:\d{2}$")
 
 
 class PauseRequest(BaseModel):
@@ -58,7 +59,7 @@ async def sim_state() -> dict:
 @router.post("/api/sim/scenario")
 async def start_scenario(req: ScenarioRequest) -> dict:
     try:
-        return await get_engine().start_scenario(req.name, req.speed)
+        return await get_engine().start_scenario(req.name, req.speed, req.from_time)
     except UnknownScenario as e:
         raise HTTPException(status_code=404, detail="Unknown scenario") from e
     except ScenarioError as e:

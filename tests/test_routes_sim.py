@@ -77,6 +77,9 @@ def test_start_pause_speed(client):
         ({"name": "../night1"}, 404),
         ({"name": "night1", "speed": 100}, 422),
         ({"name": "night1", "speed": 0}, 422),
+        ({"name": "night1", "from": "2pm"}, 422),
+        ({"name": "night1", "from": "25:99"}, 422),
+        ({"name": "night1", "from": "07:00"}, 422),
     ],
 )
 def test_bad_scenario_requests(client, body, status):
@@ -97,3 +100,8 @@ def test_stub_detection_reaches_the_websocket(client):
         assert msg["stub"] is True
         assert det["node_id"] == 5 and det["sound"] == "chainsaw" and det["seq"] == 1
         assert det["confidence"] == 0.91 and det["verified"] is True
+
+
+def test_start_from_a_clock_time(client):
+    state = client.post("/api/sim/scenario", json={"name": "night1", "from": "02:10"}).json()
+    assert 0 <= state["sim_time"] - (state["start"] + 4 * 3600 + 10 * 60) < 60
