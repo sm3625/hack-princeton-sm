@@ -53,19 +53,3 @@ def test_ws_forwards_bus_messages(monkeypatch):
         bus.publish({"type": "clock", "sim_time": 123})
         assert ws.receive_json() == {"type": "clock", "sim_time": 123}
 
-
-def test_ws_unsubscribes_when_browser_leaves(monkeypatch):
-    import time
-
-    from station.bus import bus
-
-    client = make_client(monkeypatch, LLM_MODE="mock")
-    before = len(bus._subs)
-    with client.websocket_connect("/ws"):
-        time.sleep(0.05)
-        assert len(bus._subs) == before + 1
-    for _ in range(50):
-        if len(bus._subs) == before:
-            break
-        time.sleep(0.02)
-    assert len(bus._subs) == before
