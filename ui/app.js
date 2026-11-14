@@ -1,6 +1,7 @@
 // Ranger station UI. Message shapes: common/contracts.py. Text is always set with
 // textContent; the only HTML inserted is the server-sanitized case file / plan "html" field.
 
+import { loadGeo, renderInset } from "./geo.js";
 import { ForestMap } from "./map.js";
 import {
   HttpError,
@@ -1082,6 +1083,10 @@ async function init() {
     onSelectNode,
     showLabels: prefs.get("labels", false) === true,
     onLabelsToggle: (on) => prefs.set("labels", on),
+  });
+  loadGeo().then(({ block, reserve }) => {
+    state.map.setGeo(block);
+    renderInset($("inset-map"), reserve);
   });
   setTab(state.tab);
   loadResults();
