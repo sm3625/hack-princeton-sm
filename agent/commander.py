@@ -74,6 +74,12 @@ RECURSION_LIMIT = 300
 MAX_NOTE = 500
 MAX_RETRIES = 3  # failed wake-ups (e.g. model server down) are retried with backoff
 RETRY_S = 30
+MAX_AUTO_REJECTS = 2  # repeat dispatch requests code turns down per run before a ranger sees one
+REPEAT_REJECT = (
+    "Refused by the station: a ranger already rejected dispatch for this incident and no new "
+    "records have arrived since. Do not ask again. Use set_status watching or dismissed, and "
+    "schedule_check if you want to look again later."
+)
 
 
 # ---------- agent assembly ----------
@@ -383,7 +389,10 @@ class Commander:
         self.files = AgentFiles(Path(fs_root))
         self.files.ensure()
         self.repo = IncidentRepo(db_path)
-        self.incidents = IncidentManager(self.world, self.files, self.repo, on_change=self._incident_changed)
+        self.incidents = IncidentManager(
+            self.world, self.files, self.repo, on_change=self._incident_changed,
+            raining=lambda sector: self.sim.weather(sector).rain,
+        )
         self.wakes = WakeQueue()
         self.services = Services(
             world=self.world,
@@ -527,8 +536,20 @@ class Commander:
         inc = self.incidents.get(incident_id)
         reporter = StepReporter(incident_id, self.files, self.publish)
         began = time.monotonic()
+        config = self._config(inc, reporter)
         try:
-            result = self.agent.invoke(payload, self._config(inc, reporter))
+            result = self.agent.invoke(payload, config)
+            # Small models re-propose a rejected dispatch over and over. Code turns the repeat
+            # down itself unless new evidence arrived since the ranger said no.
+            for _ in range(MAX_AUTO_REJECTS):
+                interrupts = result.get("__interrupt__") or []
+                if not interrupts or not self._repeat_after_reject(incident_id):
+                    break
+                n = len((interrupts[0].value or {}).get("action_requests", [])) or 1
+                reporter.step("commander", "repeat dispatch request blocked: a ranger rejected it and nothing new has arrived")
+                result = self.agent.invoke(
+                    Command(resume={"decisions": [{"type": "reject", "message": REPEAT_REJECT}] * n}), config
+                )
         finally:
             self._record_stats(incident_id, time.monotonic() - began, reporter.counts)
         interrupts = result.get("__interrupt__") or []
@@ -539,6 +560,10 @@ class Commander:
         if final is not None and final.text:
             reporter.step("commander", _first_meaningful_line(final.text))
         self.incidents.touch(incident_id, self.sim.now())
+
+    def _repeat_after_reject(self, incident_id: str) -> bool:
+        inc = self.incidents.get(incident_id)
+        return inc is not None and inc.rejected_at_records is not None and len(inc.records) <= inc.rejected_at_records
 
     def wake_text(self, inc: Incident, wake: Wake) -> str:
         kinds = [k for k, on in (("new detections", wake.new_records), ("scheduled check", wake.check_due),
@@ -650,7 +675,10 @@ class Commander:
             {"time": fmt_time(now), "decision": a.status, "by": "ranger", "sector": a.sector,
              "note": note if decision != "approve" else a.note},
         )
-        self.incidents.update(a.incident_id, status="open", summary=f"Ranger {a.status} dispatch", updated_at=now)
+        self.incidents.update(
+            a.incident_id, status="open", summary=f"Ranger {a.status} dispatch", updated_at=now,
+            rejected_at_records=len(inc.records) if decision == "reject" else None,
+        )
         self.publish(a.public())
         self._step(a.incident_id, "commander", f"ranger {a.status} dispatch to {a.sector}")
 

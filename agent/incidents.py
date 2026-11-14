@@ -133,6 +133,8 @@ class Incident:
     sounds: list[str] = field(default_factory=list)
     next_check_at: int | None = None
     dispatches: list[dict] = field(default_factory=list)
+    in_rain: bool | None = None  # weather at the first detection's node; None = unknown
+    rejected_at_records: int | None = None  # record count when a ranger last rejected dispatch
 
     @property
     def thread_id(self) -> str:
@@ -233,8 +235,10 @@ class IncidentManager:
         files: AgentFiles,
         repo: IncidentRepo | None = None,
         on_change: Callable[[Incident], None] | None = None,
+        raining: Callable[[str], bool] | None = None,
     ) -> None:
         self.world = world
+        self.raining = raining  # sector -> is it raining now; keeps rain and dry detections apart
         self.files = files
         self.repo = repo
         self.on_change = on_change
@@ -308,12 +312,21 @@ class IncidentManager:
             "model_version": d.model_version,
         }
 
+    def _rain_at(self, node: Node) -> bool | None:
+        if self.raining is None:
+            return None
+        return bool(self.raining(node.sector))
+
     def _match(self, d: Detection, node: Node, family: str) -> Incident | None:
         best, best_dist = None, JOIN_RADIUS_M
         for inc in self._incidents.values():
             if inc.status == "closed" or not compatible(inc.family, family):
                 continue
             if abs(d.timestamp - inc.last_detection_at) > JOIN_WINDOW_S:
+                continue
+            # Rain false alarms and a real sound heard in dry weather are different incidents,
+            # even when they are close in place and time.
+            if inc.in_rain is not None and self._rain_at(node) not in (None, inc.in_rain):
                 continue
             dist = math.hypot(node.x_m - inc.x_m, node.y_m - inc.y_m)
             if dist <= best_dist:
@@ -337,6 +350,7 @@ class IncidentManager:
             last_detection_at=d.timestamp,
             x_m=node.x_m,
             y_m=node.y_m,
+            in_rain=self._rain_at(node),
         )
         self._incidents[inc_id] = inc
         return inc

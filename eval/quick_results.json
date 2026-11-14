@@ -1,0 +1,60 @@
+{
+  "model": "qwen3:8b",
+  "total_s": 153.0,
+  "cases": [
+    {
+      "case": "A",
+      "title": "Logging: chainsaw at 3 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "dispatch_requested",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "wall_s": 40.5,
+      "model_steps": 11,
+      "invented_names": [],
+      "dispatches": 0,
+      "correct": true,
+      "case_wall_s": 41.1
+    },
+    {
+      "case": "C",
+      "title": "Rain cluster: chainsaw at 2 nodes in rain",
+      "expected": "no_request",
+      "decision": "dismissed",
+      "summary": "False alarm due to rain and wind in sector B4. Nodes in rain do not confirm each other, and the incident is not corroborated.",
+      "wall_s": 27.1,
+      "model_steps": 9,
+      "invented_names": [],
+      "dispatches": 0,
+      "correct": true,
+      "case_wall_s": 28.0
+    },
+    {
+      "case": "B",
+      "title": "Gunshots: 2 dry nodes",
+      "expected": "dispatch_requested",
+      "decision": "dispatch_requested",
+      "summary": "Waiting for a ranger to approve dispatch",
+      "wall_s": 44.2,
+      "model_steps": 14,
+      "invented_names": [],
+      "dispatches": 0,
+      "correct": true,
+      "case_wall_s": 45.2
+    },
+    {
+      "case": "D",
+      "title": "Single node in rain",
+      "expected": "no_request",
+      "decision": "dismissed",
+      "summary": "False alarm: only one node detected the chainsaw sound, and weather conditions may have contributed to the false detection.",
+      "wall_s": 37.8,
+      "model_steps": 8,
+      "invented_names": [],
+      "dispatches": 0,
+      "correct": true,
+      "case_wall_s": 38.7
+    }
+  ],
+  "correct": 4,
+  "of": 4
+}

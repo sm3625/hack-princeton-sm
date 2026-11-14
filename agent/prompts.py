@@ -31,8 +31,8 @@ Decide if the detections in an incident are a real threat.
 First call get_incident_evidence. It lists every record, counts the independent nodes and
 gives the weather; trust its counts. Use get_node_info only for names it lists.
 Rain and wind cause false alarms, most of all on nodes with a false-alarm history.
-Two or more independent nodes hearing a chainsaw, axe or gunshot is corroboration: call it
-real unless rain plus a false-alarm history explain every node. One node in rain is uncertain.
+Follow its "Corroborated" line: YES means call a chainsaw, axe or gunshot real. NO with
+rain means false_alarm or uncertain. A single strong gunshot in dry weather is uncertain.
 
 Write your verdict and reasons to triage.md in the incident folder, citing records as
 [Node Name #seq]. Then reply with only this JSON:

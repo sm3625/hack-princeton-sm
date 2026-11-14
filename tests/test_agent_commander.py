@@ -275,3 +275,50 @@ def test_agent_shape(tmp_path):
     listed = [ln.split(":")[0] for ln in task.description.splitlines() if ln.startswith("- ")]
     assert listed == ["- triage", "- drone-pilot", "- evidence"]  # no general-purpose sub-agent
     assert all("write_todos" not in v for v in names.values())
+
+
+def test_repeat_dispatch_after_reject_is_refused_by_code(h, monkeypatch):
+    """A small model re-proposes a rejected dispatch; code turns it down until new evidence."""
+    from langchain_core.messages import ToolMessage
+
+    from agent import mock
+
+    inc_id = logging_incident(h)
+    (a,) = h.pending()
+    h.commander.decide(a.id, "reject", "Rain, not a saw")
+    assert h.commander.incidents.get(inc_id).rejected_at_records == 3
+
+    plain = mock.POLICIES["commander"]
+
+    def stubborn(messages):
+        _start, w = mock.last_human(messages)
+        if "ranger message" not in w.kinds:
+            return plain(messages)
+        last = messages[-1]
+        if isinstance(last, ToolMessage) and "Refused by the station" in str(last.content):
+            return "Understood, watching instead."
+        return [mock.tc("dispatch_rangers", sector=w.get("sector"), note="again")]
+
+    monkeypatch.setitem(mock.POLICIES, "commander", stubborn)
+    h.commander.message(inc_id, "any news?")
+    h.tick("02:50:00")
+    assert h.pending() == []  # the repeat never reached a ranger
+    assert any("repeat dispatch request blocked" in m["summary"] for m in h.of_type("agent_step"))
+    assert h.commander.incidents.get(inc_id).dispatches == []
+
+    # new evidence lifts the block: the next request goes to a ranger again
+    h.hear("Creek Bend", 42, "02:51:00", S.CHAINSAW, 0.95)
+    h.commander.message(inc_id, "and now?")
+    h.tick("02:52:00")
+    assert len(h.pending()) == 1
+
+
+def test_rain_incident_does_not_absorb_dry_detections(h):
+    """Night 1: rain false alarms at Low Marsh end at 01:33; real logging starts nearby at 02:14."""
+    h.sim.rain = {"B3"}
+    h.hear("Low Marsh", 1, "01:33:10", S.CHAINSAW, 0.80)
+    h.sim.rain = set()
+    h.hear("Mossy Gap", 17, "02:14:09", S.CHAINSAW, 0.84)
+    incs = h.commander.incidents.all()
+    assert len(incs) == 2
+    assert {i.in_rain for i in incs} == {True, False}

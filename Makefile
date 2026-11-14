@@ -1,4 +1,4 @@
-.PHONY: setup keys dev test test-ollama test-haiku test-e2e lint eval
+.PHONY: setup keys dev test test-ollama test-haiku test-e2e lint eval eval-quick
 
 setup:
 	uv sync
@@ -30,3 +30,6 @@ lint:
 
 eval:
 	uv run python -m eval.run --all --mode mock
+
+eval-quick:  ## 4 Night 1 incidents on the local model, under 10 min
+	LLM_MODE=ollama uv run python -m eval.quick

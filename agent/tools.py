@@ -143,10 +143,18 @@ class Services:
                 f"Independent nodes: {len(by_node)} "
                 f"({', '.join(self.world.node(n).name for n in by_node)}), over {span:.0f} min."
             )
-            out.append(
-                "Corroborated: YES, more than one node heard it." if len(by_node) > 1
-                else "Corroborated: NO, only one node heard it."
-            )
+            wet = [n for n in by_node if self.sim.weather(self.world.node(n).sector).rain]
+            dry = len(by_node) - len(wet)
+            out.append(f"Nodes in rain now: {len(wet)} of {len(by_node)}.")
+            if dry >= 2:
+                out.append("Corroborated: YES, two or more nodes in dry weather heard it.")
+            elif len(by_node) > 1:
+                out.append(
+                    "Corroborated: NO. Several nodes heard it, but rain can fool neighbouring nodes "
+                    "together, so nodes in rain do not confirm each other."
+                )
+            else:
+                out.append("Corroborated: NO, only one node heard it.")
         for n, ds in by_node.items():
             node = self.world.node(n)
             sounds = sorted({sound_name(d.sound) for d in ds})

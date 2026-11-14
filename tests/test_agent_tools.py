@@ -90,7 +90,7 @@ def test_verify_signature_rechecks_raw_bytes(env):
 
 
 def test_incident_evidence_counts_independent_nodes(env):
-    _h, inc, call = env
+    _h, _inc, call = env
     out = call("get_incident_evidence")
     assert "[Creek Bend #41] 02:14:05 chainsaw 0.91" in out and "[Mossy Gap #17]" in out
     assert "#18" not in out  # unverified never becomes evidence
@@ -109,3 +109,11 @@ def test_get_detections_reaches_back_to_incident_start_while_triaging(env):
     call("dispatch_rangers", sector="E5", note="go")
     out = call("get_detections", sector="E5", window_s=60)  # follow-up: is it quiet now?
     assert out.startswith("0 verified records")
+
+
+def test_incident_evidence_does_not_count_rain_nodes_as_corroboration(env):
+    h, _inc, call = env
+    h.sim.rain = {"E5", "D4"}  # Creek Bend and Mossy Gap both in rain
+    out = call("get_incident_evidence")
+    assert "Nodes in rain now: 2 of 2." in out
+    assert "Corroborated: NO." in out
