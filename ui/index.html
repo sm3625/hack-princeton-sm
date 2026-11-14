@@ -52,6 +52,9 @@
         <button role="tab" id="tab-feed" data-tab="feed" aria-selected="false" aria-controls="view-feed" type="button">
           Feed <span class="count" id="count-feed" hidden></span>
         </button>
+        <button role="tab" id="tab-results" data-tab="results" aria-selected="false" aria-controls="view-results" type="button" hidden>
+          Results
+        </button>
       </div>
 
       <div class="views">
@@ -64,6 +67,7 @@
           <ul id="feed-list" class="list feed"></ul>
           <p id="feed-empty" class="empty">Quiet</p>
         </section>
+        <section id="view-results" class="results" role="tabpanel" aria-labelledby="tab-results" hidden></section>
       </div>
     </aside>
   </main>

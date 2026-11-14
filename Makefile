@@ -1,4 +1,4 @@
-.PHONY: setup keys dev test test-ollama test-haiku test-e2e lint
+.PHONY: setup keys dev test test-ollama test-haiku test-e2e lint eval
 
 setup:
 	uv sync
@@ -27,3 +27,6 @@ test-e2e:
 
 lint:
 	uv run ruff check .
+
+eval:
+	uv run python -m eval.run --all --mode mock

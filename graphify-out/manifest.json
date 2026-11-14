@@ -1,0 +1,164 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1794621839.306896,
+    "seen": 1794628982.9688241,
+    "ast_hash": "d10ec8cd3745d54049720ec2307ad6fe",
+    "semantic_hash": "d10ec8cd3745d54049720ec2307ad6fe"
+  },
+  ".claude/skills/code-cleanup/.skillfish.json": {
+    "mtime": 1794626287.3383703,
+    "seen": 1794628982.9688268,
+    "ast_hash": "c5a4bae68d7a536e04931a599802ce28",
+    "semantic_hash": "c5a4bae68d7a536e04931a599802ce28"
+  },
+  "agent/__init__.py": {
+    "mtime": 1794627439.1732109,
+    "seen": 1794628982.968828,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "common/__init__.py": {
+    "mtime": 1794627797.8238769,
+    "seen": 1794628982.968828,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "common/contracts.py": {
+    "mtime": 1794627789.8311536,
+    "seen": 1794628982.968829,
+    "ast_hash": "79c4a79b34e7523c88ee3f404b1a1933",
+    "semantic_hash": "79c4a79b34e7523c88ee3f404b1a1933"
+  },
+  "eval/__init__.py": {
+    "mtime": 1794627439.1733236,
+    "seen": 1794628982.9688299,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "node/__init__.py": {
+    "mtime": 1794627439.1730294,
+    "seen": 1794628982.968831,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "pyproject.toml": {
+    "mtime": 1794627813.1979108,
+    "seen": 1794628982.968832,
+    "ast_hash": "cdb5223b09884d5847bd29a390577590",
+    "semantic_hash": "cdb5223b09884d5847bd29a390577590"
+  },
+  "scenarios/world.yaml": {
+    "mtime": 1794627789.8632634,
+    "seen": 1794628982.968832,
+    "ast_hash": "d3d41b82b1738ac1d1e09b47fceefcdb",
+    "semantic_hash": "d3d41b82b1738ac1d1e09b47fceefcdb"
+  },
+  "scripts/hooks/pre-commit": {
+    "mtime": 1794627495.9170613,
+    "seen": 1794628982.968833,
+    "ast_hash": "a7e48e019468af69551597c9dee5e0e6",
+    "semantic_hash": "a7e48e019468af69551597c9dee5e0e6"
+  },
+  "sim/__init__.py": {
+    "mtime": 1794627439.1732635,
+    "seen": 1794628982.9688342,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "station/__init__.py": {
+    "mtime": 1794627439.1731591,
+    "seen": 1794628982.968835,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "station/app.py": {
+    "mtime": 1794627931.1002517,
+    "seen": 1794628982.968835,
+    "ast_hash": "ebea2b913ae5d7af057bd71c217f2717",
+    "semantic_hash": "ebea2b913ae5d7af057bd71c217f2717"
+  },
+  "station/bus.py": {
+    "mtime": 1794627789.8519192,
+    "seen": 1794628982.968836,
+    "ast_hash": "72bd84b4167e8f002cc8de31f4cb4084",
+    "semantic_hash": "72bd84b4167e8f002cc8de31f4cb4084"
+  },
+  "station/config.py": {
+    "mtime": 1794627482.8840232,
+    "seen": 1794628982.968837,
+    "ast_hash": "47eba34ac3ba9b825428d092b58e98e7",
+    "semantic_hash": "47eba34ac3ba9b825428d092b58e98e7"
+  },
+  "station/routes_ws.py": {
+    "mtime": 1794627931.0453446,
+    "seen": 1794628982.968838,
+    "ast_hash": "b58a1d5dcb4fbf93a31ac0d19fedf99b",
+    "semantic_hash": "b58a1d5dcb4fbf93a31ac0d19fedf99b"
+  },
+  "tests/test_precommit_hook.py": {
+    "mtime": 1794627523.0598192,
+    "seen": 1794628982.968839,
+    "ast_hash": "5677da3a223459ddec1ed28efbc088c4",
+    "semantic_hash": "5677da3a223459ddec1ed28efbc088c4"
+  },
+  "tests/test_station.py": {
+    "mtime": 1794627931.2246375,
+    "seen": 1794628982.968839,
+    "ast_hash": "3bdf41bb73ba7d17afdcdaf3d94078e2",
+    "semantic_hash": "3bdf41bb73ba7d17afdcdaf3d94078e2"
+  },
+  "transport/__init__.py": {
+    "mtime": 1794627439.1731043,
+    "seen": 1794628982.96884,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "ui/app.js": {
+    "mtime": 1794627483.9097188,
+    "seen": 1794628982.968841,
+    "ast_hash": "50a5722d8398122e457616f9bdbf387e",
+    "semantic_hash": "50a5722d8398122e457616f9bdbf387e"
+  },
+  ".claude/skills/code-cleanup/SKILL.md": {
+    "mtime": 1794626287.3386908,
+    "seen": 1794628982.968842,
+    "ast_hash": "e87ccd424744176d751bd3043e459fd7",
+    "semantic_hash": "e87ccd424744176d751bd3043e459fd7"
+  },
+  "PLAN.md": {
+    "mtime": 1794627334.4405694,
+    "seen": 1794628982.968842,
+    "ast_hash": "f07386c1fadeaae3fe1e7c3500219543",
+    "semantic_hash": "f07386c1fadeaae3fe1e7c3500219543"
+  },
+  "SPEC.md": {
+    "mtime": 1794626782.4267995,
+    "seen": 1794628982.968843,
+    "ast_hash": "ccf84033938f85c6730aa7a189241f66",
+    "semantic_hash": "ccf84033938f85c6730aa7a189241f66"
+  },
+  "ideas/acoustic-forest-guardian.md": {
+    "mtime": 1794626610.5620692,
+    "seen": 1794628982.968844,
+    "ast_hash": "0ab8e073fc70e095618140632660fcde",
+    "semantic_hash": "0ab8e073fc70e095618140632660fcde"
+  },
+  "ideas/air-quality-ventilation-coach.md": {
+    "mtime": 1794625131.4384391,
+    "seen": 1794628982.9688451,
+    "ast_hash": "02a8337c751e3bd59af34f2ced816152",
+    "semantic_hash": "02a8337c751e3bd59af34f2ced816152"
+  },
+  "ui/index.html": {
+    "mtime": 1794627482.9499986,
+    "seen": 1794628982.968846,
+    "ast_hash": "d1e101b68f9d38d1e87abeda873955e6",
+    "semantic_hash": "d1e101b68f9d38d1e87abeda873955e6"
+  },
+  "working-with-me.md": {
+    "mtime": 1794626912.578571,
+    "seen": 1794628982.968847,
+    "ast_hash": "9891134169192b8c1a7a01395eb3444c",
+    "semantic_hash": "9891134169192b8c1a7a01395eb3444c"
+  }
+}

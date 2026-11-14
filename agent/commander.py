@@ -256,6 +256,7 @@ class StepReporter(BaseCallbackHandler):
         self.files = files
         self.publish = publish
         self._runs: dict[Any, tuple[str, str, dict]] = {}
+        self.counts: dict[str, int] = {}  # tool calls per agent, read by Commander.stats
 
     def step(self, agent: str, summary: str) -> None:
         self.publish(
@@ -267,6 +268,7 @@ class StepReporter(BaseCallbackHandler):
         agent = (metadata or {}).get("lc_agent_name") or "commander"
         args = inputs if isinstance(inputs, dict) else {}
         self._runs[run_id] = (agent, name, args)
+        self.counts[agent] = self.counts.get(agent, 0) + 1
         if name == "task":
             self.step("commander", f"asked {args.get('subagent_type', 'a sub-agent')} for help")
 
@@ -401,6 +403,7 @@ class Commander:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="commander") if background else None
         self._busy: set[str] = set()
         self._failures: dict[str, int] = {}
+        self._stats: dict[str, dict] = {}  # per incident, this process only: eval reads it
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._ticker: threading.Thread | None = None
@@ -523,7 +526,11 @@ class Commander:
     def _run(self, incident_id: str, payload: Any) -> None:
         inc = self.incidents.get(incident_id)
         reporter = StepReporter(incident_id, self.files, self.publish)
-        result = self.agent.invoke(payload, self._config(inc, reporter))
+        began = time.monotonic()
+        try:
+            result = self.agent.invoke(payload, self._config(inc, reporter))
+        finally:
+            self._record_stats(incident_id, time.monotonic() - began, reporter.counts)
         interrupts = result.get("__interrupt__") or []
         if interrupts:
             self._open_approval(incident_id, interrupts[0])
@@ -562,6 +569,15 @@ class Commander:
         return "\n".join(lines)
 
     # --- approvals ---
+
+    def _record_stats(self, incident_id: str, wall_s: float, counts: dict[str, int]) -> None:
+        """Wall time and tool calls the agent spent on this incident (approval waits excluded)."""
+        with self._lock:
+            s = self._stats.setdefault(incident_id, {"runs": 0, "wall_s": 0.0, "steps": {}})
+            s["runs"] += 1
+            s["wall_s"] = round(s["wall_s"] + wall_s, 2)
+            for agent, n in counts.items():
+                s["steps"][agent] = s["steps"].get(agent, 0) + n
 
     def _open_approval(self, incident_id: str, intr: Any) -> None:
         requests = [r for r in (intr.value or {}).get("action_requests", []) if r.get("name") == "dispatch_rangers"]
@@ -682,6 +698,7 @@ class Commander:
             "dispatches": inc.dispatches,
             "approvals": [a.public() for a in list(self.approvals.values()) if a.incident_id == inc.id],
             "pending_approval": pending,
+            "stats": self._stats.get(inc.id, {"runs": 0, "wall_s": 0.0, "steps": {}}),
         }
 
     def case_file(self, incident_id: str) -> dict:

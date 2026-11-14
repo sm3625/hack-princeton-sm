@@ -248,3 +248,63 @@ def test_tab_choice_is_remembered(browser, server):
     page.reload()
     expect(page.locator("#tab-feed")).to_have_attribute("aria-selected", "true")
     expect(page.locator("#view-feed")).to_be_visible()
+
+
+RESULTS = {
+    "runs": {
+        "night1:mock:fresh": {
+            "scenario": "night1", "mode": "mock", "memory": "fresh", "partial": None,
+            "real_incidents": ["logging-e4", "gunshots-g2"],
+            "baseline": {"alerts": 31, "real_caught": 2, "real_missed": 0, "false_alerts": 22},
+            "commander": {"requests": 4, "real_caught": 2, "real_missed": 0, "false_requests": 1,
+                          "wall_s_per_incident": 2.5, "noisy_node": {}},
+        },
+        "night2:mock:fresh": {
+            "scenario": "night2", "mode": "mock", "memory": "fresh",
+            "commander": {"triage_steps_total": 40},
+        },
+        "night2:mock:carried": {
+            "scenario": "night2", "mode": "mock", "memory": "carried",
+            "commander": {"triage_steps_total": 25},
+        },
+    }
+}  # fmt: skip
+
+
+def page_with_results(browser, server, status, body=None, **context):
+    ctx = browser.new_context(**{"viewport": {"width": 1280, "height": 800}, **context})
+    page = ctx.new_page()
+    page.route(
+        "**/api/eval/latest",
+        lambda r: r.fulfill(status=status, content_type="application/json", body=json.dumps(body)),
+    )
+    page.goto(server.url)
+    expect(page.locator("body[data-live]")).to_be_attached(timeout=10_000)
+    return page
+
+
+def test_results_tab_shows_baseline_against_commander(browser, server):
+    page = page_with_results(browser, server, 200, RESULTS)
+    page.click("#tab-results")
+    card = page.locator(".res-card")
+    expect(card).to_have_count(1)
+    expect(card.locator("tr", has_text="Baseline")).to_contain_text("31")
+    expect(card.locator("tr", has_text="Commander")).to_contain_text("4")
+    expect(card).to_contain_text("2/2")
+    expect(card).to_contain_text("2.5 s per incident")
+    expect(card).to_contain_text("Memory: 40 → 25 triage steps")
+
+
+def test_results_tab_is_hidden_without_results(browser, server):
+    page = page_with_results(browser, server, 404, {"detail": "No evaluation yet."})
+    expect(page.locator("#tab-results")).to_be_hidden()
+
+
+def test_results_fit_a_phone(browser, server):
+    page = page_with_results(
+        browser, server, 200, RESULTS,
+        viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True,
+    )  # fmt: skip
+    page.click("#tab-results")
+    expect(page.locator(".res-card")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 375

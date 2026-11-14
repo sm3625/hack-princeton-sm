@@ -1125,3 +1125,30 @@ li + li > .incident-row::after,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- results ---------- */
+
+.results { padding: 8px 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.res-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+
+.res-card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+
+.res-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.res-table th, .res-table td { padding: 6px 4px; text-align: right; }
+
+.res-table th[scope="row"], .res-table thead td { text-align: left; }
+
+.res-table thead th { font-size: 11px; font-weight: 600; color: var(--muted); }
+
+.res-table th[scope="row"] { font-weight: 600; }
+
+.res-table tbody tr + tr { border-top: 0.5px solid var(--line); }
+
+.res-line { margin: 10px 0 0; font-size: 13px; color: var(--muted); }

@@ -53,7 +53,8 @@ const state = {
   incidents: new Map(),
   approvals: new Map(),
   selected: null,
-  tab: prefs.get("tab", "incidents") === "feed" ? "feed" : "incidents",
+  tab: prefs.get("tab", "incidents") === "feed" ? "feed" : "incidents", // "results" only once it has data
+  results: null,
   rain: new Set(),
   drone: null,
   lastByNode: new Map(),
@@ -780,11 +781,67 @@ function setTab(tab) {
   $("view-incidents").hidden = tab !== "incidents" || state.selected !== null;
   $("view-incident").hidden = tab !== "incidents" || state.selected === null;
   $("view-feed").hidden = tab !== "feed";
+  $("view-results").hidden = tab !== "results";
   for (const b of document.querySelectorAll(".segmented [data-tab]")) {
     b.setAttribute("aria-selected", String(b.dataset.tab === tab));
   }
   if (tab === "feed") state.unseenFeed = 0;
   renderCounts();
+}
+
+// ---------- results (eval/results.json via /api/eval/latest) ----------
+
+const MODE_LABELS = { mock: "Mock", ollama: "Local" };
+
+function resultsTable(r) {
+  const total = r.real_incidents.length;
+  const b = r.baseline;
+  const c = r.commander;
+  const row = (name, alerts, caught, missed, wrong) =>
+    el("tr", {}, el("th", { scope: "row" }, name), ...[alerts, `${caught}/${total}`, missed, wrong].map((v) => el("td", {}, String(v))));
+  return el(
+    "table",
+    { class: "res-table" },
+    el("thead", {}, el("tr", {}, el("td"), ...["Alerts", "Caught", "Missed", "False"].map((h) => el("th", { scope: "col" }, h)))),
+    el(
+      "tbody",
+      {},
+      row("Baseline", b.alerts, b.real_caught, b.real_missed, b.false_alerts),
+      row("Commander", c.requests, c.real_caught, c.real_missed, c.false_requests),
+    ),
+  );
+}
+
+function resultsCard(r, nights) {
+  const c = r.commander;
+  const parts = [el("h3", {}, `Night 1 · ${MODE_LABELS[r.mode] || r.mode}${r.partial ? " · partial" : ""}`), resultsTable(r)];
+  parts.push(el("p", { class: "res-line" }, `${c.wall_s_per_incident.toFixed(1)} s per incident`));
+  const fresh = nights[`night2:${r.mode}:fresh`]?.commander;
+  const kept = nights[`night2:${r.mode}:carried`]?.commander;
+  if (fresh && kept) {
+    parts.push(el("p", { class: "res-line" }, `Memory: ${fresh.triage_steps_total} → ${kept.triage_steps_total} triage steps`));
+  }
+  return el("article", { class: "res-card" }, ...parts);
+}
+
+function renderResults() {
+  const runs = state.results?.runs || {};
+  const cards = Object.values(runs)
+    .filter((r) => r.scenario === "night1" && r.memory === "fresh")
+    .sort((a, b) => (a.mode === "ollama" ? 0 : 1) - (b.mode === "ollama" ? 0 : 1))
+    .map((r) => resultsCard(r, runs));
+  $("tab-results").hidden = cards.length === 0;
+  $("view-results").replaceChildren(...cards);
+  if (cards.length === 0 && state.tab === "results") setTab("incidents");
+}
+
+async function loadResults() {
+  try {
+    state.results = await api("/api/eval/latest");
+  } catch {
+    state.results = null; // 404: nothing evaluated yet, tab stays hidden
+  }
+  renderResults();
 }
 
 function renderCounts() {
@@ -945,6 +1002,7 @@ async function init() {
     onLabelsToggle: (on) => prefs.set("labels", on),
   });
   setTab(state.tab);
+  loadResults();
   renderSimControls();
   layoutApprovals();
   new ResizeObserver(layoutApprovals).observe($("approvals"));
