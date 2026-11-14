@@ -361,3 +361,13 @@ def test_bad_deployment_fails_at_startup(monkeypatch):
 
     with pytest.raises(DeploymentError):
         create_app()
+
+
+def test_no_drone_prompt_lets_corroborated_sounds_send_a_team():
+    from agent import prompts
+    from common.deployment import load_deployment
+
+    text = prompts.commander_prompt(load_deployment("no_drone"))
+    assert "Corroborated: YES" in text and "send a team to check it on the ground" in text
+    assert "Do not hold a corroborated threat waiting for a camera" in text
+    assert "drone-pilot" not in text

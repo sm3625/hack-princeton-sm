@@ -4,6 +4,8 @@ COMMANDER and EVIDENCE are written for a site with a drone (the default profile)
 *_prompt(deployment) functions adapt them to the active deployment profile.
 """
 
+import os
+
 from common.deployment import NO_AERIAL, Deployment
 
 COMMANDER = """You are the incident commander at a forest ranger station.
@@ -82,21 +84,49 @@ _DRONE_STEP = """3. Real chainsaw, axe or gunshot: ask the drone-pilot sub-agent
    Reassess the camera result before proposing anything. If inconclusive or contradictory,
    record_assessment, set_status watching, and schedule_check. If it supports intervention,
    record_assessment then dispatch_rangers(sector, note), which waits for ranger approval."""
-_NO_DRONE_STEP = f"""3. Real chainsaw, axe or gunshot: {NO_DRONE_MARKER}, so there is no aerial check.
-   Call dispatch_rangers(sector, note) and start the note with "{NO_AERIAL}"
-   A ranger must approve; the call waits for them. If you are unsure, set_status("watching")
-   and schedule_check, or message a ranger to verify on the ground first."""
+_NO_DRONE_STEP = f"""3. Real chainsaw, axe or gunshot: {NO_DRONE_MARKER}, so the sounds are the evidence.
+   If the evidence block says "Corroborated: YES" (two or more nodes in dry weather), call
+   dispatch_rangers(sector, note) now to send a team to check it on the ground. Start the note
+   with "{NO_AERIAL}" and say what was heard, where and how many nodes. Do not wait for more
+   evidence: the ranger's approval is the human check. Only a single node, or nodes all in
+   rain: set_status("watching") and schedule_check."""
+
+NO_DRONE_RULES = f"""
+{NO_DRONE_MARKER}: these rules override the investigation rules above wherever they mention a drone
+or camera. Corroborated sounds (Corroborated: YES) are enough to ask a ranger team to check
+quickly; frame it as "check it out", not as a confirmed crime, and state that there was no aerial
+verification. Do not hold a corroborated threat waiting for a camera that does not exist.
+"""
+
+
+INVESTIGATION_MARKER = "Investigation rules override"  # also how the mock model knows the mode
+
+_LIGHT_DRONE_STEP = """3. Real chainsaw, axe or gunshot: ask the drone-pilot sub-agent to check the sector.
+   If the camera supports intervention, dispatch_rangers(sector, note), which waits for ranger
+   approval. If it is inconclusive, set_status watching and schedule_check."""
+
+
+def investigation_enabled() -> bool:
+    """AGENT_INVESTIGATION=off: a lighter commander with no assessment tools or rules, so a small
+    local model goes straight from triage to a decision (used by the 2-minute demo)."""
+    return os.getenv("AGENT_INVESTIGATION", "on").strip().lower() not in ("off", "0", "false", "no")
 
 
 def commander_prompt(dep: Deployment) -> str:
     text = COMMANDER
+    light = not investigation_enabled()
     if not dep.has_drones:
         text = text.replace(_DRONE_STEP, _NO_DRONE_STEP)
+    elif light:
+        text = text.replace(_DRONE_STEP, _LIGHT_DRONE_STEP)
     text = text.replace("schedule_check(incident_id, 30)", f"schedule_check(incident_id, {dep.agent.check_interval_min})")
     extra = [dep.resources_line()]
     if dep.agent.max_followup_checks:
         extra.append(f"Each incident allows at most {dep.agent.max_followup_checks} scheduled checks.")
-    return text + "\n\n" + " ".join(extra) + INVESTIGATION_RULES
+    rules = "" if light else INVESTIGATION_RULES
+    if not dep.has_drones:
+        rules += NO_DRONE_RULES
+    return text + "\n\n" + " ".join(extra) + rules
 
 
 def evidence_prompt(dep: Deployment) -> str:

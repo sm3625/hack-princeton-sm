@@ -260,6 +260,8 @@ function showDetection(d, stub, live) {
   addFeed(item);
   if (live && state.map) state.map.flashNode(Number(d.node_id), verified ? "amber" : "red");
   if (verified) state.lastByNode.set(Number(d.node_id), item);
+  const sel = state.selectedNode !== null ? state.nodesById.get(state.selectedNode) : null;
+  if (sel && sel.id === Number(d.node_id)) loadRecordings(sel); // new recording on the open node
   renderNodeCard();
 }
 
@@ -395,7 +397,8 @@ function renderDetail() {
 
   const ranger = rangerSection(inc);
 
-  view.replaceChildren(
+  // replaceChildren() turns null into the text "null", so drop the empty sections.
+  view.replaceChildren(...[
     back,
     el("h2", { class: "detail-title" }, inc.title || "Incident"),
     el(
@@ -416,7 +419,7 @@ function renderDetail() {
     el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
     el("section", { class: "detail-section" }, el("h3", {}, "Activity"), steps),
     el("button", { class: "btn wide", type: "button", onclick: () => openCaseFile(inc) }, icon("doc"), "Case file"),
-  );
+  ].filter(Boolean));
 }
 
 const feedbackDrafts = new Map();
@@ -730,7 +733,13 @@ function onDrone(m) {
 }
 
 function onSelectNode(node) {
-  state.selectedNode = node ? node.id : null;
+  const next = node ? node.id : null;
+  if (next !== state.selectedNode) {
+    stopAudio();
+    audioUi.listFor = null;
+    audioUi.list = [];
+  }
+  state.selectedNode = next;
   renderNodeCard();
 }
 
@@ -756,7 +765,145 @@ function renderNodeCard() {
       last ? `${soundLabel(last.sound)} ${percent(last.confidence)}` : "Quiet",
       last ? el("span", { class: "muted" }, " · ", timeEl(last.t)) : null,
     ),
+    liveRow(node),
+    recordingsList(node),
   );
+  if (audioUi.listFor !== node.id) loadRecordings(node);
+}
+
+// ---------- node audio: live listening and saved recordings ----------
+
+const audioUi = { audio: null, key: null, status: "", live: null, list: [], listFor: null, loading: false };
+
+function stopAudio() {
+  if (audioUi.audio) audioUi.audio.pause();
+  audioUi.audio = null;
+  audioUi.key = null;
+  audioUi.live = null;
+}
+
+// Live: play what the node hears, one sound after another; ambient forest sound between events.
+function liveRow(node) {
+  const on = audioUi.live && audioUi.live.nodeId === node.id;
+  const btn = el(
+    "button",
+    { class: `btn small clip-btn${on ? " playing" : ""}`, type: "button", "aria-pressed": String(Boolean(on)) },
+    on ? "Stop listening" : "Listen live",
+  );
+  btn.addEventListener("click", () => (on ? (stopAudio(), renderNodeCard()) : startLive(node)));
+  const what = on ? audioUi.live.label || "Connecting" : "";
+  return el("div", { class: "clip-row" }, btn, el("span", { class: "clip-status muted" }, what));
+}
+
+const LIVE_LABEL = {
+  heard: "Hearing a detected sound",
+  "ambient-rain": "Ambient: rain (simulated forest bed)",
+  "ambient-night": "Ambient: night insects (simulated forest bed)",
+};
+
+function startLive(node) {
+  stopAudio();
+  audioUi.live = { nodeId: node.id, after: 0, label: "Connecting" };
+  renderNodeCard();
+  nextLive(node.id);
+}
+
+async function nextLive(nodeId) {
+  const live = audioUi.live;
+  if (!live || live.nodeId !== nodeId) return;
+  try {
+    const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/live.wav?after=${live.after}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    const kind = res.headers.get("X-Live-Kind") || "";
+    const at = Number(res.headers.get("X-Live-At") || live.after);
+    const blobUrl = `/api/nodes/${encodeURIComponent(nodeId)}/live.wav?after=${live.after}`;
+    if (audioUi.live !== live) return;
+    live.after = Math.max(live.after, at);
+    live.label = LIVE_LABEL[kind] || "Listening";
+    const audio = new Audio(blobUrl);
+    audioUi.audio = audio;
+    audio.addEventListener("ended", () => nextLive(nodeId));
+    renderNodeCard();
+    await audio.play();
+  } catch {
+    if (audioUi.live === live) {
+      live.label = "Live audio unavailable";
+      renderNodeCard();
+    }
+  }
+}
+
+// Recordings: every clip the node saved, newest first, each checked against its signed record.
+async function loadRecordings(node) {
+  audioUi.listFor = node.id;
+  audioUi.loading = true;
+  try {
+    const data = await api(`/api/nodes/${encodeURIComponent(node.id)}/clips`);
+    if (audioUi.listFor === node.id) audioUi.list = Array.isArray(data?.clips) ? data.clips : [];
+  } catch {
+    if (audioUi.listFor === node.id) audioUi.list = [];
+  }
+  audioUi.loading = false;
+  if (state.selectedNode === node.id) renderNodeCard();
+}
+
+function recordingsList(node) {
+  if (audioUi.listFor !== node.id) return null;
+  const items = audioUi.list;
+  const head = el("div", { class: "rec-head" }, el("span", {}, "Recordings"),
+    el("button", { class: "link-btn", type: "button", onclick: () => loadRecordings(node) }, "Refresh"));
+  if (!items.length) return el("div", { class: "recordings" }, head, el("p", { class: "muted rec-empty" }, audioUi.loading ? "Loading" : "No recordings yet"));
+  return el(
+    "div",
+    { class: "recordings" },
+    head,
+    el(
+      "ol",
+      { class: "rec-list" },
+      ...items.map((c) => {
+        const key = `${node.id}:${c.seq}`;
+        const playing = audioUi.key === key && audioUi.audio && !audioUi.audio.paused;
+        const btn = el("button", { class: `icon-btn small${playing ? " playing" : ""}`, type: "button", "aria-label": playing ? `Pause clip ${c.seq}` : `Play clip ${c.seq}` }, playing ? "❚❚" : "▶");
+        btn.addEventListener("click", () => toggleClip(node, c, key));
+        const what = c.sound ? `${soundLabel(c.sound)} ${percent(c.confidence)}` : "Recording";
+        return el(
+          "li",
+          { class: "rec-item" },
+          btn,
+          el("span", { class: "rec-what" }, `#${c.seq} · ${what}`),
+          c.timestamp ? timeEl(c.timestamp) : null,
+          audioUi.key === key && audioUi.status ? el("span", { class: "rec-status muted" }, audioUi.status) : null,
+        );
+      }),
+    ),
+  );
+}
+
+async function toggleClip(node, rec, key) {
+  if (audioUi.key === key && audioUi.audio) {
+    if (audioUi.audio.paused) audioUi.audio.play().catch(() => {});
+    else audioUi.audio.pause();
+    renderNodeCard();
+    return;
+  }
+  stopAudio();
+  const url = `/api/nodes/${encodeURIComponent(node.id)}/clips/${encodeURIComponent(rec.seq)}.wav`;
+  audioUi.key = key;
+  audioUi.status = "Loading";
+  renderNodeCard();
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    const hash = res.headers.get("X-Clip-Hash") || "";
+    audioUi.status = !rec.clip_hash ? "No signed record for this clip" : hash === rec.clip_hash ? "Matches the signed record ✓" : "Hash does not match the record";
+    const audio = new Audio(url);
+    for (const ev of ["ended", "pause", "play"]) audio.addEventListener(ev, renderNodeCard);
+    audioUi.audio = audio;
+    await audio.play();
+  } catch {
+    audioUi.status = "Clip not available on this node";
+  }
+  if (audioUi.key === key) renderNodeCard();
 }
 
 // ---------- sim controls ----------
@@ -896,6 +1043,7 @@ function bindControls() {
 
 function setTab(tab) {
   state.tab = tab;
+  document.body.classList.toggle("incident-open", tab === "incidents" && state.selected !== null);
   prefs.set("tab", tab);
   $("view-incidents").hidden = tab !== "incidents" || state.selected !== null;
   $("view-incident").hidden = tab !== "incidents" || state.selected === null;

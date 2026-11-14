@@ -209,6 +209,25 @@ class Services:
         return "\n".join(out)
 
 
+ACTIONS = ("wait_recheck", "request_ranger_assessment", "propose_dispatch", "dismiss")
+_ACTION_WORDS = (  # first match wins; dispatch words are checked before generic "ranger"
+    ("dismiss", ("dismiss", "false", "ignore", "close", "no action", "no threat")),
+    ("propose_dispatch", ("dispatch", "send", "propose", "intervene", "deploy")),
+    ("request_ranger_assessment", ("ranger", "assess", "verify", "investigate", "ground")),
+    ("wait_recheck", ("wait", "watch", "recheck", "re-check", "monitor", "schedule", "check")),
+)
+
+
+def normalize_action(value: str | None) -> str | None:
+    text = " ".join(str(value or "").lower().replace("_", " ").split())
+    if text.replace(" ", "_") in ACTIONS:
+        return text.replace(" ", "_")
+    for action, words in _ACTION_WORDS:
+        if any(w in text for w in words):
+            return action
+    return None
+
+
 def _bad_sector(sector: str) -> str:
     return f"Unknown sector '{sector}'. Sectors run A1 to H8."
 
@@ -276,15 +295,24 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
     @tool
     def record_assessment(
-        explanation: str, alternative: str,
-        next_action: Literal["wait_recheck", "request_ranger_assessment", "propose_dispatch", "dismiss"],
-        reason: str, config: RunnableConfig,
+        config: RunnableConfig,
+        next_action: str = "wait_recheck",
+        explanation: str = "",
+        alternative: str = "",
+        reason: str = "",
     ) -> str:
         """Record a revised assessment and why this action is preferable to an alternative.
         This is an interpretation, not a new observation or a dispatch authorization."""
         inc = s.current(config)
         if inc is None:
             return "No active incident."
+        # Small models paraphrase ("watch", "send rangers"): map near-misses instead of failing
+        # validation, which cost whole extra model rounds.
+        next_action = normalize_action(next_action)
+        if next_action is None:
+            return ("Not recorded: next_action must be one of wait_recheck, request_ranger_assessment, "
+                    "propose_dispatch, dismiss.")
+        explanation = explanation or "(no explanation given)"
         expected = (config.get("configurable") or {}).get("ranger_revision", len(inc.ranger_updates))
         if expected != len(inc.ranger_updates):
             return "Refused: ranger information changed during this assessment; reassess on the next wake."

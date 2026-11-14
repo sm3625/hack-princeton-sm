@@ -1,33 +1,41 @@
 {
-  "model": "Local \u00b7 qwen3:8b",
+  "model": "Mock",
   "speed": 20.0,
-  "seconds": 240.5,
-  "correct": 1,
-  "of": 3,
+  "seconds": 114.3,
+  "correct": 4,
+  "of": 4,
   "rows": [
     {
-      "incident": "rain-west",
+      "incident": "insects",
       "truth": "false_alarm",
       "expected": "no ranger request",
-      "agent": "watching",
-      "seconds_to_decide": 74.4,
+      "agent": "dismissed",
+      "seconds_to_decide": 1.1,
       "verdict": "correct"
     },
     {
       "incident": "logging",
       "truth": "real",
       "expected": "ask a ranger",
-      "agent": "open",
-      "seconds_to_decide": null,
-      "verdict": "no decision yet"
+      "agent": "asked a ranger",
+      "seconds_to_decide": 0.5,
+      "verdict": "correct"
+    },
+    {
+      "incident": "aircraft",
+      "truth": "benign",
+      "expected": "no ranger request",
+      "agent": "watching",
+      "seconds_to_decide": 1.1,
+      "verdict": "correct"
     },
     {
       "incident": "poaching",
       "truth": "real",
       "expected": "ask a ranger",
-      "agent": "-",
-      "seconds_to_decide": null,
-      "verdict": "not opened"
+      "agent": "asked a ranger",
+      "seconds_to_decide": 0.5,
+      "verdict": "correct"
     }
   ]
 }

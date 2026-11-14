@@ -118,3 +118,38 @@ def test_incident_evidence_does_not_count_rain_nodes_as_corroboration(env):
     assert "Nodes in rain now: 2 of 2." in out
     assert "Corroborated: UNCERTAIN." in out
     assert "does not rule out real activity" in out
+
+
+def test_record_assessment_accepts_near_miss_actions():
+    from agent.tools import normalize_action
+
+    assert normalize_action("propose_dispatch") == "propose_dispatch"
+    assert normalize_action("Watch and recheck") == "wait_recheck"
+    assert normalize_action("send rangers") == "propose_dispatch"
+    assert normalize_action("ask a ranger to verify") == "request_ranger_assessment"
+    assert normalize_action("false alarm") == "dismiss"
+    assert normalize_action("banana") is None
+
+
+def test_record_assessment_records_without_optional_text(env):
+    h, inc, call = env
+    out = call("record_assessment", next_action="watch")
+    assert out.startswith("Assessment recorded")
+    assert h.commander.incidents.get(inc.id).assessments[-1]["next_action"] == "wait_recheck"
+    assert call("record_assessment", next_action="banana").startswith("Not recorded")
+
+
+def test_light_mode_drops_assessment_tools_and_rules(tmp_path, monkeypatch):
+    from agent_fakes import Harness
+
+    from agent import prompts
+    from common.contracts import SoundClass as S
+
+    monkeypatch.setenv("AGENT_INVESTIGATION", "off")
+    assert "Investigation rules override" not in prompts.commander_prompt(Harness(tmp_path).commander.deployment)
+    h = Harness(tmp_path / "b")
+    h.hear("Arroyo Recodo", 41, "02:14:05", S.CHAINSAW, 0.91)
+    h.hear("Paso Musgo", 17, "02:14:09", S.CHAINSAW, 0.84)
+    h.hear("Brecha Vieja", 23, "02:14:12", S.CHAINSAW, 0.86)
+    h.tick("02:14:20")
+    assert h.pending(), "light mode still reaches the approval step (mock model)"

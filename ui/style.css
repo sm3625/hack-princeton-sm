@@ -856,6 +856,23 @@ li + li > .incident-row::after,
   font-size: 15px;
 }
 
+/* Phones: the floating approval card covers the top of the sheet, so pin the back button above it. */
+@media (max-width: 900px) {
+  .incident-open .back {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 64px);
+    left: 12px;
+    z-index: 40;
+    margin: 0;
+    padding: 0 12px 0 6px;
+    border-radius: 999px;
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: var(--shadow-strong);
+  }
+}
+
 .detail-title { margin: 2px 16px 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
 
 .detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 16px 4px; font-size: 13px; }
@@ -1517,3 +1534,22 @@ li + li > .incident-row::after { left: 38px; }
 /* Ranger feedback stays usable in the narrow incident panel. */
 .ranger-feedback-note { display: block; box-sizing: border-box; width: 100%; min-height: 5rem; margin: .75rem 0; font: inherit; }
 .detail-section select { max-width: 100%; font: inherit; }
+
+/* node audio */
+.clip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; }
+.clip-btn { min-height: 32px; padding: 0 12px; }
+.clip-btn.playing { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.clip-status { font-size: 12px; }
+
+/* node card: live listening and recordings */
+.node-card { max-height: min(60vh, 460px); overflow-y: auto; pointer-events: auto; }
+.recordings { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.rec-head { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.link-btn { border: 0; background: none; padding: 2px 0; color: var(--blue); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.rec-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.rec-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 8px; font-size: 13px; }
+.rec-item .icon-btn { font-size: 10px; }
+.rec-item .icon-btn.playing { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.rec-what { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-status { grid-column: 2 / -1; font-size: 11.5px; }
+.rec-empty { margin: 6px 0 0; font-size: 12.5px; }

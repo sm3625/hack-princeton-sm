@@ -1,49 +1,53 @@
-# Demo: about 2 minutes at 20x. Sounds come in quick succession so the agent is visibly busy
-# from the first seconds. Three incidents for the model to judge, plus follow-up sounds that join
-# them: rain false alarms on the west side, a logging crew in dry sectors, then gunshots near the
-# south ranger post. Run with `uv run python -m eval.demo` (see eval/demo.py).
-# Times are station-local clock times; quote them.
+# Demo: about 2 minutes at 20x, sounds in quick succession, real recordings throughout.
+# Clips are real ESC-50 / UrbanSound8K recordings under data/ (git-ignored, CC BY-NC; fetch with
+# training's dataset download). Every false alarm here is one the shipped classifier really makes:
+# an insect swarm it calls "chainsaw", a helicopter it calls "vehicle". Four incidents for the
+# agent: insects (false alarm), a logging crew (real), a helicopter (benign), poachers (real).
+# Run with `uv run python -m eval.demo` (see eval/demo.py). Times are station-local; quote them.
 title: Demo (2 min)
 date: 2026-11-14
 start: "02:00"
-end: "02:36"
+end: "02:38"
 speed: 20
 
 weather:
   - {at: "02:00", sectors: all, rain: false, wind_kph: 6}
-  - {at: "02:00", sectors: "A1:C6", rain: true, wind_kph: 24}
+  - {at: "02:00", sectors: "A1:B5", rain: true, wind_kph: 20}
 
 # What the drone camera sees over a sector (default: "no activity seen").
 drone:
-  - {sector: E4, see: "fresh clearing, chainsaw crew of three, one truck", from: "02:00", until: "02:36"}
-  - {sector: D2, see: "two people with rifles beside a pickup", from: "02:14", until: "02:36"}
+  - {sector: E4, see: "fresh clearing, chainsaw crew of three, one truck", from: "02:00", until: "02:38"}
+  - {sector: D2, see: "two people with rifles beside a pickup", from: "02:20", until: "02:38"}
 
 events:
-  # ~2 s in: rain makes El Bajo "hear" a chainsaw, then again, then its neighbour does too.
-  - {at: "02:00:40", node: El Bajo, sound: chainsaw, confidence: 0.82, duration: 6,
-     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_1.wav}
-  - {at: "02:01:40", node: El Bajo, sound: chainsaw, confidence: 0.80, duration: 6,
-     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_2.wav}
-  - {at: "02:02:40", node: Hondonada, sound: chainsaw, confidence: 0.81, duration: 6,
-     source: rain, label: false_alarm, incident: rain-west, clip: esc50/rain_3.wav}
+  # ~2 s in: a swarm of insects by El Bajo's microphone. The classifier hears a chainsaw.
+  - {at: "02:00:40", node: El Bajo, sound: chainsaw, confidence: 0.85, duration: 5,
+     source: insects, label: false_alarm, incident: insects,
+     clip: ESC-50-master/audio/5-194932-A-7.wav, note: insect swarm}
 
-  # ~12 s in: a real chainsaw in dry sectors, heard by three nodes within 20 s.
-  - {at: "02:04:00", node: Arroyo Recodo, sound: chainsaw, confidence: 0.93, duration: 8,
-     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_1.wav}
-  - {at: "02:04:10", node: Paso Musgo, sound: chainsaw, confidence: 0.88, duration: 8,
-     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_1.wav}
-  - {at: "02:04:20", node: Brecha Vieja, sound: chainsaw, confidence: 0.90, duration: 8,
-     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_2.wav}
-  # ~25 s and ~35 s in: the saw keeps going, then a truck comes for the logs.
-  - {at: "02:08:20", node: Arroyo Recodo, sound: chainsaw, confidence: 0.95, duration: 8,
-     source: chainsaw, label: real, incident: logging, clip: esc50/chainsaw_3.wav}
-  - {at: "02:11:40", node: Brecha Vieja, sound: vehicle, confidence: 0.86, duration: 8,
-     source: truck, label: real, incident: logging, clip: esc50/engine_2.wav}
+  # ~10 s in: a real chainsaw in dry sectors, heard by three nodes within 20 s.
+  - {at: "02:03:20", node: Arroyo Recodo, sound: chainsaw, confidence: 0.93, duration: 5,
+     source: chainsaw, label: real, incident: logging, clip: ESC-50-master/audio/1-116765-A-41.wav}
+  - {at: "02:03:30", node: Paso Musgo, sound: chainsaw, confidence: 0.88, duration: 5,
+     source: chainsaw, label: real, incident: logging, clip: ESC-50-master/audio/1-19898-A-41.wav}
+  - {at: "02:03:40", node: Brecha Vieja, sound: chainsaw, confidence: 0.90, duration: 5,
+     source: chainsaw, label: real, incident: logging, clip: ESC-50-master/audio/1-19898-B-41.wav}
 
-  # ~45 s in: two gunshots near the south post, heard by two dry nodes, then a vehicle leaving.
-  - {at: "02:15:00", node: Ceibal, sound: gunshot, confidence: 0.94, duration: 3,
-     source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
-  - {at: "02:15:05", node: Puesto Sur, sound: gunshot, confidence: 0.88, duration: 3,
-     source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
-  - {at: "02:18:20", node: Puesto Sur, sound: vehicle, confidence: 0.84, duration: 8,
-     source: truck, label: real, incident: poaching, clip: esc50/engine_3.wav}
+  # ~25 s in: a helicopter passes over the north ridge. The classifier calls it a vehicle.
+  - {at: "02:08:20", node: Loma Este, sound: vehicle, confidence: 0.84, duration: 5,
+     source: helicopter, label: benign, incident: aircraft,
+     clip: ESC-50-master/audio/5-177957-C-40.wav, note: helicopter overhead}
+
+  # ~33 s in: the saw again, then a truck comes for the logs.
+  - {at: "02:11:00", node: Arroyo Recodo, sound: chainsaw, confidence: 0.95, duration: 5,
+     source: chainsaw, label: real, incident: logging, clip: ESC-50-master/audio/1-19898-C-41.wav}
+  - {at: "02:13:20", node: Brecha Vieja, sound: vehicle, confidence: 0.86, duration: 5,
+     source: truck, label: real, incident: logging, clip: ESC-50-master/audio/1-22882-A-44.wav}
+
+  # ~60 s in: gunshots near the south post, heard by two dry nodes, then a vehicle leaving.
+  - {at: "02:20:00", node: Ceibal, sound: gunshot, confidence: 0.94, duration: 3,
+     source: gunshot, label: real, incident: poaching, clip: UrbanSound8K/audio/fold9/106955-6-0-0.wav}
+  - {at: "02:20:04", node: Puesto Sur, sound: gunshot, confidence: 0.88, duration: 3,
+     source: gunshot, label: real, incident: poaching, clip: UrbanSound8K/audio/fold3/110622-6-0-0.wav}
+  - {at: "02:23:20", node: Puesto Sur, sound: vehicle, confidence: 0.84, duration: 5,
+     source: truck, label: real, incident: poaching, clip: ESC-50-master/audio/1-18527-B-44.wav}

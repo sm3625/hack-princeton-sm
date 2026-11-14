@@ -28,7 +28,11 @@ def get_chat_model(role: str = "commander", settings: Settings | None = None) ->
         from langchain_anthropic import ChatAnthropic
 
         # Costs money: only reached when the person sets LLM_MODE=haiku themselves.
-        return ChatAnthropic(model=HAIKU_MODEL, temperature=0, max_tokens=2048, max_retries=2)
+        # No temperature: current Claude models reject sampling parameters (400 "Extra inputs").
+        return ChatAnthropic(
+            model=HAIKU_MODEL, max_tokens=2048, max_retries=2,
+            default_request_timeout=float(os.getenv("ANTHROPIC_TIMEOUT_S", "60")),  # never hang a wake-up
+        )
     from langchain_ollama import ChatOllama
 
     return ChatOllama(

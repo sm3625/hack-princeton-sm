@@ -69,3 +69,13 @@ Last updated: 2026-11-14.
 - Dashboard: full-bleed map, floating glass header/panel, reserve inset, Ranger section (decisions + via iMessage/dashboard), local-time text.
 - Photon bridge works live (user: messages are free; still pass --allow-sends). Notes: docs/SCALING_NOTES.md, docs/DEPLOYMENT_SITES.md.
 - Known flaky under load: tests/test_ws_shutdown.py (6 s start), test_scenario_stops_at_its_end.
+
+## 2026-11-14 afternoon: FABLE_ROADMAP items 1, 2, 6 (Claude session; uncommitted)
+- **Two agents wrote to this tree at once** (this Claude session and a Codex session). Codex added the eval work (lockstep, scoring v2, Haiku mode), `tests/test_roadmap.py`, `scenarios/demo.yaml` and agent tools. Check `git diff` before trusting any one summary.
+- **Classifier v2 shipped** in `models/` (55 KB int8; v1 kept in `models/previous/`). Test folds, v1 -> v2: background false positives 6.9% -> 4.5% per window (target met); false events after debounce 3.9% -> 3.4% of background clips; chainsaw window recall 92.9% -> 81.4% (target NOT met; 8/8 chainsaw clips still fire an event); chainsaw precision 7.6% -> 9.3% (11.8% at node thresholds), still poor. Only 40 chainsaw clips exist; real recordings are the real fix. To go back: copy `models/previous/classifier_v1.*` over `models/classifier.*`.
+- Training: hard-negative mining, bias calibration that penalises false alarms, per-class thresholds in `classifier.json` (floor 0.7). `data` is a symlink to the worktree datasets.
+- Node: per-class thresholds plus a per-node slow baseline (`node_data/<id>/baseline.json`) that raises a noisy node's threshold by up to 0.12.
+- Commander: rain pre-filter (one node, raining, earlier false alarms; never gunshots), priority queue (ranger > threat > ... > rain-only), code-sent heads-up when two dry nodes agree (dashboard bus message `heads_up`; not yet shown in the UI or sent over iMessage).
+- Security: seq reserved in `seen_seqs` (replay stays closed after tamper), forged rows capped at 500, `LocalGuard` blocks unknown Host and cross-site writes (`STATION_ALLOWED_HOSTS` to add a LAN name).
+- Not done: roadmap 4 (on hold), 5 (hardware/Renode), slimmer deepagents prompts (not measured), full-night real-model replay.
+- Suite: 508 passed, 1 failed (`test_world_renders_twelve_named_nodes` expects 2 scenarios; `demo.yaml` is new from the other session).

@@ -212,8 +212,11 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
     def fs(*names: str) -> FilesystemMiddleware:
         return FilesystemMiddleware(backend=backend, tools=list(names), permissions=perms)
 
+    light_tools = {"compare_response_options", "record_assessment"}
+    light = not prompts.investigation_enabled()
+
     def pick(role: str) -> list:
-        return [tools[n] for n in TOOLSETS[role]]
+        return [tools[n] for n in TOOLSETS[role] if not (light and n in light_tools)]
 
     dep = s.deployment
     drone_pilot = {
@@ -831,6 +834,8 @@ class Commander:
                 return ("Camera report is explicitly inconclusive or contradictory. Ask for ranger input, "
                         "record_assessment, set_status watching and schedule_check. "
                         "A new confirming observation or explicit ranger confirmed_threat outcome is needed before dispatch.")
+            if not prompts.investigation_enabled():
+                return ""  # light mode: no assessment step, the camera check above still applies
             assessment = inc.assessments[-1] if inc.assessments else {}
             if (assessment.get("observation_count") != len(inc.observations)
                     or assessment.get("ranger_update_count") != len(inc.ranger_updates)

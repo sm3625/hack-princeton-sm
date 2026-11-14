@@ -12,6 +12,7 @@ from common.deployment import load_deployment
 from station import (
     integration,
     routes_agent,
+    routes_clips,
     routes_deployment,
     routes_eval,
     routes_events,
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_events.router)
     app.include_router(routes_eval.router)
     app.include_router(routes_deployment.router)
+    app.include_router(routes_clips.router)
     app.include_router(routes_agent.router)  # incident commander API + its startup (lifespan)
 
     # Integration: the commander reads verified records from the pipeline's store and

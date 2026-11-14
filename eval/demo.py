@@ -119,9 +119,14 @@ class Tracker:
         return rows
 
 
-def start_station(port: int, tmp: Path) -> subprocess.Popen:
+def start_station(port: int, tmp: Path, investigation: bool = False, mode: str | None = None,
+                  deployment: str = "no_drone") -> subprocess.Popen:
     env = {
         **os.environ,
+        "DEPLOYMENT": deployment,  # default: no drones; sounds alone send a team to check
+        **({"LLM_MODE": mode} if mode else {}),
+        # light commander: triage -> decision without the assessment step (see agent/prompts.py)
+        "AGENT_INVESTIGATION": "on" if investigation else "off",
         "AGENT_FS_DIR": str(tmp / "agent_fs"),
         "AGENT_DB": str(tmp / "agent.sqlite"),
         "EVENTS_DB": str(tmp / "events.sqlite"),
@@ -221,6 +226,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pace", choices=("auto", "on", "off"), default="auto",
                     help="slow the clock while the agent thinks (auto: only for the local Ollama model)")
     ap.add_argument("--quiet", action="store_true", help="hide the live agent steps")
+    ap.add_argument("--full-investigation", action="store_true",
+                    help="keep the commander's assessment step (default for --mode haiku)")
+    ap.add_argument("--deployment", default="no_drone",
+                    help="site profile from deployments/ (default no_drone; e.g. well_resourced for drones)")
+    ap.add_argument("--mode", choices=("ollama", "haiku", "mock"),
+                    help="model for the fresh station (default: LLM_MODE in .env). haiku costs a few cents")
     ap.add_argument("--auto-ranger", action="store_true", help="approve real incidents, reject others")
     args = ap.parse_args(argv)
 
@@ -230,7 +241,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not args.url:
             tmp = Path(tempfile.mkdtemp(prefix="fg-demo-"))
-            proc = start_station(args.port, tmp)
+            full = args.full_investigation or args.mode == "haiku"  # Haiku is fast enough for it
+            proc = start_station(args.port, tmp, full, args.mode, args.deployment)
         wait_ready(url)
         health = http("GET", url + "/api/health")
         mode = health.get("model") or "unknown model"

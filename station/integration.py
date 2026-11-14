@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections import deque
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -67,6 +68,8 @@ class Pipeline:
         # shared across threads, and clips of one node stay in order.
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="node-runtime")
         self.runtimes: dict[int, NodeRuntime] = {}
+        # What each node heard most recently (sim time, audio), for "listen live" in the UI.
+        self.heard: dict[int, deque[tuple[float, np.ndarray]]] = {n.id: deque(maxlen=4) for n in world.nodes}
         for node in world.nodes:
             link = InProcessLink(receiver.handle, loss=loss)  # delivers on the running loop
             self.runtimes[node.id] = NodeRuntime(
@@ -85,6 +88,7 @@ class Pipeline:
             log.warning("feed for unknown node %s ignored", node_id)
             return
         stamp = float(self.engine.now())  # sim time the clip arrives, even if work queues up
+        self.heard.setdefault(node_id, deque(maxlen=4)).append((stamp, audio))
         self._loop.run_in_executor(self._pool, self._process, runtime, audio, stamp)
 
     def _process(self, runtime: NodeRuntime, audio: np.ndarray, stamp: float) -> None:

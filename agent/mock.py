@@ -19,7 +19,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
-from agent.prompts import NO_DRONE_MARKER
+from agent.prompts import INVESTIGATION_MARKER, NO_DRONE_MARKER
 from common.deployment import NO_AERIAL
 
 THREATS = ("chainsaw", "axe", "gunshot")
@@ -105,8 +105,10 @@ class Done:
     def __init__(self, calls: list[Call]) -> None:
         self.calls = calls
 
+    assumed: frozenset[str] = frozenset()  # steps the current mode leaves out, treated as done
+
     def has(self, key: str) -> bool:
-        return any(c.key == key for c in self.calls)
+        return key in self.assumed or any(c.key == key for c in self.calls)
 
     def count(self, key: str) -> int:
         return sum(c.key == key for c in self.calls)
@@ -175,6 +177,8 @@ def _no_drone(messages: list[BaseMessage]) -> bool:
 def commander(messages: list[BaseMessage]) -> list[tuple[str, dict]] | str:
     start, w = last_human(messages)
     d = Done(calls_since(messages, start + 1))
+    if not any(isinstance(m, SystemMessage) and INVESTIGATION_MARKER in str(m.content) for m in messages):
+        d.assumed = frozenset({"compare_response_options", "record_assessment"})  # light mode
     kinds, status = w.kinds, w.get("status")
     if "ranger message" in kinds:
         return _ranger_update(w, d, _no_drone(messages))

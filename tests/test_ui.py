@@ -97,7 +97,7 @@ def test_world_renders_twelve_named_nodes(browser, server):
     names = {nodes.nth(i).get_attribute("data-node-name") for i in range(12)}
     assert names == NODE_NAMES
     expect(page.locator("#model")).to_have_text("Mock")
-    expect(page.locator("#scenario option")).to_have_count(2)
+    expect(page.locator("#scenario option")).to_have_count(3)  # night1, night2, demo
     assert page.errors == []
 
 
@@ -209,6 +209,36 @@ def test_deep_link_opens_incident(browser, server):
     expect(page.locator("pre.plan")).to_have_text("- [ ] triage")
     page.get_by_role("button", name="Incidents").first.click()
     expect(page).to_have_url(server.url + "/")
+
+
+def test_phone_back_button_is_tappable_and_no_stray_null(browser, server):
+    # Regression: on phones the floating approval card covered "< Incidents", and an
+    # empty ranger section rendered the text "null" inside the incident view.
+    ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    page = ctx.new_page()
+    page.route(
+        "**/api/incidents/inc-9",
+        lambda r: r.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"id": "inc-9", "title": "Gunshot near Fern Hollow", "sector": "B5",
+                             "status": "triage", "plan": "- [ ] triage"}),
+        ),
+    )
+    page.goto(server.url + "/incident/inc-9")
+    expect(page.locator(".detail-title")).to_have_text("Gunshot near Fern Hollow")
+    back = page.locator("#view-incident .back")
+    box = back.bounding_box()
+    hit_is_back = page.evaluate(
+        """([x, y]) => { const b = document.querySelector('#view-incident .back');
+           const t = document.elementFromPoint(x, y); return !!t && (t === b || b.contains(t)); }""",
+        [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+    )
+    assert hit_is_back, "Incidents back button is covered by another element"
+    assert "null" not in page.locator("#view-incident").inner_text()
+    back.click()
+    expect(page).to_have_url(server.url + "/")
+    ctx.close()
 
 
 def test_text_from_the_station_is_escaped(browser, server):

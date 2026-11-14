@@ -1,5 +1,5 @@
 {
-  "model_version": 1,
+  "model_version": 2,
   "classes": [
     "background",
     "chainsaw",
@@ -18,7 +18,7 @@
     "mel_scale": "htk",
     "normalize": "db_minus_window_mean_div20"
   },
-  "sha256": "0ebd8641251a43f65bfa6b053a2a7ea66e09dc042a912f169190df4f3b573ef1",
+  "sha256": "5d9e82f93146d38afb735b1fc731c5e2c211ab1de4b1a6aac31a6df0ac2d00f3",
   "bytes": 56648,
   "trained": "2026-11-14",
   "train_folds": "ESC-50 folds 1-4, UrbanSound8K folds 1-8",
@@ -26,9 +26,15 @@
   "epochs": 40,
   "class_bias": [
     0.0,
-    2.5,
-    -0.5,
-    -2.0
+    1.5,
+    -0.25,
+    -3.0
   ],
+  "thresholds": {
+    "chainsaw": 0.7,
+    "gunshot": 0.7,
+    "vehicle": 0.7
+  },
+  "hard_negative_mining": true,
   "seed": 0
 }

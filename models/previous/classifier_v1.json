@@ -1,0 +1,34 @@
+{
+  "model_version": 1,
+  "classes": [
+    "background",
+    "chainsaw",
+    "gunshot",
+    "vehicle"
+  ],
+  "features": {
+    "sample_rate": 16000,
+    "window_samples": 16000,
+    "n_fft": 512,
+    "frame_hop": 320,
+    "n_mels": 40,
+    "fmin_hz": 20.0,
+    "fmax_hz": 8000.0,
+    "top_db": 80.0,
+    "mel_scale": "htk",
+    "normalize": "db_minus_window_mean_div20"
+  },
+  "sha256": "0ebd8641251a43f65bfa6b053a2a7ea66e09dc042a912f169190df4f3b573ef1",
+  "bytes": 56648,
+  "trained": "2026-11-14",
+  "train_folds": "ESC-50 folds 1-4, UrbanSound8K folds 1-8",
+  "test_folds": "ESC-50 fold 5, UrbanSound8K folds 9-10",
+  "epochs": 40,
+  "class_bias": [
+    0.0,
+    2.5,
+    -0.5,
+    -2.0
+  ],
+  "seed": 0
+}
