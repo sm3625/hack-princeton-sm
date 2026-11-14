@@ -1,6 +1,6 @@
 """Incident commander HTTP API.
 
-GET  /api/incidents                      list (names only, no node ids)
+GET  /api/incidents                      list (names only, no node ids) and whether the commander is busy
 GET  /api/incidents/{id}                 plan, files, records, approvals (markdown rendered sanitized)
 GET  /api/incidents/{id}/case_file       {"html": sanitized, "citations", "integrity"} re-checked on open
 POST /api/incidents/{id}/messages        {"text"} ranger message -> wakes the commander
@@ -97,7 +97,7 @@ class RangerMessage(BaseModel):
 
 @router.get("/api/incidents")
 def list_incidents(c: CommanderDep) -> dict:
-    return {"incidents": c.list_incidents()}
+    return {"incidents": c.list_incidents(), "busy": c.busy()}
 
 
 @router.get("/api/incidents/{incident_id}")

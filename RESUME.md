@@ -4,8 +4,9 @@ Read this first in any new session. Then read working-with-me.md, PLAN.md and SP
 Last updated: 2026-11-14.
 
 ## State
-- **main** has the pipeline, incident commander, simulator + UI, and integration merged. 342 tests pass (`make test`), lint clean. End-to-end night runs (`make test-e2e`, mock LLM). Nothing pushed.
-- Agent verified on local Ollama `qwen3:8b` (`make test-ollama` passes, ~2 min).
+- **main** has the pipeline, incident commander, simulator + UI, integration, Phase 6 evaluation and planning/review documents committed through `1f6987f`. The current continuation builds on existing uncommitted evaluation pacing work; do not discard it.
+- Current regression suite: **374 passed, 9 skipped, 6 deselected**; lint and `git diff --check` clean. Run `make test` with localhost socket access; sandbox-blocked socket tests are not app failures.
+- Agent walkthrough verified on local Ollama `qwen3:8b` (`make test-ollama`: 1 passed, ~172 s). This controlled walkthrough is separate from a full replay score.
 - Demo: `make dev` → http://127.0.0.1:8000 → Night 1, 60×, play. Screenshot: docs/screenshots/integrated.png.
 
 ## Classifier (Phase 1): merged
@@ -14,15 +15,30 @@ Last updated: 2026-11-14.
 - Datasets live only in `.claude/worktrees/agent-a9fde28df4a63e0b2/data/` (~9 GB). Data-dependent tests skip on main.
 - Possible improvement: record real chainsaw + venue/forest background clips and retrain (`uv run python -m training.train --val`, then `--bias data/cache/class_bias.json`).
 
-## Next, use Sonnet subagents
-1. **Phase 6 eval** (PLAN.md): replay night1/night2, rules baseline (`agent/baseline.py`) vs commander; `eval/report.md` with alerts, misses, false dispatches; metrics panel in UI. Run on mock, then Ollama.
-2. **Phase 7 polish**: LangSmith trace (needs `LANGSMITH_API_KEY` from user), visual pass, outside-in security check, rehearse SPEC §6 demo script, record backup video.
-3. Re-run `/graphify --update` after merges.
+## Phase 6: evaluation implemented; real-model replay needs improvement
+- `eval/run.py` starts isolated real-pipeline station processes, supports mock/Ollama, carries memory between nights, and writes results/report. `make eval` runs mock nights. Results are served by `/api/eval/latest` and shown in the existing Results tab.
+- Saved Night 1: baseline 29 alerts, 2/2 real incidents; mock 11 requests, 2/2 caught, 8 false requests. Saved Ollama **live 60x**: 0 requests, 0/2 caught. This is a recall regression, not a successful alert reduction.
+- Saved Ollama **sim waits** (qwen3:8b, hit the 20 min cap at about sim 04:00, partial): 0 requests, 0/2 caught; 184.7 s commander time per incident. With the clock held the model sees the real chainsaw records and still calls them false alarms (single node, 'no corroboration'), and invents node names. So the miss is model judgment, not only latency.
+- Saved mock Night 2 memory comparison: 73 triage steps fresh versus 78 with memory. No demonstrated reduction in effort.
+- The prior agent added `--sim-waits`. This continuation fixes a deadlock: pausing for a busy commander also paused the clock needed by its blocking drone tool. Flights now keep advancing, including after scenario end; evaluation also waits for a silent busy commander before declaring completion.
+- Verified corrected pacing through the real classifier/signing/station pipeline with a mock agent: `uv run pytest -q -m e2e tests/test_eval_e2e.py -k sim-waits` passed in 305 s, replaying Night 1 from 02:10. Both baseline and commander caught the logging incident. This shortened test does not replace a saved full-night evaluation.
+- Reports use recorded replay speed, distinguish live/waiting variants and their memory runs, and show separate baselines when results differ. Regression/memory conclusions are explicit. Existing result data is retained; regenerating the report is not a new replay.
+- Browser verification: 14 Playwright UI tests passed, including mobile and distinct live/waiting memory comparisons; inspected desktop/375px screenshots without horizontal overflow.
+- `--sim-waits` is pacing assistance, not deterministic lockstep: the clock runs during flights and arrivals can differ between runs. The evaluation still uses an oracle ranger and scores approved requests as catches; see the review before treating these numbers as field performance.
+
+## Next
+1. Run and inspect a bounded full local-model replay with corrected pacing:
+   `uv run python -m eval.run --scenario night1 --mode ollama --sim-waits --max-minutes 20`
+   Preserve the live result for comparison. Inspect partial status and missed incidents before proceeding to Night 2 fresh/carried runs. A passing walkthrough does not establish successful full-night reasoning.
+2. Improve the agent using `SUPERAGENT_IMPLEMENTATION_PLAN.md`, starting with evidence integrity and structured investigation. `WOLFRAM_AND_SUPERAGENT_REVIEW.md` documents the current limitations. These are plans, not implemented superagent features.
+3. **Phase 7 polish**: LangSmith trace only if credentials are available, outside-in security check, rehearse SPEC §6 demo script, record backup video. No paid calls or publishing without permission.
+4. Refresh the generated Graphify map when its tooling is available; the checked-in graph describes an older skeleton.
 
 ## Known issues
 - `tests/...test_runner_in_real_time_at_60x` is timing-sensitive; flaked once under load.
 - `/ws` allows only localhost origins, so the UI can't be opened from a phone over LAN.
-- `graphify-out/` and `working-with-me.md` are untracked on main (ask user whether to commit or ignore).
+- Captured-clip layout/configuration and evidence validation display still need the fixes described in the superagent review; not addressed by the evaluation pacing work.
+- No commit, push or deployment was performed by this continuation. Existing edits to `eval/results.json` came from the prior agent's runs.
 
 ## Standing rules (also in memory)
 - Never push without an explicit yes. No AI attribution in commits.

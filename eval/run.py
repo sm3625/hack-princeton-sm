@@ -48,6 +48,21 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+def pace_clock(station: Station, sim: dict, busy: bool, sim_waits: bool) -> None:
+    """Hold inference time, but let a blocking drone flight advance and finish."""
+    flying = sim["drone"]["flying"]
+    if not sim["running"]:
+        paused = not flying  # a flight can outlast the scenario's automatic pause
+    elif sim_waits:
+        paused = busy and not flying
+    else:
+        return
+    if paused != sim["paused"]:
+        status, _ = station.request("POST", "/api/sim/pause", {"paused": paused})
+        if status != 200:
+            raise RuntimeError(f"could not {'pause' if paused else 'resume'} simulation: {status}")
+
+
 class Station:
     """A station subprocess with throwaway state, driven over HTTP and watched over /ws."""
 
@@ -144,7 +159,7 @@ class Station:
 
 def run_night(
     scenario_name: str, mode: str, *, memory_from: Path | None = None, speed: float = 60.0,
-    max_wall_min: float | None = None, from_time: str | None = None, log=print,
+    max_wall_min: float | None = None, from_time: str | None = None, sim_waits: bool = False, log=print,
 ) -> tuple[dict[str, Any], Path]:  # fmt: skip
     """Play one night. Returns (results, agent folder to carry memory forward)."""
     world = load_world()
@@ -152,7 +167,7 @@ def run_night(
     max_wall = 60 * (max_wall_min or DEFAULT_MAX_MIN[mode])
     workdir = Path(tempfile.mkdtemp(prefix=f"eval-{scenario_name}-{mode}-"))
     station = Station(workdir, mode, memory_from)
-    tag = f"{scenario_name}:{mode}" + (":carried" if memory_from else "")
+    tag = f"{scenario_name}:{mode}" + (":carried" if memory_from else "") + (":waits" if sim_waits else "")
     began = time.monotonic()
     partial = None
     decided: dict[str, str] = {}
@@ -165,7 +180,7 @@ def run_night(
             raise RuntimeError(f"scenario did not start with the real pipeline: {status} {state}")
         truth: dict[tuple[str, int], str | None] = {}
         while True:
-            time.sleep(0.5)
+            time.sleep(0.2 if sim_waits else 0.5)
             if station.proc.poll() is not None:
                 raise RuntimeError(f"station died:\n{station.logs()}")
             elapsed = time.monotonic() - began
@@ -180,13 +195,16 @@ def run_night(
                 partial = f"stopped at the {max_wall / 60:.0f} min wall-time cap"
                 break
             sim = station.request("GET", "/api/sim/state")[1]
+            busy = bool(station.request("GET", "/api/incidents")[1]["busy"])
+            pace_clock(station, sim, busy, sim_waits)
             quiet = time.monotonic() - station.last_activity
             pending = any(
                 m["status"] == "pending" and m["approval_id"] not in decided
                 for m in station.messages
                 if m.get("type") == "approval"
             )
-            if not sim["running"] and quiet > QUIET_S[mode] and not pending:
+            if (not sim["running"] and not sim["drone"]["flying"] and not busy
+                    and quiet > QUIET_S[mode] and not pending):
                 break
         wall = time.monotonic() - began
         rows = station.request("GET", "/api/detections?limit=500&verified_only=true")[1]["detections"]
@@ -199,6 +217,8 @@ def run_night(
             "memory": "carried" if memory_from else "fresh",
             "model": os.getenv("OLLAMA_MODEL", "qwen3:8b") if mode == "ollama" else "mock",
             "speed": speed,
+            "pace": "waits" if sim_waits else "live",
+            "from": from_time,
             "wall_s": round(wall),
             "partial": partial,
             "finished_at": datetime.now().isoformat(timespec="seconds"),
@@ -241,7 +261,7 @@ def load_results(path: Path = RESULTS) -> dict:
 
 def save(result: dict, path: Path = RESULTS) -> None:
     data = load_results(path)
-    key = f"{result['scenario']}:{result['mode']}:{result['memory']}"
+    key = f"{result['scenario']}:{result['mode']}:{result['memory']}" + (":waits" if result.get("pace") == "waits" else "")
     data["runs"][key] = result
     data["updated"] = datetime.now().isoformat(timespec="seconds")
     path.write_text(json.dumps(data, indent=2) + "\n")
@@ -254,11 +274,12 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--mode", choices=MODES, default="mock")
     ap.add_argument("--after", help="play this night first and carry its memory into --scenario")
     ap.add_argument("--all", action="store_true", help="night1, then night2 fresh and night2 after night1")
+    ap.add_argument("--sim-waits", action="store_true", help="hold the sim during agent work, except while the drone flies")
     ap.add_argument("--speed", type=float, default=60.0)
     ap.add_argument("--from", dest="from_time", help="skip ahead to this clock time, e.g. 02:00")
     ap.add_argument("--max-minutes", type=float, help="wall-time cap per night")
     args = ap.parse_args(argv)
-    kw = {"speed": args.speed, "max_wall_min": args.max_minutes, "from_time": args.from_time}
+    kw = {"speed": args.speed, "max_wall_min": args.max_minutes, "from_time": args.from_time, "sim_waits": args.sim_waits}
 
     lock = threading.Lock()
 

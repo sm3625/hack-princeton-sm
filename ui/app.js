@@ -814,10 +814,14 @@ function resultsTable(r) {
 
 function resultsCard(r, nights) {
   const c = r.commander;
-  const parts = [el("h3", {}, `Night 1 · ${MODE_LABELS[r.mode] || r.mode}${r.partial ? " · partial" : ""}`), resultsTable(r)];
+  const waits = r.pace === "waits";
+  const live = Number.isFinite(r.speed) ? `live ${r.speed}×` : "live";
+  const who = [MODE_LABELS[r.mode] || r.mode, waits ? "sim waits" : r.mode === "mock" ? "" : live, r.partial ? "partial" : ""];
+  const parts = [el("h3", {}, ["Night 1", ...who].filter(Boolean).join(" · ")), resultsTable(r)];
   parts.push(el("p", { class: "res-line" }, `${c.wall_s_per_incident.toFixed(1)} s per incident`));
-  const fresh = nights[`night2:${r.mode}:fresh`]?.commander;
-  const kept = nights[`night2:${r.mode}:carried`]?.commander;
+  const suffix = waits ? ":waits" : "";
+  const fresh = nights[`night2:${r.mode}:fresh${suffix}`]?.commander;
+  const kept = nights[`night2:${r.mode}:carried${suffix}`]?.commander;
   if (fresh && kept) {
     parts.push(el("p", { class: "res-line" }, `Memory: ${fresh.triage_steps_total} → ${kept.triage_steps_total} triage steps`));
   }
@@ -828,7 +832,7 @@ function renderResults() {
   const runs = state.results?.runs || {};
   const cards = Object.values(runs)
     .filter((r) => r.scenario === "night1" && r.memory === "fresh")
-    .sort((a, b) => (a.mode === "ollama" ? 0 : 1) - (b.mode === "ollama" ? 0 : 1))
+    .sort((a, b) => (a.mode === "ollama" ? 0 : 1) - (b.mode === "ollama" ? 0 : 1) || (a.pace === "waits" ? 0 : 1) - (b.pace === "waits" ? 0 : 1))
     .map((r) => resultsCard(r, runs));
   $("tab-results").hidden = cards.length === 0;
   $("view-results").replaceChildren(...cards);

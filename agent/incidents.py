@@ -434,6 +434,11 @@ class WakeQueue:
             p.messages = wake.messages + p.messages
             p.retry_wall_due = self.wall() + delay_s
 
+    def has_pending(self) -> bool:
+        """Detections or ranger messages still waiting for a wake-up (scheduled checks do not count)."""
+        with self._lock:
+            return any(p.records or p.messages for p in self._pending.values())
+
     def pending_check(self, incident_id: str) -> float | None:
         with self._lock:
             p = self._pending.get(incident_id)

@@ -159,3 +159,16 @@ def test_busy_incidents_keep_their_wakes():
     q.detection("inc", (1, 1), now=0)
     assert q.pop_due(100, skip={"inc"}) == []
     assert len(q.pop_due(100)) == 1
+
+
+def test_wake_queue_has_pending_counts_detections_and_messages_but_not_scheduled_checks():
+    q = WakeQueue(batch_s=10)
+    assert not q.has_pending()
+    q.schedule("a", at=500)
+    assert not q.has_pending()
+    q.detection("a", (1, 1), now=0)
+    assert q.has_pending()
+    assert [w.incident_id for w in q.pop_due(now=100)] == ["a"]
+    assert not q.has_pending()
+    q.message("a", "any news?")
+    assert q.has_pending()

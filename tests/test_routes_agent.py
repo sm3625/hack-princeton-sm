@@ -34,7 +34,7 @@ def raise_incident(h):
 
 def test_list_and_get_incident(api):
     h, client = api
-    assert client.get("/api/incidents").json() == {"incidents": []}
+    assert client.get("/api/incidents").json() == {"incidents": [], "busy": False}
     inc_id = raise_incident(h)
     (row,) = client.get("/api/incidents").json()["incidents"]
     assert row["id"] == inc_id and row["status"] == "awaiting_approval"

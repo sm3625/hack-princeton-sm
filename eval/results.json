@@ -154,7 +154,9 @@
             "triage_steps": 5
           }
         ]
-      }
+      },
+      "pace": "live",
+      "from": null
     },
     "night2:mock:carried": {
       "scenario": "night2",
@@ -276,7 +278,9 @@
             "triage_steps": 43
           }
         ]
-      }
+      },
+      "pace": "live",
+      "from": null
     },
     "night2:mock:fresh": {
       "scenario": "night2",
@@ -398,8 +402,277 @@
             "triage_steps": 43
           }
         ]
+      },
+      "pace": "live",
+      "from": null
+    },
+    "night1:ollama:fresh": {
+      "scenario": "night1",
+      "mode": "ollama",
+      "memory": "fresh",
+      "model": "qwen3:8b",
+      "speed": 60.0,
+      "wall_s": 767,
+      "partial": null,
+      "finished_at": "2026-11-14T01:35:42",
+      "real_incidents": [
+        "logging-e4",
+        "poaching-g2"
+      ],
+      "detections": {
+        "verified": 29,
+        "events": 40
+      },
+      "baseline": {
+        "alerts": 29,
+        "real_caught": 2,
+        "real_missed": 0,
+        "false_alerts": 20,
+        "caught": [
+          "logging-e4",
+          "poaching-g2"
+        ]
+      },
+      "commander": {
+        "incidents": 7,
+        "requests": 0,
+        "real_detected": 2,
+        "real_caught": 0,
+        "real_missed": 2,
+        "false_requests": 0,
+        "false_dispatches": 0,
+        "caught": [],
+        "triage_steps_total": 66,
+        "steps_total": 101,
+        "wall_s_total": 490.1,
+        "wall_s_per_incident": 70.0,
+        "wall_s_per_real_incident": 108.2,
+        "noisy_node": {
+          "node": "Low Marsh",
+          "incidents": 1,
+          "triage_steps": 10,
+          "steps": 14,
+          "wall_s": 67.2
+        },
+        "per_incident": [
+          {
+            "id": "2026-11-15_F3",
+            "nodes": [
+              "Logging Road"
+            ],
+            "real": [
+              "logging-e4"
+            ],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 71.97,
+            "steps": 14,
+            "triage_steps": 10
+          },
+          {
+            "id": "2026-11-15_B3-2",
+            "nodes": [
+              "Low Marsh"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 67.2,
+            "steps": 14,
+            "triage_steps": 10
+          },
+          {
+            "id": "2026-11-15_H2",
+            "nodes": [
+              "Logging Road",
+              "River Mouth"
+            ],
+            "real": [
+              "poaching-g2"
+            ],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 60.6,
+            "steps": 12,
+            "triage_steps": 8
+          },
+          {
+            "id": "2026-11-15_G8",
+            "nodes": [
+              "Old Cedar"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 30.26,
+            "steps": 7,
+            "triage_steps": 5
+          },
+          {
+            "id": "2026-11-15_B6",
+            "nodes": [
+              "Fern Hollow"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 39.55,
+            "steps": 8,
+            "triage_steps": 5
+          },
+          {
+            "id": "2026-11-15_B3",
+            "nodes": [
+              "Creek Bend",
+              "Fern Hollow",
+              "Low Marsh",
+              "Mossy Gap"
+            ],
+            "real": [
+              "logging-e4"
+            ],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 192.01,
+            "steps": 39,
+            "triage_steps": 24
+          },
+          {
+            "id": "2026-11-15_C1",
+            "nodes": [
+              "South Gate"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 28.46,
+            "steps": 7,
+            "triage_steps": 4
+          }
+        ]
+      },
+      "pace": "live",
+      "from": null
+    },
+    "night1:ollama:fresh:waits": {
+      "scenario": "night1",
+      "mode": "ollama",
+      "memory": "fresh",
+      "model": "qwen3:8b",
+      "speed": 60.0,
+      "pace": "waits",
+      "from": null,
+      "wall_s": 1200,
+      "partial": "stopped at the 20 min wall-time cap",
+      "finished_at": "2026-11-14T04:22:22",
+      "real_incidents": [
+        "logging-e4",
+        "poaching-g2"
+      ],
+      "detections": {
+        "verified": 22,
+        "events": 40
+      },
+      "baseline": {
+        "alerts": 22,
+        "real_caught": 1,
+        "real_missed": 1,
+        "false_alerts": 15,
+        "caught": [
+          "logging-e4"
+        ]
+      },
+      "commander": {
+        "incidents": 4,
+        "requests": 0,
+        "real_detected": 1,
+        "real_caught": 0,
+        "real_missed": 2,
+        "false_requests": 0,
+        "false_dispatches": 0,
+        "caught": [],
+        "triage_steps_total": 91,
+        "steps_total": 148,
+        "wall_s_total": 738.9,
+        "wall_s_per_incident": 184.7,
+        "wall_s_per_real_incident": 357.8,
+        "noisy_node": {
+          "node": "Low Marsh",
+          "incidents": 0,
+          "triage_steps": 0.0,
+          "steps": 0.0,
+          "wall_s": 0.0
+        },
+        "per_incident": [
+          {
+            "id": "2026-11-15_B6",
+            "nodes": [
+              "Fern Hollow"
+            ],
+            "real": [],
+            "status": "open",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 0.0,
+            "steps": 0,
+            "triage_steps": 0
+          },
+          {
+            "id": "2026-11-15_B3",
+            "nodes": [
+              "Creek Bend",
+              "Fern Hollow",
+              "Low Marsh",
+              "Mossy Gap"
+            ],
+            "real": [
+              "logging-e4"
+            ],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 654.62,
+            "steps": 125,
+            "triage_steps": 77
+          },
+          {
+            "id": "2026-11-15_F3",
+            "nodes": [
+              "Logging Road"
+            ],
+            "real": [
+              "logging-e4"
+            ],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 60.96,
+            "steps": 16,
+            "triage_steps": 10
+          },
+          {
+            "id": "2026-11-15_C1",
+            "nodes": [
+              "South Gate"
+            ],
+            "real": [],
+            "status": "dismissed",
+            "approvals": 0,
+            "dispatched": false,
+            "wall_s": 23.33,
+            "steps": 7,
+            "triage_steps": 4
+          }
+        ]
       }
     }
   },
-  "updated": "2026-11-14T01:18:11"
+  "updated": "2026-11-14T04:22:22"
 }

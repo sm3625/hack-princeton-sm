@@ -5,6 +5,7 @@ Skipped when Chromium is not installed: `uv run playwright install chromium`.
 
 import json
 import time
+from copy import deepcopy
 
 import pytest
 
@@ -308,3 +309,20 @@ def test_results_fit_a_phone(browser, server):
     page.click("#tab-results")
     expect(page.locator(".res-card")).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth") <= 375
+
+
+def test_results_keep_live_and_waiting_memory_runs_separate(browser, server):
+    results = deepcopy(RESULTS)
+    for pace, suffix, steps in (("live", "", 31), ("waits", ":waits", 17)):
+        for night, memory in (("night1", "fresh"), ("night2", "fresh"), ("night2", "carried")):
+            run = deepcopy(RESULTS["runs"][f"{night}:mock:{memory}"])
+            run.update(mode="ollama", pace=pace, speed=30)
+            if night == "night2" and memory == "carried":
+                run["commander"]["triage_steps_total"] = steps
+            results["runs"][f"{night}:ollama:{memory}{suffix}"] = run
+    page = page_with_results(browser, server, 200, results)
+    page.click("#tab-results")
+    live = page.locator(".res-card").filter(has=page.get_by_role("heading", name="Night 1 · Local · live 30×"))
+    waits = page.locator(".res-card").filter(has=page.get_by_role("heading", name="Night 1 · Local · sim waits"))
+    expect(live).to_contain_text("Memory: 40 → 31 triage steps")
+    expect(waits).to_contain_text("Memory: 40 → 17 triage steps")

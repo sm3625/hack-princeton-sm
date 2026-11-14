@@ -122,11 +122,12 @@ def test_eval_approves_real_incidents_and_rejects_the_rest():
     assert not metrics.want_dispatch(view("b", [("Low Marsh", 1)]), truth)
 
 
-def run_result(mode="mock", scenario="night1", memory="fresh", triage=2.0):
+def run_result(mode="mock", scenario="night1", memory="fresh", triage=2.0, pace="live", speed=60.0, baseline=None):
     return {
         "scenario": scenario, "mode": mode, "memory": memory, "model": mode, "partial": None,
+        "pace": pace, "speed": speed,
         "real_incidents": ["logging", "poachers"],
-        "baseline": {"alerts": 30, "real_caught": 2, "real_missed": 0, "false_alerts": 28},
+        "baseline": baseline or {"alerts": 30, "real_caught": 2, "real_missed": 0, "false_alerts": 28},
         "commander": {
             "requests": 3, "real_caught": 2, "real_missed": 0, "false_requests": 1,
             "wall_s_per_incident": 1.5,
@@ -146,8 +147,76 @@ def test_report_has_the_table_and_the_memory_comparison(tmp_path):
     write_report(data, out)
     text = out.read_text()
     assert "| Rules baseline | 30 | 2/2 | 0 | 28 | none |" in text
-    assert "| Commander, Mock model | 3 | 2/2 | 0 | 1 | 1.5 s |" in text
+    assert "| Commander, Mock model, live 60x | 3 | 2/2 | 0 | 1 | 1.5 s |" in text
     assert "5 triage steps with night 1's memory against 20 without it" in text
+
+
+def test_report_uses_recorded_speed_and_includes_mock_waits(tmp_path):
+    live = run_result(speed=12)
+    waits = run_result(pace="waits", speed=1)
+    data = {"runs": {"night1:mock:fresh": live, "night1:mock:fresh:waits": waits}}
+    out = tmp_path / "report.md"
+    write_report(data, out)
+    text = out.read_text()
+    assert "Commander, Mock model, live 12x" in text
+    assert "Commander, Mock model, sim waits" in text
+    assert "live 60x" not in text
+
+
+def test_report_shows_each_baseline_when_variant_baselines_differ(tmp_path):
+    baseline = {"alerts": 25, "real_caught": 1, "real_missed": 1, "false_alerts": 24}
+    data = {"runs": {
+        "night1:mock:fresh": run_result(),
+        "night1:ollama:fresh": run_result("ollama", baseline=baseline),
+    }}
+    out = tmp_path / "report.md"
+    write_report(data, out)
+    text = out.read_text()
+    assert "Rules baseline (Mock model, live 60x) | 30 | 2/2 | 0 | 28" in text
+    assert "Rules baseline (Local model (ollama), live 60x) | 25 | 1/2 | 1 | 24" in text
+
+
+def test_report_labels_legacy_run_without_speed_as_live(tmp_path):
+    run = run_result("ollama")
+    run.pop("speed")
+    run.pop("pace")
+    out = tmp_path / "report.md"
+    write_report({"runs": {"night1:ollama:fresh": run}}, out)
+    text = out.read_text()
+    assert "Local model (ollama), live | 3 |" in text
+    assert "live 60x" not in text
+
+
+def test_report_flags_fewer_requests_with_worse_recall(tmp_path):
+    run = run_result()
+    run["commander"]["requests"] = 2
+    run["commander"]["real_caught"] = 1
+    out = tmp_path / "report.md"
+    write_report({"runs": {"night1:mock:fresh": run}}, out)
+    text = out.read_text()
+    assert "Fewer requests came with worse recall, a regression against the baseline." in text
+
+
+def test_report_calls_equal_or_higher_memory_triage_no_reduction(tmp_path):
+    data = {"runs": {
+        "night2:mock:fresh": run_result("mock", scenario="night2", triage=2.0),
+        "night2:mock:carried": run_result("mock", scenario="night2", memory="carried", triage=2.0),
+        "night2:ollama:fresh": run_result("ollama", scenario="night2", triage=2.0),
+        "night2:ollama:carried": run_result("ollama", scenario="night2", memory="carried", triage=2.1),
+    }}
+    out = tmp_path / "report.md"
+    write_report(data, out)
+    text = out.read_text()
+    assert "Night 1's memory did not reduce triage steps." in text
+    assert "Night 1's memory increased triage steps." in text
+
+
+def test_report_explains_sim_waits_pacing_limit(tmp_path):
+    out = tmp_path / "report.md"
+    write_report({"runs": {"night1:mock:fresh:waits": run_result(pace="waits")}}, out)
+    text = out.read_text()
+    assert "clock advances during drone flights" in text
+    assert "not a strict lockstep replay with identical observations" in text
 
 
 def test_eval_latest_route_serves_results_or_404(tmp_path, monkeypatch):

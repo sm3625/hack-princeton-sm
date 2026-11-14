@@ -4,15 +4,35 @@ from __future__ import annotations
 
 from pathlib import Path
 
-MODE_NAMES = {"mock": "Mock model", "ollama": "Local model"}
+VARIANTS = (("mock", "live"), ("mock", "waits"), ("ollama", "live"), ("ollama", "waits"))
 
 
-def _run(data: dict, scenario: str, mode: str, memory: str = "fresh") -> dict | None:
-    return data["runs"].get(f"{scenario}:{mode}:{memory}")
+def label(mode: str, pace: str, model: str = "", speed: float | None = None) -> str:
+    if mode == "mock":
+        name = "Mock model"
+    else:
+        name = f"Local model ({model})" if model else "Local model"
+    if pace == "waits":
+        suffix = ", sim waits"
+    elif speed is not None:
+        suffix = f", live {speed:g}x"
+    else:
+        suffix = ", live"
+    return name + suffix
+
+
+def _run(data: dict, scenario: str, mode: str, memory: str = "fresh", pace: str = "live") -> dict | None:
+    return data["runs"].get(f"{scenario}:{mode}:{memory}" + (":waits" if pace == "waits" else ""))
 
 
 def _secs(s: float) -> str:
     return f"{s:.1f} s"
+
+
+def _label_run(r: dict, mode: str, pace: str) -> str:
+    # Older result files have no pace/speed fields; the run key still identifies waits.
+    recorded_pace = r.get("pace", pace)
+    return label(mode, recorded_pace, r.get("model", ""), r.get("speed"))
 
 
 def night1_table(data: dict) -> list[str]:
@@ -20,35 +40,47 @@ def night1_table(data: dict) -> list[str]:
         "| Night 1 | Alerts to rangers | Real caught | Real missed | False alerts | Time per incident |",
         "|---|---|---|---|---|---|",
     ]
+    runs = [(mode, pace, _run(data, "night1", mode, pace=pace)) for mode, pace in VARIANTS]
+    runs = [(mode, pace, r) for mode, pace, r in runs if r is not None]
+    baselines_differ = bool(runs) and any(r["baseline"] != runs[0][2]["baseline"] for _, _, r in runs[1:])
     base_done = False
-    for mode in ("mock", "ollama"):
-        r = _run(data, "night1", mode)
-        if r is None:
-            continue
+    for mode, pace, r in runs:
         total = len(r["real_incidents"])
         b, c = r["baseline"], r["commander"]
-        if not base_done:
-            lines.append(f"| Rules baseline | {b['alerts']} | {b['real_caught']}/{total} | {b['real_missed']} | {b['false_alerts']} | none |")
+        if baselines_differ:
+            lines.append(
+                f"| Rules baseline ({_label_run(r, mode, pace)}) | {b['alerts']} | {b['real_caught']}/{total} | "
+                f"{b['real_missed']} | {b['false_alerts']} | none |"
+            )
+        elif not base_done:
+            lines.append(
+                f"| Rules baseline | {b['alerts']} | {b['real_caught']}/{total} | {b['real_missed']} | "
+                f"{b['false_alerts']} | none |"
+            )
             base_done = True
-        name = MODE_NAMES[mode] + (f" ({r['model']})" if mode == "ollama" else "")
         note = " (partial)" if r.get("partial") else ""
         lines.append(
-            f"| Commander, {name}{note} | {c['requests']} | {c['real_caught']}/{total} | "
-            f"{c['real_missed']} | {c['false_requests']} | {_secs(c['wall_s_per_incident'])} |"
+            f"| Commander, {_label_run(r, mode, pace)}{note} | {c['requests']} | "
+            f"{c['real_caught']}/{total} | {c['real_missed']} | {c['false_requests']} | "
+            f"{_secs(c['wall_s_per_incident'])} |"
         )
     return lines
 
 
+def _marsh(n: dict) -> str:
+    return f"{n['triage_steps']} ({n['incidents']})" if n["incidents"] else "none"
+
+
 def memory_table(data: dict) -> list[str]:
     rows = []
-    for mode in ("mock", "ollama"):
-        for label, memory in (("no memory", "fresh"), ("after night 1", "carried")):
-            r = _run(data, "night2", mode, memory)
+    for mode, pace in VARIANTS:
+        for name, memory in (("no memory", "fresh"), ("after night 1", "carried")):
+            r = _run(data, "night2", mode, memory, pace)
             if r is None:
                 continue
             c = r["commander"]
             rows.append(
-                f"| {MODE_NAMES[mode]}, {label} | {c['requests']} | {c['triage_steps_total']} | "
+                f"| {_label_run(r, mode, pace)}, {name} | {c['requests']} | {c['triage_steps_total']} | "
                 f"{c['steps_total']} | {_secs(c['wall_s_total'])} | {_marsh(c['noisy_node'])} |"
             )
     if not rows:
@@ -60,36 +92,39 @@ def memory_table(data: dict) -> list[str]:
     return head + rows
 
 
-def _marsh(n: dict) -> str:
-    return f"{n['triage_steps']} ({n['incidents']})" if n["incidents"] else "none"
-
-
 def sentences(data: dict) -> list[str]:
     out = []
-    for mode in ("mock", "ollama"):
-        r = _run(data, "night1", mode)
+    for mode, pace in VARIANTS:
+        r = _run(data, "night1", mode, pace=pace)
         if r is None:
             continue
         b, c, total = r["baseline"], r["commander"], len(r["real_incidents"])
-        name = MODE_NAMES[mode].lower()
-        cut = b["alerts"] - c["requests"]
-        verdict = "fewer" if cut > 0 else "no fewer"
+        name = _label_run(r, mode, pace).lower()
+        verdict = "fewer" if c["requests"] < b["alerts"] else "no fewer"
         out.append(
-            f"On night 1 the {name} commander put {c['requests']} requests in front of rangers where the baseline "
-            f"sent {b['alerts']} alerts ({verdict}), and caught {c['real_caught']} of {total} real incidents "
-            f"against the baseline's {b['real_caught']}; {c['false_requests']} of its requests were false "
-            f"against {b['false_alerts']} false baseline alerts."
+            f"On night 1 the commander ({name}) put {c['requests']} requests in front of rangers where the "
+            f"baseline sent {b['alerts']} alerts ({verdict}), and caught {c['real_caught']} of {total} real "
+            f"incidents against the baseline's {b['real_caught']}; {c['false_requests']} of its requests were "
+            f"false against {b['false_alerts']} false baseline alerts."
         )
+        if c["requests"] < b["alerts"] and c["real_caught"] < b["real_caught"]:
+            out.append("Fewer requests came with worse recall, a regression against the baseline.")
         if r.get("partial"):
-            out.append(f"The {name} run was cut short ({r['partial']}), so its numbers are partial.")
-    for mode in ("mock", "ollama"):
-        fresh, carried = _run(data, "night2", mode), _run(data, "night2", mode, "carried")
+            out.append(f"That run was cut short ({r['partial']}), so its numbers are partial.")
+    for mode, pace in VARIANTS:
+        fresh, carried = _run(data, "night2", mode, pace=pace), _run(data, "night2", mode, "carried", pace)
         if fresh and carried:
             f, c = fresh["commander"], carried["commander"]
             out.append(
-                f"On night 2 the {MODE_NAMES[mode].lower()} commander took {c['triage_steps_total']} triage steps "
-                f"with night 1's memory against {f['triage_steps_total']} without it."
+                f"On night 2 the commander ({_label_run(carried, mode, pace).lower()}) took {c['triage_steps_total']} triage "
+                f"steps with night 1's memory against {f['triage_steps_total']} without it."
             )
+            if c["triage_steps_total"] < f["triage_steps_total"]:
+                out.append("Night 1's memory reduced triage steps.")
+            elif c["triage_steps_total"] == f["triage_steps_total"]:
+                out.append("Night 1's memory did not reduce triage steps.")
+            else:
+                out.append("Night 1's memory increased triage steps.")
     return out
 
 
@@ -104,7 +139,10 @@ def write_report(data: dict, path: Path) -> None:
         "Real incidents come from the scenario files. The baseline alerts on every verified detection at 0.8 or "
         "above. The commander's requests are approved when the incident is real and rejected otherwise, so a "
         "false alert is a request a ranger had to turn down. Time per incident is the commander's own working "
-        "time, approval waits excluded; the baseline has no analysis step."
+        "time, approval waits excluded; the baseline has no analysis step. Live runs use the recorded simulation "
+        "speed. Sim waits holds the clock during agent work, but the clock advances during drone flights. "
+        "This is pacing assistance, not a strict lockstep replay with identical observations. Older runs without speed metadata are "
+        "labeled simply live."
     )
     parts += [note, ""]
     path.write_text("\n".join(parts))

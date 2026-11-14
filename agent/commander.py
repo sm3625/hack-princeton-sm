@@ -663,6 +663,11 @@ class Commander:
         self._submit(a.incident_id, resume)
         return a
 
+    def busy(self) -> bool:
+        """Is the commander working, or about to? Eval uses it to hold the sim while the model thinks."""
+        with self._lock:
+            return bool(self._busy) or self.wakes.has_pending()
+
     # --- views (for the HTTP routes) ---
 
     def _step(self, incident_id: str, agent: str, summary: str) -> None:
