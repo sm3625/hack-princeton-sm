@@ -1553,3 +1553,95 @@ li + li > .incident-row::after { left: 38px; }
 .rec-what { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rec-status { grid-column: 2 / -1; font-size: 11.5px; }
 .rec-empty { margin: 6px 0 0; font-size: 12.5px; }
+
+/* =========================== decision trail =========================== */
+.a-commander { --c: var(--blue); }
+.a-triage { --c: var(--purple); }
+.a-drone { --c: #30b0c7; }
+.a-evidence { --c: var(--accent); }
+.a-ranger { --c: var(--amber); }
+.a-station { --c: var(--muted); }
+.o-open { --o: var(--blue); }
+.o-watch { --o: #5e8bd6; }
+.o-dismiss { --o: var(--muted); }
+.o-ask { --o: var(--amber); }
+.o-dispatch { --o: var(--red); }
+.o-closed { --o: var(--accent); }
+
+.trail-outcome {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--o) 40%, transparent);
+}
+.trail-outcome-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--o); }
+.trail-outcome strong { font-size: 18px; letter-spacing: -0.015em; }
+.trail-outcome p { margin: 2px 0 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
+
+.trail-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.legend-chip, .flow-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--c);
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  white-space: nowrap;
+}
+.legend-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+
+.trail-blocks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
+.trail-block { border-radius: 14px; background: var(--fill); padding: 10px 12px 8px; }
+.trail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.trail-head-text { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+.trail-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trail-trigger {
+  font-size: 10.5px; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 6px; color: #fff; white-space: nowrap;
+}
+.t-wake { background: var(--blue); }
+.t-ranger { background: var(--amber); color: #2b1a00; }
+.t-open { background: var(--accent-fill); }
+
+/* the flow: dots joined by a vertical line */
+.trail-flow { list-style: none; margin: 0; padding: 0 0 0 4px; position: relative; display: grid; gap: 2px; }
+.trail-flow::before { content: ""; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--fill-strong); }
+.flow-node { position: relative; display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: start; padding: 5px 0; }
+.flow-dot { width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; background: var(--c, var(--muted)); box-shadow: 0 0 0 3px var(--fill); position: relative; z-index: 1; }
+.flow-body { display: grid; gap: 2px; min-width: 0; }
+.flow-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13.5px; font-weight: 600; }
+.flow-text { font-size: 12.5px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.flow-node.minor .flow-text { font-size: 11.5px; font-style: italic; }
+.flow-node.minor .flow-dot { width: 8px; height: 8px; margin: 5px 2px 0; }
+.flow-node.error .flow-title { color: var(--red); }
+.flow-node.error .flow-dot { background: var(--red); }
+
+/* decisions stand out */
+.flow-node.decisive { margin: 3px 0; padding: 7px 8px 7px 0; border-radius: 10px; background: color-mix(in srgb, var(--c) 9%, transparent); }
+.flow-node.decisive .flow-dot { width: 14px; height: 14px; margin-left: -1px; box-shadow: 0 0 0 3px var(--fill), 0 0 0 5px color-mix(in srgb, var(--c) 35%, transparent); }
+.flow-node.decisive .flow-text { color: var(--text); }
+
+/* milestones: status changes and approval requests */
+.flow-node.milestone .flow-dot { background: var(--o); width: 14px; height: 14px; border-radius: 4px; transform: rotate(45deg); margin-left: -1px; }
+.flow-node.milestone strong { font-size: 13.5px; color: var(--o); }
+
+/* sub-agent branch */
+.flow-branch { position: relative; margin: 6px 0 6px 18px; padding: 8px 10px; border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--c); }
+.flow-branch::before { content: ""; position: absolute; left: -13px; top: 16px; width: 13px; height: 2px; background: var(--c); }
+.branch-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+.branch-flow::before { background: color-mix(in srgb, var(--c) 30%, transparent); }
+.branch-result { margin-top: 6px; padding: 7px 9px; border-radius: 9px; font-size: 12.5px; line-height: 1.4;
+  background: color-mix(in srgb, var(--c) 14%, transparent); display: grid; gap: 2px; overflow-wrap: anywhere; }
+.branch-result-kicker { font-size: 10.5px; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase; color: var(--c); }
+.branch-result.pending { color: var(--muted); font-style: italic; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .trail-block:last-child .trail-flow > .flow-node:last-child .flow-dot { animation: pulse-dot 1.6s ease-out 2; }
+}
+@keyframes pulse-dot { 0% { box-shadow: 0 0 0 3px var(--fill), 0 0 0 3px color-mix(in srgb, var(--c, var(--o)) 50%, transparent); } 100% { box-shadow: 0 0 0 3px var(--fill), 0 0 0 10px transparent; } }

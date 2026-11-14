@@ -355,3 +355,20 @@ def test_dry_detection_after_rain_only_incident_still_separates(h):
     h.hear("El Bajo", 3, "02:15:00", S.CHAINSAW, 0.82)  # now dry: joins neither rain-only incident
     rain_inc = next(i for i in h.commander.incidents.all() if i.in_rain)
     assert len(rain_inc.records) == 2
+
+
+def test_decision_trail_records_wake_delegation_tools_and_outcome(h):
+    inc_id = logging_incident(h)
+    trail = h.commander.incident_view(inc_id)["trace"]
+    kinds = [e["kind"] for e in trail]
+    assert kinds[0] == "status" and trail[0]["summary"] == "Incident opened"
+    assert "wake" in kinds and "delegate" in kinds and "result" in kinds and "tool" in kinds
+    assert any(e["kind"] == "delegate" and e.get("target") == "triage" for e in trail)
+    assert trail[-1]["kind"] in ("approval", "status")
+    assert any(e["kind"] == "approval" for e in trail)
+    (a,) = h.pending()
+    h.commander.decide(a.id, "approve")
+    trail = h.commander.incident_view(inc_id)["trace"]
+    assert any(e["kind"] == "ranger" and e.get("decision") == "approved" and e.get("via") == "dashboard" for e in trail)
+    assert any(e["kind"] == "status" and e.get("status") == "dispatched" for e in trail)
+    assert all(e.get("summary") not in (None, "None", "null") for e in trail)

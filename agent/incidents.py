@@ -69,7 +69,7 @@ def sound_name(sound: SoundClass) -> str:
 class AgentFiles:
     """Paths under agent_fs/. Virtual paths (what the LLM sees) start with '/'."""
 
-    CODE_OWNED = ("detections.jsonl", "approvals.jsonl")  # agent may read, never write
+    CODE_OWNED = ("detections.jsonl", "approvals.jsonl", "trace.jsonl")  # agent may read, never write
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()

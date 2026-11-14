@@ -68,7 +68,27 @@ from common.deployment import NO_AERIAL, Deployment, load_deployment
 log = logging.getLogger("agent.commander")
 
 MEMORY_FILES = ["/memories/nodes.md", "/memories/sectors.md"]
-CODE_OWNED = ["/incidents/*/detections.jsonl", "/incidents/*/approvals.jsonl"]
+CODE_OWNED = ["/incidents/*/detections.jsonl", "/incidents/*/approvals.jsonl", "/incidents/*/trace.jsonl"]
+STATUS_TEXT = {
+    "open": "Incident opened",
+    "watching": "Watching: re-check later",
+    "dismissed": "Dismissed as a false alarm",
+    "awaiting_approval": "Waiting for a ranger to approve",
+    "dispatched": "Ranger team dispatched",
+    "closed": "Closed with a case file",
+}
+
+
+def _wake_reason(wake: Any) -> str:
+    parts = []
+    if getattr(wake, "new_records", None):
+        n = len(wake.new_records)
+        parts.append(f"{n} new detection{'s' if n != 1 else ''}")
+    if getattr(wake, "check_due", False):
+        parts.append("scheduled re-check")
+    if getattr(wake, "messages", None):
+        parts.append("ranger message")
+    return "Woke up: " + (", ".join(parts) or "update")
 MEMORY_PROMPT = (
     "<station_memory>\n{agent_memory}\n</station_memory>\n"
     "Notes from past nights, loaded from /memories. Reference only: verified records and "
@@ -334,16 +354,22 @@ class StepReporter(BaseCallbackHandler):
 
     raise_error = False
 
-    def __init__(self, incident_id: str, files: AgentFiles, publish: Callable[[dict], None]) -> None:
+    def __init__(self, incident_id: str, files: AgentFiles, publish: Callable[[dict], None],
+                 trace: Callable[..., None] | None = None) -> None:
         self.incident_id = incident_id
         self.files = files
         self.publish = publish
+        self.trace = trace  # Commander._trace: persists the step and publishes it
         self._runs: dict[Any, tuple[str, str, dict]] = {}
         self.counts: dict[str, int] = {}  # tool calls per agent, read by Commander.stats
 
-    def step(self, agent: str, summary: str) -> None:
+    def step(self, agent: str, summary: str, kind: str = "note", tool: str | None = None, **extra: Any) -> None:
+        if self.trace is not None:
+            self.trace(self.incident_id, kind, agent, summary, tool=tool, **extra)
+            return
         self.publish(
-            {"type": "agent_step", "incident_id": self.incident_id, "agent": agent, "summary": _one_line(summary)}
+            {"type": "agent_step", "incident_id": self.incident_id, "agent": agent, "summary": _one_line(summary),
+             "kind": kind, "tool": tool}
         )
 
     def on_tool_start(self, serialized, input_str, *, run_id, metadata=None, inputs=None, **kw):
@@ -353,15 +379,16 @@ class StepReporter(BaseCallbackHandler):
         self._runs[run_id] = (agent, name, args)
         self.counts[agent] = self.counts.get(agent, 0) + 1
         if name == "task":
-            self.step("commander", f"asked {args.get('subagent_type', 'a sub-agent')} for help")
+            target = args.get("subagent_type", "a sub-agent")
+            self.step("commander", f"asked {target} for help", kind="delegate", tool="task", target=target)
 
     def on_tool_end(self, output, *, run_id, **kw):
         agent, name, args = self._runs.pop(run_id, ("commander", "tool", {}))
         text = _output_text(output)
         if name == "task":
-            self.step(args.get("subagent_type") or "commander", _first_meaningful_line(text))
+            self.step(args.get("subagent_type") or "commander", _first_meaningful_line(text), kind="result", tool="task")
             return
-        self.step(agent, _summarize(name, args, text))
+        self.step(agent, _summarize(name, args, text), kind="tool", tool=name)
         path = str(args.get("file_path", ""))
         if name in ("write_file", "edit_file") and path.endswith("/plan.md"):
             markdown = self.files.read(path) or ""
@@ -376,7 +403,7 @@ class StepReporter(BaseCallbackHandler):
 
     def on_tool_error(self, error, *, run_id, **kw):
         agent, name, _ = self._runs.pop(run_id, ("commander", "tool", {}))
-        self.step(agent, f"{name} failed: {type(error).__name__}")
+        self.step(agent, f"{name} failed: {type(error).__name__}", kind="error", tool=name)
 
 
 def _summarize(name: str, args: dict, text: str) -> str:
@@ -391,6 +418,29 @@ def _summarize(name: str, args: dict, text: str) -> str:
         return f"looked up {args.get('node_name', 'a node')}"
     if name == "remember":
         return f"remembered: {args.get('note', '')}"
+    if name == "compare_response_options":
+        try:
+            r = json.loads(text)
+            drone = "drone available" if r.get("drone_feasible") else f"no drone check ({r.get('drone_limitation') or 'unavailable'})"
+            seen = len(r.get("observations") or [])
+            ranger = r.get("ranger_outcome") or "no ranger report"
+            done = "; a team was already sent" if r.get("already_dispatched") else ""
+            return f"{drone}; {seen} camera observation{'s' if seen != 1 else ''}; {ranger.replace('_', ' ')}{done}"
+        except (ValueError, TypeError, AttributeError):
+            return "compared response options"
+    if name == "record_assessment":
+        action = str(args.get("next_action", "")).replace("_", " ")
+        why = _one_line(str(args.get("reason") or args.get("explanation") or ""), 140)
+        return f"next: {action}" + (f" — {why}" if why else "") if not text.startswith("Not recorded") else text
+    if name == "get_incident_evidence":
+        lines = text.splitlines()
+        nodes = next((ln for ln in lines if ln.startswith("Independent nodes")), "")
+        corr = next((ln for ln in lines if ln.startswith("Corroborated")), "")
+        return _one_line(" ".join(x for x in (nodes, corr) if x) or _first_meaningful_line(text), 200)
+    if name == "set_status":
+        return f"{args.get('status', '?')}: {_one_line(str(args.get('reason', '')), 160)}"
+    if name == "dispatch_rangers":
+        return _first_meaningful_line(text)
     if name == "plan_route":
         try:
             r = json.loads(text)
@@ -502,6 +552,7 @@ class Commander:
         self._executor = PriorityExecutor() if background else None
         self._busy: set[str] = set()
         self._failures: dict[str, int] = {}
+        self._last_status: dict[str, str] = {}  # for "status" entries in the decision trail
         self._stats: dict[str, dict] = {}  # per incident, this process only: eval reads it
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -691,6 +742,7 @@ class Commander:
         if self._prefiltered(inc, wake):
             return
         self._ensure_plan(inc)
+        self._trace(inc.id, "wake", "station", _wake_reason(wake))
         text = self.wake_text(inc, wake)
         try:
             self._run(inc.id, {"messages": [{"role": "user", "content": text}]})
@@ -766,7 +818,7 @@ class Commander:
     def _run(self, incident_id: str, payload: Any) -> None:
         inc = self.incidents.get(incident_id)
         ranger_revision = len(inc.ranger_updates)
-        reporter = StepReporter(incident_id, self.files, self.publish)
+        reporter = StepReporter(incident_id, self.files, self.publish, trace=self._trace)
         began = time.monotonic()
         config = self._config(inc, reporter)
         config["configurable"]["ranger_revision"] = ranger_revision
@@ -914,6 +966,7 @@ class Commander:
             self.approvals[approval.id] = approval
             self._save_approval(approval)
         self.incidents.update(incident_id, status="awaiting_approval", summary="Waiting for a ranger to approve dispatch", updated_at=now)
+        self._trace(incident_id, "approval", "station", f"Asked a ranger to approve sending a team to {approval.sector}")
         self.publish(approval.public())
 
     def _save_approval(self, a: Approval) -> None:
@@ -971,7 +1024,8 @@ class Commander:
             rejected_at_records=len(inc.records) if decision == "reject" else None,
         )
         self.publish(a.public())
-        self._step(a.incident_id, "commander", f"ranger {a.status} dispatch to {a.sector} (via {VIAS[a.decided_via]})")
+        self._trace(a.incident_id, "ranger", "ranger", f"{a.status.capitalize()} the team for {a.sector} (via {VIAS[a.decided_via]})",
+                    decision=a.status, via=a.decided_via)
 
         def resume() -> None:
             try:
@@ -990,9 +1044,29 @@ class Commander:
     # --- views (for the HTTP routes) ---
 
     def _step(self, incident_id: str, agent: str, summary: str) -> None:
-        self.publish({"type": "agent_step", "incident_id": incident_id, "agent": agent, "summary": _one_line(summary)})
+        self._trace(incident_id, "note", agent, summary)
+
+    def _trace(self, incident_id: str, kind: str, agent: str, summary: str, **extra: Any) -> None:
+        """One entry in the incident's decision trail: saved to trace.jsonl and sent to the UI.
+        kind: wake | delegate | result | tool | error | status | approval | ranger | note."""
+        inc = self.incidents.get(incident_id)
+        if inc is None:
+            return
+        entry = {"t": int(self.sim.now()), "kind": kind, "agent": agent, "summary": _one_line(summary),
+                 **{k: v for k, v in extra.items() if v is not None}}
+        try:
+            self.files.append_jsonl(inc.folder + "trace.jsonl", entry)
+        except OSError:
+            log.warning("could not write trace for %s", incident_id)
+        self.publish({"type": "agent_step", "incident_id": incident_id, **entry})
 
     def _incident_changed(self, inc: Incident) -> None:
+        seen = self.__dict__.setdefault("_last_status", {})  # may run during __init__
+        last = seen.get(inc.id)
+        if last != inc.status:
+            seen[inc.id] = inc.status
+            if last is not None or inc.status == "open":
+                self._trace(inc.id, "status", "station", STATUS_TEXT.get(inc.status, inc.status), status=inc.status)
         self.publish({"type": "incident", "incident": inc.public(self.world)})
 
     def list_incidents(self) -> list[dict]:
@@ -1020,11 +1094,23 @@ class Commander:
             "files": [n for n in names if self.files.read(inc.folder + n) is not None],
             "records": rows,
             "dispatches": inc.dispatches,
+            "trace": self._read_trace(inc),
             "ranger_actions": self._ranger_actions(inc),
             "approvals": [a.public() for a in list(self.approvals.values()) if a.incident_id == inc.id],
             "pending_approval": pending,
             "stats": self._stats.get(inc.id, {"runs": 0, "wall_s": 0.0, "steps": {}}),
         }
+
+    def _read_trace(self, inc: Incident, limit: int = 400) -> list[dict]:
+        out = []
+        for line in (self.files.read(inc.folder + "trace.jsonl") or "").splitlines()[-limit:]:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                out.append(row)
+        return out
 
     def _ranger_actions(self, inc: Incident) -> list[dict]:
         """Every decision on a dispatch request, in order: the ranger's (dashboard or iMessage)

@@ -285,6 +285,7 @@ function upsertIncident(raw) {
   if (typeof plan === "string") inc.plan = plan;
   if (typeof raw.plan_html === "string") inc.planHtml = raw.plan_html;
   if (Array.isArray(raw.ranger_actions)) inc.rangerActions = raw.ranger_actions;
+  if (Array.isArray(raw.trace)) inc.trace = raw.trace.slice(-TRACE_MAX);
   if (Array.isArray(raw.dispatches)) inc.dispatches = raw.dispatches;
   const steps = raw.steps || raw.agent_steps;
   if (Array.isArray(steps)) inc.steps = steps.slice(-STEPS_MAX).map(normalizeStep);
@@ -294,6 +295,8 @@ function upsertIncident(raw) {
   }
   return inc;
 }
+
+const TRACE_MAX = 400;
 
 function normalizeStep(s) {
   return { agent: s.agent || "commander", summary: String(s.summary ?? s.text ?? ""), t: s.at ?? s.t ?? s.timestamp ?? simNow() };
@@ -410,14 +413,9 @@ function renderDetail() {
     ),
     ranger,
     feedbackSection(inc),
-    inc.assessment ? el("section", { class: "detail-section" },
-      el("h3", {}, "Current assessment"),
-      el("p", {}, inc.assessment.explanation),
-      el("p", {}, "Next: " + String(inc.assessment.next_action).replaceAll("_", " ")),
-      el("p", {}, "Why: " + inc.assessment.reason),
-      el("details", {}, el("summary", {}, "Alternative explanation"), el("p", {}, inc.assessment.alternative))) : null,
+    assessmentSection(inc),
     el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
-    el("section", { class: "detail-section" }, el("h3", {}, "Activity"), steps),
+    decisionTrail(inc, steps),
     el("button", { class: "btn wide", type: "button", onclick: () => openCaseFile(inc) }, icon("doc"), "Case file"),
   ].filter(Boolean));
 }
@@ -565,6 +563,7 @@ function detailToIncident(raw) {
     plan: raw.plan?.markdown,
     plan_html: raw.plan?.html,
     ranger_actions: raw.ranger_actions,
+    trace: raw.trace,
     dispatches: raw.dispatches,
     approvals: raw.approvals,
     pending_approval: raw.pending_approval,
@@ -769,6 +768,188 @@ function renderNodeCard() {
     recordingsList(node),
   );
   if (audioUi.listFor !== node.id) loadRecordings(node);
+}
+
+// ---------- decision trail: how the agent got to its conclusion ----------
+
+const AGENT_INFO = {
+  commander: { label: "Commander", cls: "a-commander" },
+  triage: { label: "Triage", cls: "a-triage" },
+  "drone-pilot": { label: "Drone pilot", cls: "a-drone" },
+  evidence: { label: "Evidence", cls: "a-evidence" },
+  station: { label: "Station", cls: "a-station" },
+  ranger: { label: "Ranger", cls: "a-ranger" },
+};
+const TOOL_LABEL = {
+  get_incident_evidence: "Read the evidence", get_detections: "Searched detections", get_node_info: "Checked a node",
+  get_weather: "Checked the weather", compare_response_options: "Compared options", record_assessment: "Recorded an assessment",
+  dispatch_rangers: "Requested a ranger team", set_status: "Set the status", schedule_check: "Scheduled a re-check",
+  remember: "Saved a lesson", plan_route: "Planned a drone route", fly_drone: "Flew the drone", get_drone_status: "Checked the drone",
+  verify_signature: "Verified a signature", write_file: "Wrote notes", edit_file: "Edited notes", read_file: "Read a file",
+  ls: "Looked through files", glob: "Looked through files", grep: "Searched files", write_todos: "Updated the to-do list",
+};
+const DECISION_TOOLS = new Set(["dispatch_rangers", "set_status", "schedule_check", "record_assessment"]);
+const MINOR_TOOLS = new Set(["write_file", "edit_file", "read_file", "ls", "glob", "grep", "write_todos"]);
+const OUTCOME = {
+  open: ["Investigating", "o-open"], watching: ["Watching", "o-watch"], dismissed: ["Dismissed", "o-dismiss"],
+  awaiting_approval: ["Waiting for a ranger", "o-ask"], dispatched: ["Team dispatched", "o-dispatch"], closed: ["Closed", "o-closed"],
+};
+
+const trailClock = (t) =>
+  typeof t === "number" ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+const txt = (v) => (v === undefined || v === null ? "" : String(v));
+const agentOf = (e) => AGENT_INFO[e.agent] || { label: titleCase(txt(e.agent) || "agent"), cls: "a-station" };
+
+function decisionTrail(inc, fallback) {
+  const trace = inc.trace || [];
+  if (!trace.length) {
+    return el("section", { class: "detail-section" }, el("h3", {}, "Activity"), fallback);
+  }
+  const status = hasPendingApproval(inc.id) ? "awaiting_approval" : inc.status;
+  const [label, cls] = OUTCOME[status] || [statusLabel(status), "o-open"];
+  const outcome = el(
+    "div",
+    { class: `trail-outcome ${cls}` },
+    el("span", { class: "trail-outcome-kicker" }, "Conclusion"),
+    el("strong", {}, label),
+    inc.summary ? el("p", {}, txt(inc.summary)) : null,
+  );
+  const legend = el(
+    "div",
+    { class: "trail-legend" },
+    ...["commander", "triage", "drone-pilot", "evidence", "ranger", "station"]
+      .filter((a) => a === "commander" || trace.some((e) => e.agent === a))
+      .map((a) => el("span", { class: `legend-chip ${AGENT_INFO[a].cls}` }, AGENT_INFO[a].label)),
+  );
+  return el(
+    "section",
+    { class: "detail-section trail" },
+    el("h3", {}, "How the agent decided"),
+    outcome,
+    legend,
+    el("ol", { class: "trail-blocks" }, ...trailBlocks(trace).map(renderBlock)),
+  );
+}
+
+// A block starts at each wake-up or ranger decision; sub-agent work between a delegation and
+// its result becomes a branch inside the block.
+function trailBlocks(trace) {
+  const blocks = [];
+  let cur = null;
+  const start = (head) => {
+    cur = { head, items: [] };
+    blocks.push(cur);
+  };
+  for (const e of trace) {
+    if (e.kind === "wake" || e.kind === "ranger" || (e.kind === "status" && e.status === "open" && !blocks.length)) start(e);
+    else if (!cur) start({ kind: "wake", agent: "station", summary: "Earlier activity", t: e.t });
+    else if (e.kind === "status" && e.status === "open") continue; // brief re-open while resuming: noise
+    else cur.items.push(e);
+  }
+  for (const b of blocks) b.items = nest(b.items);
+  return blocks;
+}
+
+function nest(items) {
+  const out = [];
+  let branch = null;
+  for (const e of items) {
+    if (e.kind === "delegate") {
+      branch = { kind: "branch", agent: e.target || "sub-agent", t: e.t, items: [], result: null };
+      out.push(branch);
+    } else if (branch && e.kind === "result") {
+      branch.result = e;
+      branch = null;
+    } else if (branch && e.agent === branch.agent) {
+      branch.items.push(e);
+    } else {
+      out.push(e);
+    }
+  }
+  return out.map(squashMinor);
+}
+
+function squashMinor(e) {
+  if (e.kind !== "branch") return e;
+  return { ...e, items: groupMinor(e.items) };
+}
+
+// Collapse runs of file bookkeeping ("wrote notes", "read a file") into one quiet line.
+function groupMinor(items) {
+  const out = [];
+  for (const e of items) {
+    const minor = e.kind === "tool" && MINOR_TOOLS.has(e.tool);
+    const last = out[out.length - 1];
+    if (minor && last && last.kind === "minor") last.items.push(e);
+    else out.push(minor ? { kind: "minor", items: [e], t: e.t, agent: e.agent } : e);
+  }
+  return out;
+}
+
+function renderBlock(block) {
+  const h = block.head;
+  const trigger =
+    h.kind === "ranger"
+      ? el("span", { class: "trail-trigger t-ranger" }, "Ranger decision")
+      : h.kind === "status"
+        ? el("span", { class: "trail-trigger t-open" }, "New incident")
+        : el("span", { class: "trail-trigger t-wake" }, "Wake-up");
+  return el(
+    "li",
+    { class: "trail-block" },
+    el("div", { class: "trail-head" }, trigger, el("span", { class: "trail-head-text" }, txt(h.summary)), el("time", { class: "trail-time" }, trailClock(h.t))),
+    el("ol", { class: "trail-flow" }, ...groupMinor(block.items).map(renderItem)),
+  );
+}
+
+function renderItem(e) {
+  if (e.kind === "branch") return renderBranch(e);
+  if (e.kind === "minor") {
+    return el("li", { class: "flow-node minor" }, el("span", { class: "flow-dot a-station" }),
+      el("span", { class: "flow-text muted" }, `${e.items.length} note${e.items.length > 1 ? "s" : ""} written or read`));
+  }
+  const a = agentOf(e);
+  if (e.kind === "status" || e.kind === "approval") {
+    const [label, cls] = e.kind === "approval" ? ["Asked a ranger", "o-ask"] : OUTCOME[e.status] || [txt(e.summary), "o-open"];
+    return el("li", { class: `flow-node milestone ${cls}` }, el("span", { class: "flow-dot" }),
+      el("div", { class: "flow-body" }, el("strong", {}, label), e.kind === "approval" ? el("span", { class: "flow-text" }, txt(e.summary)) : null),
+      el("time", { class: "trail-time" }, trailClock(e.t)));
+  }
+  const decisive = e.kind === "tool" && DECISION_TOOLS.has(e.tool);
+  const title = e.kind === "error" ? "Tool failed" : e.tool ? TOOL_LABEL[e.tool] || titleCase(txt(e.tool).replaceAll("_", " ")) : a.label;
+  return el(
+    "li",
+    { class: `flow-node ${decisive ? "decisive" : ""} ${e.kind === "error" ? "error" : ""}` },
+    el("span", { class: `flow-dot ${a.cls}` }),
+    el("div", { class: "flow-body" },
+      el("span", { class: "flow-title" }, el("span", { class: `flow-agent ${a.cls}` }, a.label), title),
+      e.summary ? el("span", { class: "flow-text" }, txt(e.summary)) : null),
+  );
+}
+
+function renderBranch(b) {
+  const a = AGENT_INFO[b.agent] || { label: titleCase(txt(b.agent)), cls: "a-station" };
+  return el(
+    "li",
+    { class: `flow-branch ${a.cls}` },
+    el("div", { class: "branch-head" }, el("span", { class: `flow-agent ${a.cls}` }, a.label), "sub-agent"),
+    el("ol", { class: "trail-flow branch-flow" }, ...b.items.map(renderItem)),
+    b.result
+      ? el("div", { class: "branch-result" }, el("span", { class: "branch-result-kicker" }, "Reported back"), el("span", {}, txt(b.result.summary)))
+      : el("div", { class: "branch-result pending" }, "Working…"),
+  );
+}
+
+function assessmentSection(inc) {
+  const a = inc.assessment;
+  if (!a || !(a.explanation || a.reason)) return null;
+  const rows = [
+    a.explanation ? el("p", {}, txt(a.explanation)) : null,
+    a.next_action ? el("p", {}, el("strong", {}, "Next: "), txt(a.next_action).replaceAll("_", " ")) : null,
+    a.reason ? el("p", {}, el("strong", {}, "Why: "), txt(a.reason)) : null,
+    a.alternative ? el("details", {}, el("summary", {}, "Alternative explanation"), el("p", {}, txt(a.alternative))) : null,
+  ];
+  return el("section", { class: "detail-section" }, el("h3", {}, "Current assessment"), ...rows);
 }
 
 // ---------- node audio: live listening and saved recordings ----------
@@ -1196,6 +1377,11 @@ function handle(m) {
       if (!inc) return;
       inc.steps.push(normalizeStep(m));
       if (inc.steps.length > STEPS_MAX) inc.steps.shift();
+      if (m.kind) {
+        inc.trace = inc.trace || [];
+        inc.trace.push({ ...m, t: m.t ?? simNow() });
+        if (inc.trace.length > TRACE_MAX) inc.trace.shift();
+      }
       return incidentsChanged(inc.id);
     }
     case "approval":
