@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -148,15 +147,10 @@ def stamp(epoch):
         "+00:00", "Z")
 
 
-def code_for(approval):
-    return hashlib.sha256(approval["approval_id"].encode()).hexdigest()[:10].upper()
-
-
-def notification(approval):
-    return (f'Forest Guardian — approval {code_for(approval)}\n'
+def notification(approval, code):
+    return (f'Forest Guardian, approval {code}\n'
             f'Sector: {approval["sector"]}\n{approval["question"][:500]}\n'
-            f'Reply APPROVE {code_for(approval)} or REJECT {code_for(approval)} [reason]. '
-            "Expires in 15 minutes. Dashboard remains authoritative.")
+            f'Reply YES {code} or NO {code}. Expires in 15 minutes.')
 
 
 class Bridge:
@@ -196,15 +190,22 @@ class Bridge:
 
     def discover(self):
         for approval in self.station.pending():
-            code = code_for(approval)
-            with self.db:
-                self.db.execute("INSERT OR IGNORE INTO approvals VALUES (?,?,?,?)",
-                                (code, approval["approval_id"], approval["incident_id"],
-                                 self.clock() + 900))
-            row = self.db.execute("SELECT * FROM approvals WHERE code=?", (code,)).fetchone()
-            if row["approval"] != approval["approval_id"]:
-                raise BridgeError("Approval code collision; stopped")
-            self.queue("approval:" + approval["approval_id"], notification(approval), code)
+            row = self.db.execute("SELECT * FROM approvals WHERE approval=?",
+                                  (approval["approval_id"],)).fetchone()
+            if row is None:
+                # Short per-bridge number (1, 2, 3...), never reused, so a stale reply can't
+                # match a newer approval.
+                number = int(self.meta("next_code") or 1)
+                with self.db:
+                    self.db.execute("INSERT INTO approvals VALUES (?,?,?,?)",
+                                    (str(number), approval["approval_id"], approval["incident_id"],
+                                     self.clock() + 900))
+                    self.db.execute("INSERT OR REPLACE INTO meta VALUES ('next_code', ?)",
+                                    (str(number + 1),))
+                code = str(number)
+            else:
+                code = row["code"]
+            self.queue("approval:" + approval["approval_id"], notification(approval, code), code)
 
     def current(self, row):
         view = self.station.call("GET", f'/api/incidents/{row["incident"]}')
@@ -259,19 +260,19 @@ class Bridge:
             return
         # Claim first: failures/crashes are left for dashboard reconciliation, not replayed.
         text = message["content"].get("text", "")
-        match = re.fullmatch(r"(APPROVE|REJECT)\s+([0-9A-F]{10})(?:\s+(.{1,500}))?",
+        match = re.fullmatch(r"(YES|NO|APPROVE|REJECT)\s+(\d{1,6})(?:\s+(.{1,500}))?",
                              text.strip(), flags=re.IGNORECASE) if isinstance(text, str) else None
-        result = "Use APPROVE <code> or REJECT <code> [reason]."
-        if match and not (match[1].upper() == "APPROVE" and match[3]):
-            row = self.db.execute("SELECT * FROM approvals WHERE code=?",
-                                  (match[2].upper(),)).fetchone()
+        result = "Reply YES <number> or NO <number> [reason]."
+        word, number, note = (match[1].upper(), str(int(match[2])), match[3]) if match else (None, None, None)
+        if match and not (word in ("YES", "APPROVE") and note):
+            decision = "approve" if word in ("YES", "APPROVE") else "reject"
+            row = self.db.execute("SELECT * FROM approvals WHERE code=?", (number,)).fetchone()
             if row and self.current(row):
                 self.station.call("POST", f'/api/approvals/{row["approval"]}',
-                                  {"decision": match[1].lower(), "note": match[3] or "",
-                                   "via": "imessage"})
-                result = f"{match[2].upper()}: {match[1].lower()} decision recorded. Check dashboard."
+                                  {"decision": decision, "note": note or "", "via": "imessage"})
+                result = f"{number}: recorded. Check dashboard."
             else:
-                result = "Unknown, expired or already decided approval. Check dashboard."
+                result = f"{number}: not open. Check dashboard."
         with self.db:
             self.db.execute("UPDATE inbox SET outcome=? WHERE id=?", (result, identity))
             self.db.execute("INSERT OR IGNORE INTO outbox(id,text) VALUES (?,?)",
@@ -378,7 +379,7 @@ def main(argv=None):
         if not args.live:
             print("PREVIEW ONLY — no Photon calls or station mutations")
             for approval in station.pending():
-                print(notification(approval))
+                print(notification(approval, "N"))  # real numbers are assigned by the live bridge
             return 0
         # Credentials never activate the bridge by themselves.
         target = Target.from_env()

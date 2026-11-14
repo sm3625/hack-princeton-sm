@@ -98,7 +98,18 @@ def test_reject_routes_reason_through_gate(setup):
     assert h.commander.approvals[next(iter(h.commander.approvals))].status == "rejected"
     bridge.flush()
     assert len(provider.sent) == 1  # Expired approval notification is suppressed.
-    assert "reject decision recorded" in provider.sent[0][0]
+    assert provider.sent[0][0] == "1: recorded. Check dashboard."
+
+
+def test_short_number_reply_is_enough(setup):
+    h, bridge, provider, code, _ = setup
+    assert code == "1"  # Short number, not a hash
+    bridge.flush()
+    assert provider.sent[0][0].splitlines()[-1] == "Reply YES 1 or NO 1. Expires in 15 minutes."
+    bridge.receive(incoming("NO 99", "unknown-number"))  # Unknown number: nothing happens
+    assert not h.commander.incidents.all()[0].dispatches
+    bridge.receive(incoming("YES 1", "short-yes"))
+    assert len(h.commander.incidents.all()[0].dispatches) == 1
 
 
 @pytest.mark.parametrize("mutation", [

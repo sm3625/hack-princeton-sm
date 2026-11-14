@@ -1,8 +1,9 @@
 # Photon ranger approvals
 
 Implemented: pending Forest Guardian approvals can be sent to one allowlisted ranger's
-Photon iMessage conversation. The ranger replies `APPROVE <code>` or
-`REJECT <code> [reason]`. Replies use the existing `/api/approvals/{id}` endpoint and its
+Photon iMessage conversation. The ranger replies `YES <number>` or `NO <number> [reason]`,
+where the number is the short one in the message (e.g. `YES 3`). `APPROVE` and `REJECT`
+also work. Numbers are assigned per bridge database and never reused. Replies use the existing `/api/approvals/{id}` endpoint and its
 pending-interrupt, stale-request and one-use dispatch checks. This does not improve the
 classifier or model judgment; it makes the human approval gate reachable through iMessage.
 Dispatch in the current application is still simulated.
