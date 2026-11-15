@@ -26,7 +26,6 @@ async function refresh() {
         byId('edge-node').add(option);
       }
       populated = true;
-      byId('edge-panel').open = !location.pathname.startsWith('/incident/') && byId('tab-results').getAttribute('aria-selected') !== 'true';
     }
     if (state.connected) {
       const last = state.recent.at(-1);

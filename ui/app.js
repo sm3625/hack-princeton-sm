@@ -193,9 +193,7 @@ function feedRow(item) {
     { class: "feed-detail", hidden: true },
     item.seq !== undefined && item.seq !== null ? el("span", {}, `Record ${item.seq}`) : null,
     item.clip ? el("span", { class: "mono" }, `Clip ${String(item.clip).slice(0, 8)}…`) : null,
-    !rejected && item.seq !== undefined
-      ? el("button", { class: "btn small", type: "button", onclick: (e) => tamper(e, item) }, "Tamper")
-      : null,
+    !rejected && !item.stub && item.seq !== undefined ? tamperDemo(item) : null,
   );
   const row = el(
     "li",
@@ -227,14 +225,35 @@ function feedRow(item) {
   return row;
 }
 
-async function tamper(e, item) {
-  e.stopPropagation();
-  try {
-    await api(`/api/dev/tamper/${encodeURIComponent(item.nodeId)}/${encodeURIComponent(item.seq)}`, { method: "POST" });
-    toast("Tampered");
-  } catch {
-    toast("Unavailable");
-  }
+function tamperDemo(item) {
+  const choice = el("select", { "aria-label": "Change signed record field" },
+    el("option", { value: "timestamp" }, "Change time (+1 hour)"),
+    el("option", { value: "recording" }, "Change recording fingerprint"));
+  const result = el("div", { class: "tamper-result", role: "status", "aria-live": "polite" },
+    "Try an altered copy. Original evidence stays unchanged.");
+  const restore = el("button", { class: "btn small", type: "button", hidden: true,
+    onclick: () => {
+      result.textContent = "Original restored in preview · Signature valid. Original evidence was unchanged.";
+      restore.hidden = true;
+    } }, "Restore original");
+  const apply = el("button", { class: "btn small", type: "button", onclick: async () => {
+    apply.disabled = true;
+    restore.hidden = true;
+    try {
+      const value = await api(`/api/dev/tamper-preview/${encodeURIComponent(item.nodeId)}/${encodeURIComponent(item.seq)}?field=${encodeURIComponent(choice.value)}`, { method: "POST" });
+      const format = (v) => value.field === "timestamp" ? new Date(v * 1000).toISOString() : v;
+      result.replaceChildren(
+        el("div", {}, `${value.field === "timestamp" ? "Recorded time" : "Signed recording fingerprint"}:`),
+        el("div", { class: "mono" }, `${format(value.before)} → ${format(value.after)}`),
+        el("strong", {}, `Signature: ${value.original_verified ? "Valid" : "Invalid"} → ${value.modified_verified ? "Valid" : "Invalid"}`),
+        el("div", {}, value.modified_verified ? "Copy passes signature verification." : "Altered copy rejected as trusted evidence. Original preserved."),
+        value.field === "recording" ? el("div", {}, "Changes the hash inside the signed record, not the audio file.") : null);
+      restore.hidden = !value.original_verified;
+    } catch (error) {
+      result.textContent = "Demo unavailable or record no longer exists. Start a demo and select a new verified detection.";
+    } finally { apply.disabled = false; }
+  } }, "Test tampering");
+  return el("div", { class: "tamper-demo" }, choice, apply, restore, result);
 }
 
 function onDetection(m) {
@@ -413,10 +432,12 @@ function renderDetail() {
     decisionTrail(inc, steps),
     ranger,
     assessmentSection(inc),
-    inc.research ? researchSection(inc.research) : null,
+    researchShown(inc.research) ? researchSection(inc.research) : null,
     photonNote(inc),
   ].filter(Boolean));
 }
+
+const researchShown = (r) => !!r && !!r.status && r.status !== 'disabled';
 
 function researchSection(research) {
   const section = el('section', {class: 'detail-section rendered'});
@@ -430,7 +451,7 @@ function photonNote(inc) {
   const latest = inc.ranger_updates?.at(-1);
   return el("section", { class: "detail-section" }, el("h3", {}, "Ranger updates"),
     latest ? el("p", {}, "Last ranger report: " + latest.text) : null,
-    el("p", { class: "muted" }, "To send a correction or confirmation, message the station on Photon."));
+    el("p", { class: "muted" }, "To correct or confirm, text the station over iMessage."));
 }
 
 function renderMapIncidents() {
@@ -453,10 +474,10 @@ async function openCaseFile(inc) {
     const data = await api(`/api/incidents/${encodeURIComponent(inc.id)}/case_file`);
     if (data && typeof data.html === "string" && data.html.trim()) setSanitizedHtml(body, data.html);
     else body.replaceChildren(el("p", { class: "empty" }, "Not ready"));
-    if (data.research) body.append(researchSection(data.research));
+    if (researchShown(data.research)) body.append(researchSection(data.research));
   } catch (e) {
     if (e instanceof HttpError && e.status === 404) {
-      body.replaceChildren(el('p', {class: 'evidence-note'}, 'No authored case file has been saved for this incident. The recorded evidence is available below.'));
+      body.replaceChildren(el('p', {class: 'evidence-note'}, 'Case file not written yet. Recorded evidence below.'));
       try {
         const data = await api(`/api/incidents/${encodeURIComponent(inc.id)}`);
         body.append(el('h2', {}, 'Recorded incident'), el('p', {}, data.incident?.summary || inc.title),
@@ -464,7 +485,7 @@ async function openCaseFile(inc) {
         for (const [label, markup] of [['Plan', data.plan?.html], ['Triage', data.triage_html], ['Drone observations', data.drone_log_html]]) {
           if (markup) { const section = el('section', {}, el('h2', {}, label)); const text = el('div', {class: 'rendered'}); setSanitizedHtml(text, markup); section.append(text); body.append(section); }
         }
-        if (data.research) body.append(researchSection(data.research));
+        if (researchShown(data.research)) body.append(researchSection(data.research));
         body.append(el('h2', {}, 'Detection records'), el('pre', {class: 'evidence-records'}, JSON.stringify(data.records || [], null, 2)));
       } catch { body.append(el('p', {}, 'Evidence could not be loaded. Close this window and try again.')); }
     } else body.replaceChildren(el('p', {class: 'empty'}, 'Case file could not be loaded. Close this window and try again.'));
@@ -1014,7 +1035,7 @@ function assessmentSection(inc) {
   if (!a || !(a.explanation || a.reason)) return null;
   const rows = [
     a.explanation ? el("p", {}, txt(a.explanation)) : null,
-    a.next_action ? el("p", {}, el("strong", {}, "Next: "), txt(a.next_action).replaceAll("_", " ")) : null,
+    a.next_action && !["dispatched", "dismissed", "closed"].includes(inc.status) ? el("p", {}, el("strong", {}, "Next: "), txt(a.next_action).replaceAll("_", " ")) : null,
     a.reason ? el("p", {}, el("strong", {}, "Why: "), txt(a.reason)) : null,
     a.alternative ? el("details", {}, el("summary", {}, "Alternative explanation"), el("p", {}, txt(a.alternative))) : null,
   ];
@@ -1165,6 +1186,7 @@ function applySimState(s) {
     renderScenarioOptions();
   }
   onClock(s);
+  window.dispatchEvent(new CustomEvent("fg-bus", { detail: { ...s, type: "clock" } }));
   if (s.drone) onDrone(s.drone);
   if (Array.isArray(s.weather)) {
     for (const sector of [...state.rain]) onWeather({ sector, rain: false });
@@ -1233,7 +1255,7 @@ function onScenario(m) {
 
 function renderScenarioOptions() {
   const select = $("scenario");
-  const current = select.value || state.sim.scenario || prefs.get("scenario", "night1");
+  const current = select.value || state.sim.scenario || prefs.get("scenario", "demo");
   select.replaceChildren(...state.scenarios.map((s) => el("option", { value: s.name }, s.title || s.name)));
   if (state.scenarios.some((s) => s.name === current)) select.value = current;
 }
@@ -1485,6 +1507,7 @@ function connect() {
 }
 
 function handle(m) {
+  window.dispatchEvent(new CustomEvent("fg-bus", { detail: m })); // story.js narrates from these
   switch (m && m.type) {
     case "clock":
       return onClock(m);
@@ -1694,6 +1717,20 @@ async function chooseSite(map, card) {
     card.classList.remove("busy");
   }
 }
+
+// First-visit shortcut: keep the current site and start the short demo scenario.
+$("site-demo").addEventListener("click", async () => {
+  markSiteChooserSeen();
+  $("site-dialog").close();
+  if (![...$("scenario").options].some((o) => o.value === "demo")) return;
+  $("scenario").value = "demo";
+  $("speed").value = "20";
+  try {
+    await startScenario("demo");
+  } catch {
+    toast("Unavailable");
+  }
+});
 
 async function loadSites() {
   try {

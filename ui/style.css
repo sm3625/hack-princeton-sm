@@ -1562,7 +1562,7 @@ li + li > .incident-row::after { left: 38px; }
 .o-watch { --o: #5e8bd6; }
 .o-dismiss { --o: var(--muted); }
 .o-ask { --o: var(--amber); }
-.o-dispatch { --o: var(--red); }
+.o-dispatch { --o: var(--accent); }
 .o-closed { --o: var(--accent); }
 
 .trail-outcome {
@@ -1807,3 +1807,6 @@ li + li > .incident-row::after { left: 38px; }
   .site-cards { grid-template-columns: 1fr; padding: 4px 16px 18px; }
   .site-inset { height: 96px; }
 }
+
+.tamper-demo { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.tamper-result { flex-basis: 100%; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }

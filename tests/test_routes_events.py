@@ -153,3 +153,26 @@ def test_tamper_endpoint_is_off_unless_station_dev(client, monkeypatch):
         else:
             monkeypatch.setenv("STATION_DEV", value)
         assert client.post("/api/dev/tamper/5/8").status_code == 404
+
+
+@pytest.mark.parametrize("field", ["timestamp", "recording"])
+def test_tamper_preview_preserves_original(client, field):
+    raw = pack(detection(seq=8), KEYS[5])
+    client.rx.handle(raw)
+    for _ in range(2):
+        res = client.post('/api/dev/tamper-preview/5/8', params={"field": field})
+        assert res.status_code == 200
+        body = res.json()
+        assert body['before'] != body['after']
+        assert body['original_verified'] is True
+        assert body['modified_verified'] is False
+        assert body['original_preserved'] is True
+    assert client.rx.store.find(5, 8).raw == raw
+    assert client.rx.store.query()[0].verified
+
+
+def test_tamper_preview_requires_demo_and_valid_field(client, monkeypatch):
+    assert client.post('/api/dev/tamper-preview/5/8').status_code == 404
+    assert client.post('/api/dev/tamper-preview/5/8?field=node').status_code == 422
+    monkeypatch.setenv('STATION_DEV', '0')
+    assert client.post('/api/dev/tamper-preview/5/8').status_code == 404

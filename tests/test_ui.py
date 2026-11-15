@@ -411,7 +411,7 @@ def test_ranger_updates_point_to_photon_and_plan_lives_in_trail(browser, server,
     page.route("**/api/incidents/feedback-case", lambda route: route.fulfill(
         status=200, content_type="application/json", body=json.dumps({"incident": inc, "plan": inc["plan"]})))
     page.goto(server.url + "/incident/feedback-case")
-    expect(page.get_by_text("message the station on Photon")).to_be_visible()
+    expect(page.get_by_text("text the station over iMessage")).to_be_visible()
     expect(page.get_by_role("textbox", name="Ranger update")).to_have_count(0)
     expect(page.get_by_role("button", name="Plan & decision trail")).to_be_visible()
     assert page.errors == []
@@ -433,3 +433,33 @@ def test_run_reset_clears_incidents_approvals_and_feed(browser, server):
     server.publish(detection(7, seq=9876))
     expect(page.locator('#feed-empty')).not_to_be_visible()
     assert page.errors == []
+
+
+def test_tamper_preview_time_recording_and_restore(browser, server):
+    page = open_page(browser, server)
+    requests = []
+
+    def preview(route):
+        field = 'recording' if 'field=recording' in route.request.url else 'timestamp'
+        requests.append(field)
+        route.fulfill(json={"field": field,
+                            "before": 1700000000 if field == 'timestamp' else 'ab' * 16,
+                            "after": 1700003600 if field == 'timestamp' else '54' + 'ab' * 15,
+                            "original_verified": True, "modified_verified": False,
+                            "original_preserved": True})
+
+    page.route('**/api/dev/tamper-preview/**', preview)
+    server.publish(detection(5, seq=9876))
+    page.click('#tab-feed')
+    row = page.locator('.feed-item').filter(has_text='Record 9876')
+    row.locator('.feed-main').click()
+    row.get_by_role('button', name='Test tampering').click()
+    expect(row.locator('.tamper-result')).to_contain_text('Signature: Valid → Invalid')
+    expect(row.locator('.tamper-result')).to_contain_text('Recorded time')
+    row.get_by_role('button', name='Restore original').click()
+    expect(row.locator('.tamper-result')).to_contain_text('Original restored')
+    row.get_by_label('Change signed record field').select_option('recording')
+    row.get_by_role('button', name='Test tampering').click()
+    expect(row.locator('.tamper-result')).to_contain_text('not the audio file')
+    assert requests == ['timestamp', 'recording']
+    assert not page.errors

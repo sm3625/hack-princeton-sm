@@ -177,6 +177,9 @@ class Incident:
             "observations": self.observations,
             "ranger_updates": self.ranger_updates,
             "assessment": self.assessments[-1] if self.assessments else None,
+            # True once a person was asked to decide on a dispatch, whatever they answered.
+            "ranger_asked": bool(self.dispatches) or self.rejected_at_records is not None
+            or self.status == "awaiting_approval",
         }
 
     def to_json(self) -> str:

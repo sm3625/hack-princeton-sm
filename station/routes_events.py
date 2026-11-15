@@ -11,9 +11,10 @@ on include_router), so station/app.py only needs include_router.
 from __future__ import annotations
 
 import os
+import struct
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 
@@ -76,3 +77,30 @@ def tamper(
     if result is None:
         raise HTTPException(status_code=404, detail="No such record")
     return result
+
+
+@router.post("/api/dev/tamper-preview/{node_id}/{seq}", dependencies=[Depends(require_dev)])
+def tamper_preview(
+    node_id: int,
+    seq: int,
+    receiver: StationReceiver,
+    field: Literal["timestamp", "recording"] = "timestamp",
+) -> dict:
+    """Verify an altered copy of a signed record; retain the original evidence unchanged."""
+    event = receiver.store.find(node_id, seq)
+    if event is None:
+        raise HTTPException(status_code=404, detail="No such record")
+    original = bytes(event.raw)
+    changed = bytearray(original)
+    if field == "timestamp":
+        before = struct.unpack_from("<I", original, 7)[0]
+        after = before + 3600 if before <= 0xFFFFFFFF - 3600 else before - 3600
+        struct.pack_into("<I", changed, 7, after)
+    else:
+        before = original[23:39].hex()
+        changed[23] ^= 0xFF
+        after = changed[23:39].hex()
+    return {"field": field, "before": before, "after": after,
+            "original_verified": receiver.reverify(original),
+            "modified_verified": receiver.reverify(bytes(changed)),
+            "original_preserved": True}

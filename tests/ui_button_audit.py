@@ -78,7 +78,7 @@ def main():
             page.keyboard.press("Escape")
             checks.append(f"{width}: completed trail opens, closes and reopens")
             page.get_by_role("button", name="Case file & evidence").click()
-            expect(page.locator("#casefile-body")).to_contain_text("No authored case file")
+            expect(page.locator("#casefile-body")).to_contain_text("Case file not written yet")
             expect(page.locator("#casefile-body")).to_contain_text("Verified audit plan")
             page.locator("#casefile-close").click()
             page.unroute("**/api/incidents/audit-closed/case_file")
