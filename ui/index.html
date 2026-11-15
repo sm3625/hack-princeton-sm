@@ -22,7 +22,6 @@
       <span id="stub" class="chip stub" hidden>Stub</span>
     </div>
     <div class="controls" id="controls">
-      <select id="site" aria-label="Site" hidden></select>
       <select id="scenario" aria-label="Scenario"></select>
       <select id="speed" aria-label="Speed">
         <option value="1">1×</option>
@@ -121,6 +120,14 @@
       </div>
     </aside>
   </main>
+
+  <dialog id="site-dialog" class="sheet site-sheet" aria-labelledby="site-title">
+    <div class="sheet-head">
+      <h2 id="site-title">Choose a site</h2>
+      <button id="site-close" class="icon-btn" type="button" aria-label="Close"></button>
+    </div>
+    <div id="site-cards" class="site-cards"></div>
+  </dialog>
 
   <dialog id="casefile" class="sheet" aria-labelledby="casefile-title">
     <div class="sheet-head">

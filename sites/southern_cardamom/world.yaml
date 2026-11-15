@@ -7,9 +7,9 @@
 #  + many small ranger stations patrolling day and night: two posts inside the block
 #  + the river is a road: the valley post reaches the south by boat
 #  - steep ridges in the north and east: rangers move at half speed or worse
-#  - the summit ridge (G8, H7) sits in cloud and blocks the drone's radio link: no-fly
+#  - the summit ridge (G8, H7) sits in cloud: no-fly for any visiting drone
 #  - south-west monsoon: the windward west slopes are soaked for hours (rain false alarms)
-#  - the short-range drone cannot climb to the far ridge with its reserve: rangers must go
+#  - no drone (deployments/southern_cardamom.yaml): ridge cloud and monsoon gusts; rangers verify on foot
 width_m: 4000
 height_m: 4000
 sector_m: 500

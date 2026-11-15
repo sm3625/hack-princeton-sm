@@ -39,6 +39,24 @@ def server(tmp_path_factory):
         engine_mod.reset_engine(None)
 
 
+SKIP_SITE_CHOOSER = "try { sessionStorage.setItem('fg-site-chosen', '1') } catch (e) {}"
+
+
+class ChosenSiteBrowser:
+    """Pages open as if the site chooser was already answered (test_site_chooser covers it)."""
+
+    def __init__(self, browser):
+        self.raw = browser
+
+    def __getattr__(self, name):
+        return getattr(self.raw, name)
+
+    def new_context(self, **kwargs):
+        ctx = self.raw.new_context(**kwargs)
+        ctx.add_init_script(SKIP_SITE_CHOOSER)
+        return ctx
+
+
 @pytest.fixture(scope="module")
 def browser():
     with playwright_api.sync_playwright() as p:
@@ -46,8 +64,28 @@ def browser():
             b = p.chromium.launch()
         except playwright_api.Error as e:  # browser binaries missing
             pytest.skip(f"Chromium not available: {e}")
-        yield b
+        yield ChosenSiteBrowser(b)
         b.close()
+
+
+def test_site_chooser_opens_first_with_three_sites_and_their_resources(browser, server):
+    ctx = browser.raw.new_context(viewport={"width": 1280, "height": 800})
+    page = ctx.new_page()
+    page.goto(server.url + "/")
+    dialog = page.locator("#site-dialog")
+    expect(dialog).to_have_attribute("open", "", timeout=10_000)
+    cards = page.locator(".site-card")
+    expect(cards).to_have_count(3)
+    expect(page.locator(".site-row.none dd")).to_have_text(["None"])  # one site has no drone
+    expect(page.locator(".site-card.current")).to_contain_text("Maya Biosphere Reserve")
+    page.locator(".site-card.current").click()  # keeping the current site just closes it
+    expect(dialog).not_to_have_attribute("open", "")
+    page.reload()
+    expect(page.locator("body[data-live]")).to_be_attached(timeout=10_000)
+    expect(dialog).not_to_have_attribute("open", "")  # once per tab
+    page.locator(".brand-sub").click()
+    expect(dialog).to_have_attribute("open", "")
+    ctx.close()
 
 
 def open_page(browser, server, path="/", **context):

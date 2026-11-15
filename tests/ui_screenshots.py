@@ -88,7 +88,9 @@ def main(out: Path) -> None:
         browser = p.chromium.launch()
         pages = {}
         for name, opts in VIEWS.items():
-            page = browser.new_context(**opts).new_page()
+            ctx = browser.new_context(**opts)
+            ctx.add_init_script("try { sessionStorage.setItem('fg-site-chosen', '1') } catch (e) {}")
+            page = ctx.new_page()
             page.goto(srv.url)
             page.wait_for_selector("[data-node-name]")
             expect(page.locator("#clock-time")).not_to_have_text("--:--")

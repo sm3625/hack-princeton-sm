@@ -14,6 +14,7 @@ import {
   prefs,
   relTime,
   soundLabel,
+  svg,
   titleCase,
   toSeconds,
 } from "./util.js";
@@ -1312,6 +1313,10 @@ function bindControls() {
       setTab(tab.dataset.tab);
     });
   }
+  $("site-close").append(icon("cross"));
+  $("site-close").addEventListener("click", () => $("site-dialog").close());
+  $("site-dialog").addEventListener("close", markSiteChooserSeen);
+  $("site-dialog").addEventListener("click", (e) => { if (e.target === $("site-dialog")) $("site-dialog").close(); });
   $("casefile-close").append(icon("cross"));
   $("casefile-close").addEventListener("click", () => $("casefile").close());
   $("trail-close").append(icon("cross"));
@@ -1631,33 +1636,87 @@ resourcesForm.addEventListener("submit", async (event) => {
 
 window.addEventListener("demo-run-reset", loadResources);
 
-// Site picker: each map is a different reserve (sites/<map>/). Switching ends the current run.
-async function loadSites() {
-  const select = $("site");
+// Site chooser: three reserves side by side with what each one has. Shown once per tab when the
+// app opens; reopen it from the site name under "Forest Guardian". Switching ends the current run.
+const SITE_SEEN = "fg-site-chosen";
+const LINK_NAMES = { lora: "LoRa", satellite: "Satellite", cellular: "Cellular" };
+let siteData = null;
+
+function seenSiteChooser() {
+  try { return sessionStorage.getItem(SITE_SEEN) === "1"; } catch { return false; }
+}
+
+function markSiteChooserSeen() {
+  try { sessionStorage.setItem(SITE_SEEN, "1"); } catch { /* private mode: show again next load */ }
+}
+
+function siteCard(site, current) {
+  const r = site.resources;
+  const row = (label, value, cls = "") => el("div", { class: `site-row ${cls}` }, el("dt", { text: label }), el("dd", { text: value }));
+  const inset = svg("svg", { class: "site-inset", viewBox: "0 0 246 128", "aria-hidden": "true" });
+  loadGeo(site.geo_url).then(({ reserve }) =>
+    renderInset(inset, reserve, site.inset?.inset_country ? { country: site.inset.inset_country, zone: site.inset.inset_zone || "" } : undefined));
+  const card = el(
+    "button",
+    { class: `site-card${site.map === current ? " current" : ""}`, type: "button", "aria-pressed": String(site.map === current) },
+    inset,
+    el("div", { class: "site-name" },
+      el("strong", { text: site.title }),
+      site.map === current ? el("span", { class: "site-badge", text: "Current" }) : null),
+    el("span", { class: "site-region muted", text: site.region }),
+    el("dl", { class: "site-resources" },
+      row("Drones", r.drones ? String(r.drones) : "None", r.drones ? "" : "none"),
+      row("Ranger teams", `${r.ranger_teams} · ${r.response_min} min`),
+      row("Ranger posts", r.posts ? String(r.posts) : "—"),
+      row("Link", LINK_NAMES[r.connectivity] || r.connectivity)),
+  );
+  card.addEventListener("click", () => chooseSite(site.map, card));
+  return card;
+}
+
+function openSiteChooser() {
+  if (!siteData) return;
+  $("site-cards").replaceChildren(...siteData.sites.map((s) => siteCard(s, siteData.current)));
+  const dialog = $("site-dialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+async function chooseSite(map, card) {
+  markSiteChooserSeen();
+  if (map === siteData.current) return $("site-dialog").close();
+  for (const b of $("site-cards").querySelectorAll("button")) b.disabled = true;
+  card.classList.add("busy");
   try {
-    const data = await api("/api/sites");
-    if (!data.editable || data.sites.length < 2) return;
-    select.replaceChildren(
-      ...data.sites.map((s) => el("option", { value: s.map, text: s.title, title: s.region })),
-    );
-    select.value = data.current;
-    select.hidden = false;
+    await api("/api/sites", { method: "PUT", body: { map } });
+    location.reload();
   } catch {
-    select.hidden = true;
+    for (const b of $("site-cards").querySelectorAll("button")) b.disabled = false;
+    card.classList.remove("busy");
   }
 }
 
-$("site").addEventListener("change", async (event) => {
-  const select = event.target;
-  select.disabled = true;
+async function loadSites() {
   try {
-    await api("/api/sites", { method: "PUT", body: { map: select.value } });
-    location.reload();
+    siteData = await api("/api/sites");
   } catch {
-    select.disabled = false;
-    loadSites();
+    return;
   }
-});
+  if (!siteData.editable || siteData.sites.length < 2) return;
+  const sub = document.querySelector(".brand-sub");
+  if (sub && !sub.dataset.chooser) {
+    sub.dataset.chooser = "1";
+    sub.setAttribute("role", "button");
+    sub.tabIndex = 0;
+    sub.title = "Change site";
+    sub.classList.add("site-switch");
+    sub.addEventListener("click", openSiteChooser);
+    sub.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSiteChooser(); }
+    });
+  }
+  // A shared incident link opens straight on that incident.
+  if (!seenSiteChooser() && !location.pathname.startsWith("/incident/")) openSiteChooser();
+}
 
 async function loadWorld() {
   for (;;) {

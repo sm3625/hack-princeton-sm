@@ -148,6 +148,11 @@ def test_site_picker_switches_the_whole_map():
     assert listing["current"] == DEFAULT_MAP and not listing["editable"]
     assert [s["map"] for s in listing["sites"]] == available_maps()
     assert all(s["title"] and s["region"] for s in listing["sites"])
+    res = {s["map"]: s["resources"] for s in listing["sites"]}
+    assert any(r["drones"] == 0 for r in res.values())  # the chooser shows a site without a drone
+    assert res["southern_cardamom"] == {"drones": 0, "ranger_teams": 3, "response_min": 60,
+                                        "connectivity": "lora", "posts": 2, "approver": "station chief"}
+    assert all(s["geo_url"].startswith("/ui/geo/") for s in listing["sites"])
     assert client.put("/api/sites", json={"map": "gunung_leuser"}).status_code == 409
 
     engine.on_reset = on_reset

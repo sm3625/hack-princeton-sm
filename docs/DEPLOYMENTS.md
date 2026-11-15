@@ -13,7 +13,7 @@ DEPLOYMENT=no_drone make dev
 | `laguna_del_tigre_pilot` (default) | 1 (10 m/s, 10 km range, 15% reserve) | 1, 45 min | lora |
 | `no_drone` | 0 | 1, 90 min | satellite |
 | `well_resourced` | 3 (two bases, mixed specs) | 4, 20 min | cellular |
-| `southern_cardamom` | 1 (8 m/s, 7 km range, 20% reserve) | 3, 60 min | lora |
+| `southern_cardamom` | 0 (ridge cloud, monsoon gusts) | 3, 60 min | lora |
 | `gunung_leuser` | 1 (14 m/s, 16 km range) | 2, 40 min | cellular |
 
 ## Maps
@@ -31,7 +31,8 @@ DEPLOYMENT=gunung_leuser make dev
 DEPLOYMENT=southern_cardamom make dev
 ```
 
-Or pick a map in the dashboard header (site picker, next to the scenario). Switching ends the
+Or pick a map when the dashboard opens: a chooser shows the three sites side by side with each
+one's resources (reopen it from the site name under "Forest Guardian"). Switching ends the
 current run, points the node pipeline and receiver at the new map's sensors, starts a fresh
 commander on that map's profile (`laguna_del_tigre_pilot`, `southern_cardamom`, `gunung_leuser`)
 and reloads every open page. `GET /api/sites` lists maps; `PUT /api/sites {"map": ...}` switches
@@ -57,7 +58,7 @@ the post and ETA. The map shades terrain, outlines zones and marks posts (labels
 
 | Site | Plays to its strengths | Works around |
 |---|---|---|
-| Southern Cardamom | Two posts in the block; river boat access to the valley; quick re-checks | Steep ridges (x2.2 travel); cloud-capped summit no-fly (G8, H7); windward-slope monsoon false alarms; drone too short-ranged for the far ridge |
+| Southern Cardamom | Two posts in the block; river boat access to the valley; three teams; quick re-checks | No drone: every check is on foot, and steep ridges double travel time; windward-slope monsoon false alarms |
 | Gunung Leuser | Road and phone signal at the boundary; long-range drone over flat lowland | Plantation chainsaws and trucks are lawful by day on the farm side, so the same sound means different things by side and hour; steep poaching hills; village and feeding area no-fly |
 
 Node, post and terrain names are illustrative. OSM coverage in the Cardamom block is sparse.

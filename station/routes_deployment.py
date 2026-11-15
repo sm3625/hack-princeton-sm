@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from common.deployment import MAX_DRONES, DeploymentError, load_deployment
-from common.sites import available_maps, map_profile, map_summaries
+from common.sites import available_maps, map_profile, map_summaries, site_map
 
 router = APIRouter()
 
@@ -55,7 +55,28 @@ async def sites(request: Request) -> dict:
     return {
         "current": request.app.state.deployment.map,
         "editable": bool(getattr(engine, "on_reset", None)),
-        "sites": map_summaries(),
+        "sites": [{**s, **_resources(s["map"])} for s in map_summaries()],
+    }
+
+
+def _resources(key: str) -> dict:
+    """What a site has, from the profile it opens with (read-only, no secrets)."""
+    from common.contracts import load_world
+
+    profile = load_deployment(map_profile(key))
+    world = load_world(site_map(key).world_file)
+    return {
+        "geo_url": site_map(key).geo_url,
+        "inset": {k: world.site.get(k) for k in ("inset_country", "inset_zone")},
+        "resources": {
+            "drones": profile.drones.count,
+            "ranger_teams": profile.ranger_teams.count,
+            "response_min": profile.ranger_teams.response_min,
+            "connectivity": profile.connectivity,
+            "posts": len(world.ranger_posts),
+            "approver": profile.approval.approver,
+        },
+        "description": profile.site.description,
     }
 
 
