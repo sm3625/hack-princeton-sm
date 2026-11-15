@@ -146,6 +146,14 @@ def get_incident(incident_id: str, c: CommanderDep) -> dict:
         raise HTTPException(404, "No such incident.") from None
 
 
+@router.get("/api/incidents/{incident_id}/research")
+def get_research(incident_id: str, c: CommanderDep) -> dict:
+    try:
+        return c.research_view(incident_id)
+    except NotFound:
+        raise HTTPException(404, "No such incident.") from None
+
+
 @router.get("/api/incidents/{incident_id}/case_file")
 def get_case_file(incident_id: str, c: CommanderDep) -> dict:
     try:

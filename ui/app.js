@@ -281,6 +281,7 @@ function upsertIncident(raw) {
   for (const key of ["sector", "status", "title", "updated_at", "assessment", "ranger_updates"]) {
     if (raw[key] !== undefined && raw[key] !== null) inc[key] = raw[key];
   }
+  if (raw.research) inc.research = raw.research;
   const plan = raw.plan ?? raw.plan_markdown ?? raw.markdown;
   if (typeof plan === "string") inc.plan = plan;
   if (typeof raw.plan_html === "string") inc.planHtml = raw.plan_html;
@@ -369,7 +370,7 @@ function renderDetail() {
     view.replaceChildren(
       el('button', {class: 'back', type: 'button', onclick: () => closeIncident()}, icon('chevronLeft'), 'Back to incidents'),
       el('div', {class: 'detail-actions'},
-        el('button', {class: 'btn', type: 'button', onclick: () => openTrail(state.selected)}, 'Decision trail'),
+        el('button', {class: 'btn', type: 'button', onclick: () => openTrail(state.selected)}, 'Plan & decision trail'),
         el('button', {class: 'btn', type: 'button', onclick: () => openCaseFile(state.incidents.get(state.selected))}, icon('doc'), 'Case file & evidence')),
       el('div', {class: 'detail-content'}));
   }
@@ -380,15 +381,6 @@ function renderDetail() {
     content.replaceChildren(el("p", { class: "empty" }, "Incident details are loading or unavailable."));
     return;
   }
-  const plan = inc.planHtml
-    ? (() => {
-        const d = el("div", { class: "plan rendered" });
-        setSanitizedHtml(d, inc.planHtml);
-        return d;
-      })()
-    : inc.plan
-      ? el("pre", { class: "plan" }, inc.plan)
-      : el("p", { class: "muted" }, "—");
   const steps = inc.steps.length
     ? el(
         "ol",
@@ -417,48 +409,27 @@ function renderDetail() {
       el("span", { class: `status ${statusClass(inc)}` }, hasPendingApproval(inc.id) ? "Awaiting approval" : statusLabel(inc.status)),
       inc.updated_at !== undefined ? timeEl(inc.updated_at) : null,
     ),
-    ranger,
-    feedbackSection(inc),
-    assessmentSection(inc),
-    el("section", { class: "detail-section" }, el("h3", {}, "Plan"), plan),
     decisionTrail(inc, steps),
-
+    ranger,
+    assessmentSection(inc),
+    inc.research ? researchSection(inc.research) : null,
+    photonNote(inc),
   ].filter(Boolean));
 }
 
-const feedbackDrafts = new Map();
-function feedbackSection(inc) {
-  const draft = feedbackDrafts.get(inc.id) || { text: "", outcome: "" };
-  feedbackDrafts.set(inc.id, draft);
-  const note = el("textarea", { class: "ranger-feedback-note", maxlength: "500", required: true,
-    placeholder: "What did you observe or confirm?", "aria-label": "Ranger update" });
-  const outcome = el("select", { "aria-label": "Ranger outcome" },
-    ...[["", "Message / correction"], ["confirmed_threat", "Confirmed threat"],
-      ["authorized_activity", "Authorized activity"], ["false_alarm", "False alarm"],
-      ["unresolved", "Unresolved"]].map(([value, label]) => el("option", { value }, label)));
-  note.value = draft.text;
-  outcome.value = draft.outcome;
-  note.addEventListener("input", () => { draft.text = note.value; });
-  outcome.addEventListener("change", () => { draft.outcome = outcome.value; });
-  const status = el("p", { role: "status", class: "muted" });
-  const submit = el("button", { type: "submit", class: "btn" }, "Send ranger update");
-  const form = el("form", { onsubmit: async (event) => {
-    event.preventDefault();
-    if (!note.value.trim()) { status.textContent = "Enter a ranger note."; return; }
-    submit.disabled = true;
-    try {
-      await api(`/api/incidents/${encodeURIComponent(inc.id)}/messages`, { method: "POST",
-        body: { text: note.value.trim(), outcome: outcome.value || null } });
-      note.value = "";
-      feedbackDrafts.delete(inc.id);
-      status.textContent = "Update saved. Pending proposals will be reassessed; prior dispatches cannot be recalled here.";
-      refreshIncident(inc.id);
-    } catch { status.textContent = "Could not save the update. Please try again."; }
-    finally { submit.disabled = false; }
-  } }, outcome, note, submit, status);
+function researchSection(research) {
+  const section = el('section', {class: 'detail-section rendered'});
+  setSanitizedHtml(section, research.html || '');
+  if (research.assessment_version) section.append(el('p', {class: 'muted'}, `Context supplied to assessment: ${research.assessment_version}`));
+  return section;
+}
+
+// Ranger updates arrive as Photon messages (station/photon.py bridge), not through a form here.
+function photonNote(inc) {
   const latest = inc.ranger_updates?.at(-1);
-  return el("section", { class: "detail-section" }, el("h3", {}, "Message ranger station"),
-    latest ? el("p", {}, "Last ranger report: " + latest.text) : null, form);
+  return el("section", { class: "detail-section" }, el("h3", {}, "Ranger updates"),
+    latest ? el("p", {}, "Last ranger report: " + latest.text) : null,
+    el("p", { class: "muted" }, "To send a correction or confirmation, message the station on Photon."));
 }
 
 function renderMapIncidents() {
@@ -481,6 +452,7 @@ async function openCaseFile(inc) {
     const data = await api(`/api/incidents/${encodeURIComponent(inc.id)}/case_file`);
     if (data && typeof data.html === "string" && data.html.trim()) setSanitizedHtml(body, data.html);
     else body.replaceChildren(el("p", { class: "empty" }, "Not ready"));
+    if (data.research) body.append(researchSection(data.research));
   } catch (e) {
     if (e instanceof HttpError && e.status === 404) {
       body.replaceChildren(el('p', {class: 'evidence-note'}, 'No authored case file has been saved for this incident. The recorded evidence is available below.'));
@@ -491,6 +463,7 @@ async function openCaseFile(inc) {
         for (const [label, markup] of [['Plan', data.plan?.html], ['Triage', data.triage_html], ['Drone observations', data.drone_log_html]]) {
           if (markup) { const section = el('section', {}, el('h2', {}, label)); const text = el('div', {class: 'rendered'}); setSanitizedHtml(text, markup); section.append(text); body.append(section); }
         }
+        if (data.research) body.append(researchSection(data.research));
         body.append(el('h2', {}, 'Detection records'), el('pre', {class: 'evidence-records'}, JSON.stringify(data.records || [], null, 2)));
       } catch { body.append(el('p', {}, 'Evidence could not be loaded. Close this window and try again.')); }
     } else body.replaceChildren(el('p', {class: 'empty'}, 'Case file could not be loaded. Close this window and try again.'));
@@ -583,6 +556,7 @@ function detailToIncident(raw) {
     ...raw.incident,
     plan: raw.plan?.markdown,
     plan_html: raw.plan?.html,
+    research: raw.research,
     ranger_actions: raw.ranger_actions,
     trace: raw.trace,
     dispatches: raw.dispatches,
@@ -864,7 +838,10 @@ function renderTrailDialog() {
   const body = $("trail-body");
   const keep = body.scrollTop;
   $("trail-subtitle").textContent = [inc.title, inc.sector].filter(Boolean).join(" · ");
-  body.replaceChildren((inc.trace || []).length ? fullTrail(inc) :
+  const planEl = inc.planHtml ? (() => { const d = el("div", { class: "plan rendered" }); setSanitizedHtml(d, inc.planHtml); return d; })()
+    : inc.plan ? el("pre", { class: "plan" }, inc.plan) : null;
+  const planBlock = planEl ? el("section", { class: "detail-section trail-plan" }, el("h3", {}, "Plan"), planEl) : null;
+  body.replaceChildren(...(planBlock ? [planBlock] : []), (inc.trace || []).length ? fullTrail(inc) :
     el('p', {class: 'empty'}, 'No decision trail was recorded for this incident. Older incidents may predate trace recording; new agent activity will appear here.'));
   body.scrollTop = keep;
 }
@@ -1511,6 +1488,10 @@ function handle(m) {
       inc.plan = typeof m.markdown === "string" ? m.markdown : inc.plan;
       inc.planHtml = typeof m.html === "string" ? m.html : inc.planHtml;
       return incidentsChanged(inc.id);
+    }
+    case "research": {
+      const inc = upsertIncident({id: m.incident_id, research: m});
+      return inc ? incidentsChanged(inc.id) : undefined;
     }
     case "agent_step": {
       const inc = upsertIncident({ id: m.incident_id });

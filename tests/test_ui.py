@@ -364,25 +364,16 @@ def test_results_keep_live_and_waiting_memory_runs_separate(browser, server):
 
 
 @pytest.mark.parametrize("width", [390, 1280])
-def test_ranger_feedback_form_preserves_draft_and_submits(browser, server, width):
+def test_ranger_updates_point_to_photon_and_plan_lives_in_trail(browser, server, width):
     page = open_page(browser, server, viewport={"width": width, "height": 850})
-    inc = {"id": "feedback-case", "sector": "E5", "status": "watching", "title": "Review activity"}
-    posted = []
+    inc = {"id": "feedback-case", "sector": "E5", "status": "watching", "title": "Review activity",
+           "plan": {"markdown": "- [ ] Triage"}}
     page.route("**/api/incidents/feedback-case", lambda route: route.fulfill(
-        status=200, content_type="application/json", body=json.dumps({"incident": inc})))
-    def submit(route):
-        posted.append(json.loads(route.request.post_data))
-        route.fulfill(status=202, content_type="application/json", body='{"ok":true}')
-    page.route("**/api/incidents/feedback-case/messages", submit)
+        status=200, content_type="application/json", body=json.dumps({"incident": inc, "plan": inc["plan"]})))
     page.goto(server.url + "/incident/feedback-case")
-    note = page.get_by_role("textbox", name="Ranger update")
-    note.fill("Permit verified <script>not markup</script>")
-    page.get_by_role("combobox", name="Ranger outcome").select_option("authorized_activity")
-    server.publish({"type": "incident", "incident": {**inc, "updated_at": 999}})
-    expect(note).to_have_value("Permit verified <script>not markup</script>")
-    page.get_by_role("button", name="Send ranger update").click()
-    expect(note).to_have_value("")
-    assert posted == [{"text": "Permit verified <script>not markup</script>", "outcome": "authorized_activity"}]
+    expect(page.get_by_text("message the station on Photon")).to_be_visible()
+    expect(page.get_by_role("textbox", name="Ranger update")).to_have_count(0)
+    expect(page.get_by_role("button", name="Plan & decision trail")).to_be_visible()
     assert page.errors == []
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 

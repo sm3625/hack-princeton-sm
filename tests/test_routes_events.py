@@ -114,7 +114,15 @@ def test_app_lifespan_starts_udp_listener_end_to_end(app_env, tmp_path):
                 lambda: len(d := client.get("/api/detections").json()["detections"]) == 2 and d
             )
             assert [(r["seq"], r["verified"]) for r in rows] == [(2, False), (1, True)]
-            first, second = ws.receive_json(), ws.receive_json()
+            # Commander/research events may interleave with transport events.
+            received = []
+            for _ in range(30):
+                message = ws.receive_json()
+                if message["type"] in ("detection", "rejected"):
+                    received.append(message)
+                if len(received) == 2:
+                    break
+            first, second = received
         link.close()
     assert first["type"] == "detection" and first["node"] == "Arroyo Recodo"
     assert second == {"type": "rejected", "node": "Arroyo Recodo", "reason": "bad_signature", "seq": 2}

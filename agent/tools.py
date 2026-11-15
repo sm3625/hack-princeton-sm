@@ -93,6 +93,9 @@ class Services:
     publish: Callable[[dict], None] = lambda msg: None
     clips_root: Path = ROOT / "node_data"
 
+    research: object | None = None
+    research_used: dict = field(default_factory=dict)
+
     # --- helpers shared by tools and the commander ---
 
     def node_by_name(self, name: str) -> Node | None:
@@ -280,6 +283,31 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         return s.incident_evidence(inc)
 
     @tool
+    def request_site_research(incident_id: str, question: str, config: RunnableConfig) -> str:
+        """Request advisory public site context without waiting. Private question text stays local.
+        Continue investigating; a distinct wake arrives when research completes."""
+        inc = s.current(config)
+        if inc is None or inc.id != incident_id:
+            return "No matching active incident."
+        if s.research is None:
+            return '{"status":"disabled"}'
+        view = s.research.request(inc.id, inc.family, question)
+        if view.get("briefing"):
+            s.research_used[inc.id] = view["briefing"]["version"]
+        return json.dumps(view)
+
+    @tool
+    def get_site_research(incident_id: str, config: RunnableConfig) -> str:
+        """Read cached advisory findings, sources and real-world dates, never sensor evidence."""
+        inc = s.current(config)
+        if inc is None or inc.id != incident_id:
+            return "No matching active incident."
+        view = s.research.context_view(inc.id) if s.research else {"status": "disabled"}
+        if view.get("briefing"):
+            s.research_used[inc.id] = view["briefing"]["version"]
+        return json.dumps(view)
+
+    @tool
     def compare_response_options(config: RunnableConfig) -> str:
         """Read current drone feasibility, observations and ranger corrections before choosing
         a response. No flight is launched. Waiting, ranger assessment and approval-gated dispatch
@@ -325,6 +353,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
                  "alternative": alternative[:500], "next_action": next_action, "reason": reason[:500],
                  "records": [{"node": s.world.node(n).name, "seq": seq} for n, seq in inc.records],
                  "observation_count": len(inc.observations), "ranger_update_count": len(inc.ranger_updates)}
+        if version := s.research_used.get(inc.id):
+            entry["research_version"] = version
         s.incidents.update(inc.id, assessments=[*inc.assessments, entry], updated_at=s.sim.now())
         return "Assessment recorded. Actions still require their tools and ranger approval."
 
@@ -598,6 +628,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         remember,
         verify_signature,
     ]
+    if s.research is not None and s.research.enabled:
+        all_tools += [request_site_research, get_site_research]
     if s.deployment.has_drones:
         all_tools += [plan_route, fly_drone, get_drone_status]
     return {t.name: t for t in all_tools}
@@ -605,6 +637,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
 TOOLSETS = {
     "commander": [
+        "request_site_research", "get_site_research",
         "get_incident_evidence", "compare_response_options", "record_assessment",
         "get_detections",
         "get_node_info",

@@ -413,6 +413,7 @@ class Wake:
     check_due: bool = False
     check_note: str = ""
     messages: list[str] = field(default_factory=list)
+    research_ready: bool = False
 
     @property
     def kind(self) -> str:
@@ -420,7 +421,7 @@ class Wake:
             return "new_detections"
         if self.check_due:
             return "scheduled_check"
-        return "ranger_message"
+        return "research_ready" if self.research_ready and not self.messages else "ranger_message"
 
 
 @dataclass
@@ -431,6 +432,7 @@ class _Pending:
     check_at: float | None = None  # sim time
     check_note: str = ""
     messages: list[str] = field(default_factory=list)
+    research_ready: bool = False
     retry_wall_due: float | None = None  # after a failed run, nothing fires before this
 
 
@@ -461,6 +463,10 @@ class WakeQueue:
         with self._lock:
             self._pending.setdefault(incident_id, _Pending()).messages.append(text)
 
+    def research(self, incident_id: str) -> None:
+        with self._lock:
+            self._pending.setdefault(incident_id, _Pending()).research_ready = True
+
     def requeue(self, wake: Wake, delay_s: float) -> None:
         """Put a wake back after a failed run (e.g. the model server is down), with backoff."""
         with self._lock:
@@ -471,13 +477,14 @@ class WakeQueue:
                 p.det_wall_due = p.det_wall_due if p.det_wall_due is not None else 0
             if wake.check_due and p.check_at is None:
                 p.check_at, p.check_note = 0, wake.check_note
+            p.research_ready = p.research_ready or wake.research_ready
             p.messages = wake.messages + p.messages
             p.retry_wall_due = self.wall() + delay_s
 
     def has_pending(self) -> bool:
         """Detections or ranger messages still waiting for a wake-up (scheduled checks do not count)."""
         with self._lock:
-            return any(p.records or p.messages for p in self._pending.values())
+            return any(p.records or p.messages or p.research_ready for p in self._pending.values())
 
     def pending_check(self, incident_id: str) -> float | None:
         with self._lock:
@@ -499,7 +506,8 @@ class WakeQueue:
                     wake.check_due, wake.check_note, p.check_at = True, p.check_note, None
                 if p.messages:
                     wake.messages, p.messages = p.messages, []
-                if wake.new_records or wake.check_due or wake.messages:
+                wake.research_ready, p.research_ready = p.research_ready, False
+                if wake.new_records or wake.check_due or wake.messages or wake.research_ready:
                     out.append(wake)
                 if not (p.records or p.check_at is not None or p.messages):
                     del self._pending[inc_id]
