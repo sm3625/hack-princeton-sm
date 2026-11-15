@@ -64,6 +64,13 @@ V1 conservatively treats narrative findings as regional: there is no geospatial 
 justify sector rankings or overlays. Public sources cannot establish criminal activity by
 people at the site or override a ranger correction.
 
+Regional uncertainty and possible legitimate activities do not cancel corroborated local
+reports or a supporting camera observation. The commander may request human approval for a
+field check without claiming a crime occurred. It saves its assessment before proposing
+dispatch in a separate tool call; Claude commander calls disable parallel tools so an approval
+interrupt cannot pause the assessment it depends on. Station validation failures are logged
+as validation failures, not as ranger rejections.
+
 Forecasts are for real UTC dates and a weather-model grid near the public site centre. They
 are not observations and never replace simulated `get_weather`, change flight limits, queue
 priority, sensor confidence or the dispatch approval gate. Seasonal narratives require

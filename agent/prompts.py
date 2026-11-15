@@ -8,7 +8,16 @@ import os
 
 from common.deployment import NO_AERIAL, Deployment
 
-COMMANDER = """You are the incident commander at a forest ranger station.
+FILE_WRITING = """When using write_file, always provide both file_path (the absolute path in the
+incident folder) and content (the complete Markdown text as a string) in the same call.
+Example: write_file(file_path="/incidents/<incident_id>/triage.md", content="# Triage\n...").
+A filename alone does not write a report. If a tool rejects missing or invalid arguments,
+correct them and retry before claiming the file was saved. Never replace missing content
+with an empty string just to pass validation.
+
+"""
+
+COMMANDER = FILE_WRITING + """You are the incident commander at a forest ranger station.
 Sensor nodes send signed sound detections. Code has already grouped them into the incident
 named in each wake-up message. Every wake-up resumes this incident's thread.
 
@@ -36,7 +45,7 @@ Rules:
 - Every claim in a case file cites its records as [Node Name #seq].
 - Use only node names listed in the evidence, and sector names. Be brief."""
 
-TRIAGE = """You are the triage analyst at a forest ranger station.
+TRIAGE = FILE_WRITING + """You are the triage analyst at a forest ranger station.
 Decide if the detections in an incident are a real threat.
 
 First call get_incident_evidence. It lists every record, counts the independent nodes and
@@ -60,7 +69,7 @@ DRONE_PILOT = """You fly the ranger station's drone.
 Reply in two sentences: what the camera saw, distance flown and battery left.
 If you could not fly, say why. The flight log is written for you."""
 
-EVIDENCE = """You build the case file for a closed incident at a forest ranger station.
+EVIDENCE = FILE_WRITING + """You build the case file for a closed incident at a forest ranger station.
 1. read_file detections.jsonl in the incident folder.
 2. verify_signature for every record in it.
 3. read_file triage.md, drone_log.md and approvals.jsonl in the folder, if present.
@@ -149,6 +158,11 @@ Investigation rules override any automatic drone-then-dispatch sequence above:
   independent confirmation. Compare real activity with weather interference.
 - Before acting on a drone result or ranger update, call compare_response_options and
   record_assessment: explanation, plausible alternative, next action and why it is preferable.
+  Call record_assessment separately and wait for its result BEFORE dispatch_rangers; never
+  put assessment and dispatch in the same tool batch. A proposal is a request for human
+  approval of a field check, not a declaration that a crime occurred. When corroborated
+  detections and a supporting camera observation warrant checking activity, request approval
+  promptly and disclose plausible legitimate explanations; do not demand proof of illegality.
 - An unavailable drone is missing evidence, never confirmation. With strong urgent acoustic
   evidence you may propose ranger assessment/dispatch, explicitly stating no aerial verification.
   Otherwise watch and schedule a bounded recheck. Do not claim illegal activity from sounds alone.

@@ -372,3 +372,53 @@ def test_decision_trail_records_wake_delegation_tools_and_outcome(h):
     assert any(e["kind"] == "ranger" and e.get("decision") == "approved" and e.get("via") == "dashboard" for e in trail)
     assert any(e["kind"] == "status" and e.get("status") == "dispatched" for e in trail)
     assert all(e.get("summary") not in (None, "None", "null") for e in trail)
+
+
+def test_triage_missing_write_content_is_reported_and_recoverable(h, monkeypatch):
+    from langchain_core.messages import ToolMessage
+
+    from agent.mock import POLICIES
+
+    original = POLICIES["triage"]
+    pending = []
+    injected = False
+    corrected = False
+
+    def malformed_then_retry(messages):
+        nonlocal injected, corrected
+        if pending:
+            errors = [m for m in messages if isinstance(m, ToolMessage)
+                      and "content: Field required" in str(m.content)]
+            assert errors, "The model must receive actionable validation feedback"
+            corrected = True
+            return pending.pop()
+        result = original(messages)
+        if not injected and isinstance(result, list) and result[0][0] == "write_file":
+            injected = True
+            pending.append(result)
+            return [("write_file", {"file_path": result[0][1]["file_path"]})]
+        return result
+
+    monkeypatch.setitem(POLICIES, "triage", malformed_then_retry)
+    inc_id = logging_incident(h)
+    assert injected and corrected
+    assert "real" in h.file(inc_id, "triage.md")
+    errors = [m for m in h.of_type("agent_step") if m.get("kind") == "error"]
+    assert any("content required" in m["summary"] for m in errors)
+    assert h.commander.incidents.get(inc_id).status == "awaiting_approval"
+    assert h.commander.incidents.get(inc_id).dispatches == []
+
+
+@pytest.mark.parametrize("provider, expected", [("anthropic", False), ("google_genai", None)])
+def test_commander_serializes_anthropic_tools(monkeypatch, provider, expected):
+    from langchain.agents.middleware.types import ModelRequest
+
+    from agent import commander
+
+    monkeypatch.setattr(commander, "_provider", lambda model: provider)
+    request = ModelRequest(model=MockChatModel(role="commander"), messages=[],
+                           model_settings={"max_tokens": 2048})
+    actual = commander.SequentialApprovalTools().wrap_model_call(request, lambda r: r)
+    assert actual.model_settings.get("parallel_tool_calls") is expected
+    assert actual.model_settings["max_tokens"] == 2048
+    assert "parallel_tool_calls" not in request.model_settings

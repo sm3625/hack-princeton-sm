@@ -203,6 +203,11 @@ def test_model_cannot_skip_camera_reassessment(tmp_path, monkeypatch):
     assert not h.pending() and not inc.dispatches
     assert inc.status == "watching" and inc.next_check_at
     assert "Assessment unavailable" in inc.summary
+    audit = h.file(inc.id, "approvals.jsonl")
+    assert "current record_assessment" in audit
+    assert "a ranger already rejected" not in audit
+    assert not any("repeat dispatch request blocked" in m["summary"]
+                   for m in h.of_type("agent_step"))
 
 
 def test_inconclusive_camera_cannot_be_overridden_by_model_confidence(tmp_path):

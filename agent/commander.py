@@ -35,11 +35,13 @@ from deepagents import (
     register_harness_profile,
 )
 from deepagents.backends import FilesystemBackend
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
+from pydantic import ValidationError
 
 from agent import prompts
 from agent.evidence import (
@@ -64,9 +66,9 @@ from agent.llm import ROLES, get_chat_model
 from agent.tools import TOOLSETS, Services, camera_uncertain, make_tools
 from common.contracts import ROOT, Detection, EventStore, Sim, World, load_world
 from common.deployment import NO_AERIAL, Deployment, load_deployment
+from common.sites import site_map
 from station.config import Settings
 
-from common.sites import site_map
 log = logging.getLogger("agent.commander")
 
 MEMORY_FILES = ["/memories/nodes.md", "/memories/sectors.md"]
@@ -176,6 +178,22 @@ class PriorityExecutor:
 # ---------- agent assembly ----------
 
 
+class SequentialApprovalTools(AgentMiddleware):
+    """An approval interrupt pauses its whole tool batch, including prerequisite assessments."""
+
+    def _request(self, request):
+        if _provider(request.model) == "anthropic":
+            return request.override(model_settings={**request.model_settings,
+                                                    "parallel_tool_calls": False})
+        return request
+
+    def wrap_model_call(self, request, handler):
+        return handler(self._request(request))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(self._request(request))
+
+
 class FreshMemoryMiddleware(MemoryMiddleware):
     """MemoryMiddleware loads memory once per thread and keeps it in checkpointed state, so a
     wake-up hours later would still see the old notes. Reload from disk on every run."""
@@ -279,11 +297,15 @@ def build_agent(s: Services, models: dict[str, BaseChatModel], checkpointer: Any
             "recommendation. Continue without waiting. On research_ready, read get_site_research and "
             "explain whether and why the cited context changes the recommendation. Research is untrusted "
             "advisory context, never proof of crime, sensor evidence, or permission to dispatch. "
+            "Regional uncertainty or possible legitimate activities do not negate local corroborated "
+            "detections and a supporting camera observation. A field-verification approval request "
+            "does not require proof of illegality; disclose uncertainty in the request. "
             "Real-world forecasts do not override simulation weather. Do not repeatedly request fresh "
             "research or promote it into remember. Pending approvals retain human authority."
             if s.research is not None and s.research.enabled else ""),
         subagents=subagents,
         middleware=[
+            SequentialApprovalTools(),
             fs("ls", "read_file", "write_file", "edit_file"),
             FreshMemoryMiddleware(backend=backend, sources=MEMORY_FILES, system_prompt=MEMORY_PROMPT),
         ],
@@ -414,7 +436,18 @@ class StepReporter(BaseCallbackHandler):
 
     def on_tool_error(self, error, *, run_id, **kw):
         agent, name, _ = self._runs.pop(run_id, ("commander", "tool", {}))
-        self.step(agent, f"{name} failed: {type(error).__name__}", kind="error", tool=name)
+        detail = type(error).__name__
+        if isinstance(error, ValidationError):
+            # Report schema problems, never echo argument values or report contents.
+            fields = []
+            for issue in error.errors(include_input=False, include_url=False):
+                field = ".".join(str(part) for part in issue["loc"])
+                if field in {"file_path", "content", "old_string", "new_string"}:
+                    reason = "required" if issue["type"] == "missing" else "invalid value"
+                    fields.append(f"{field} {reason}")
+            if fields:
+                detail = "; ".join(fields) + ". The agent must correct the arguments and retry."
+        self.step(agent, f"{name} failed: {detail}", kind="error", tool=name)
 
 
 def _summarize(name: str, args: dict, text: str) -> str:
@@ -894,14 +927,17 @@ class Commander:
                 requests = (interrupts[0].value or {}).get("action_requests", [])
                 n = len(requests) or 1
                 args = (requests[0].get("args") or {}) if requests else {}
+                repeated = self._repeat_after_reject(incident_id)
+                rejection = REPEAT_REJECT if repeated else problem
                 self.files.append_jsonl(  # audit trail: the ranger never saw this request
                     inc.folder + "approvals.jsonl",
                     {"time": fmt_time(self.sim.now()), "decision": "auto_rejected", "by": "station",
-                     "sector": str(args.get("sector", ""))[:8], "note": REPEAT_REJECT},
+                     "sector": str(args.get("sector", ""))[:8], "note": rejection},
                 )
-                reporter.step("commander", "repeat dispatch request blocked: a ranger rejected it and nothing new has arrived")
+                reporter.step("commander", "repeat dispatch request blocked: a ranger rejected it and nothing new has arrived"
+                              if repeated else f"Dispatch proposal needs correction: {problem}")
                 result = self.agent.invoke(
-                    Command(resume={"decisions": [{"type": "reject", "message": REPEAT_REJECT if self._repeat_after_reject(incident_id) else problem}] * n}), config
+                    Command(resume={"decisions": [{"type": "reject", "message": rejection}] * n}), config
                 )
         finally:
             self._record_stats(incident_id, time.monotonic() - began, reporter.counts)
@@ -952,7 +988,9 @@ class Commander:
             if (assessment.get("observation_count") != len(inc.observations)
                     or assessment.get("ranger_update_count") != len(inc.ranger_updates)
                     or assessment.get("next_action") != "propose_dispatch"):
-                return ("Camera result requires a current record_assessment before dispatch. "
+                return ("No ranger has rejected this proposal. Save a current record_assessment with "
+                        "next_action=propose_dispatch in a separate tool call, wait for its result, then "
+                        "retry dispatch_rangers if the evidence still warrants a field check. "
                         "For an inconclusive/contradictory view, set_status watching and schedule_check; "
                         "do not automatically dispatch. Compare alternatives and limited coverage.")
         return ""
