@@ -2,6 +2,15 @@
   "framework": null,
   "outputDirectory": "public",
   "redirects": [
-    { "source": "/", "destination": "https://140.82.41.69/", "permanent": false }
+    {
+      "source": "/",
+      "destination": "https://140.82.41.69/",
+      "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://140.82.41.69/:path*",
+      "permanent": false
+    }
   ]
 }

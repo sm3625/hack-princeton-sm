@@ -1,0 +1,29 @@
+name: Uptime
+# Fails (and GitHub emails the repo owner) when the public demo stops answering.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vercel entry redirects to the station
+        run: |
+          for path in / /api/health; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -m 15 "https://forest-guardian-judge-demo.vercel.app$path")
+            [ "$code" = 307 ] || { echo "Vercel $path returned $code"; exit 1; }
+            curl -fsSL -m 20 "https://forest-guardian-judge-demo.vercel.app$path" >/dev/null
+          done
+      - name: Station health and TLS
+        run: |
+          for i in 1 2 3; do
+            curl -fsS -m 15 https://140.82.41.69/api/health && exit 0
+            sleep 20
+          done
+          echo "Station health check failed 3 times"; exit 1
+      - name: Certificate valid for 2 more days
+        run: |
+          echo | openssl s_client -connect 140.82.41.69:443 2>/dev/null \
+            | openssl x509 -noout -checkend 172800

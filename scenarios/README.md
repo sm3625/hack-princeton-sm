@@ -53,6 +53,18 @@ events:                   # one expected detection each
 
 Events on the same node and class are at least 30 s apart, matching the node's debounce.
 
+A scenario may also open with one finished incident, so a case file can be opened from the first
+second (`demo.yaml` does). The station builds it from signed records before the run starts
+(`station/demo_seed.py`); the dashboard lists it as closed and leaves it out of the run's totals.
+
+```yaml
+earlier:
+  minutes_before: 150            # first detection, before `start`
+  sound: chainsaw
+  nodes: [Hondonada, Loma Norte] # within 1.5 km of each other, away from the night's own incidents
+  seen: "two people cutting a felled cedar"   # drone camera; omit for no flight
+```
+
 ## Audio
 
 Each event's audio is the named clip from `data/` (git-ignored datasets) when it exists, resampled to

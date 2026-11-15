@@ -1,0 +1,8 @@
+[Unit]
+Description=Forest Guardian station health and TLS watchdog
+After=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=330
+ExecStart=/opt/forest-guardian-judges/deploy/watchdog.sh

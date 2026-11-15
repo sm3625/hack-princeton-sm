@@ -51,3 +51,11 @@ events:
      source: gunshot, label: real, incident: poaching, clip: UrbanSound8K/audio/fold3/110622-6-0-0.wav}
   - {at: "02:23:20", node: Puesto Sur, sound: vehicle, confidence: 0.84, duration: 5,
      source: truck, label: real, incident: poaching, clip: ESC-50-master/audio/1-18527-B-44.wav}
+
+# Already on the list when the run starts: one finished incident from earlier in the night, so a
+# case file can be opened at any moment (station/demo_seed.py). Records are signed like live ones.
+earlier:
+  minutes_before: 150
+  sound: chainsaw
+  nodes: [Hondonada, Loma Norte]
+  seen: "two people cutting a felled cedar, a motorbike on the track"

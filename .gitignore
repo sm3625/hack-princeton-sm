@@ -30,3 +30,6 @@ data/
 .claude/worktrees/
 *.sqlite-shm
 *.sqlite-wal
+
+# brag render scratch (large intermediate files)
+brag-output/work/

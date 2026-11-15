@@ -90,6 +90,7 @@ class SimEngine:
         self._ticker: asyncio.Task | None = None
         self._run_task: asyncio.Task | None = None
         self.on_reset = None  # station-owned async cleanup at demo run boundaries
+        self.on_scenario = None  # station-owned: called with the scenario once its clock is set
         self.run_id = None
         self._control_lock = asyncio.Lock()
         self._clock_dirty = True
@@ -223,6 +224,8 @@ class SimEngine:
         self.clock.set_time(scenario.start + skip)
         self.clock.set_speed(speed if speed is not None else scenario.speed)
         self.weather_model.reset()
+        if self.on_scenario is not None and not skip:
+            self.on_scenario(scenario)
         sightings = [
             Observation(
                 sector=s.sector,

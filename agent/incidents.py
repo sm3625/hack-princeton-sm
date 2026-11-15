@@ -141,6 +141,7 @@ class Incident:
     observations: list[dict] = field(default_factory=list)
     ranger_updates: list[dict] = field(default_factory=list)
     assessments: list[dict] = field(default_factory=list)
+    earlier: bool = False  # finished before this run began (station/demo_seed.py); not counted in it
 
     @property
     def thread_id(self) -> str:
@@ -168,6 +169,7 @@ class Incident:
             "updated_at": self.updated_at,
             "created_at": self.created_at,
             "family": self.family,
+            "earlier": self.earlier,
             "nodes": sorted(world.node(n).name for n in self.node_ids()),
             "records": len(self.records),
             "location": {"x_m": round(self.x_m), "y_m": round(self.y_m)},

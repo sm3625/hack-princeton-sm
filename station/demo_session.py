@@ -119,6 +119,13 @@ class DemoSession:
 
             threading.Thread(target=cleanup, daemon=True, name="demo-cleanup").start()
 
+    def seed(self, scenario):
+        """A scenario may open with one finished incident, so a case file is there from the start."""
+        if scenario.earlier is not None and self.current is not None:
+            from station.demo_seed import seed_closed_incident
+
+            seed_closed_incident(self.current, scenario.earlier, scenario.start)
+
     async def reset(self):
         async with self.lock:
             self.retire()

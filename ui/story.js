@@ -61,6 +61,7 @@ const short = (text, max = 90) => {
 function onIncident(inc) {
   if (!inc || inc.id === undefined) return;
   const id = String(inc.id);
+  if (inc.earlier) return void noteEarlier(inc);
   const before = run.incidents.get(id);
   run.incidents.set(id, { ...before, ...inc });
   const title = inc.title || before?.title || "incident";
@@ -74,6 +75,13 @@ function onIncident(inc) {
   else if (inc.status === "dispatched") say("Ranger", `Approved. Team on the way to ${sector}.`, "go", 3);
   else if (inc.status === "closed") say("Agent", `Case file written: ${title}`, "", 2);
   if (run.complete) summary();
+}
+
+// An incident finished before this run began is on the list, but not part of this run's story.
+function noteEarlier(inc) {
+  run.before = Math.max(run.before || 0, inc.updated_at || 0);
+  run.incidents.delete(String(inc.id));
+  run.asked.delete(String(inc.id));
 }
 
 function onDetection(m) {
@@ -106,8 +114,13 @@ async function summary() {
   try {
     const [det, inc] = await Promise.all([api("/api/detections?limit=500"), api("/api/incidents")]);
     if (id !== run.id) return;
-    for (const d of det?.detections || []) if (d.verified === true) run.detections.add(`${d.node_id}:${d.seq}`);
-    for (const i of (Array.isArray(inc) ? inc : inc?.incidents) || []) {
+    const incidents = (Array.isArray(inc) ? inc : inc?.incidents) || [];
+    incidents.filter((i) => i.earlier).forEach(noteEarlier);
+    for (const d of det?.detections || []) {
+      if (d.verified === true && d.timestamp > (run.before || 0)) run.detections.add(`${d.node_id}:${d.seq}`);
+    }
+    for (const i of incidents) {
+      if (i.earlier) continue;
       run.incidents.set(String(i.id), { ...run.incidents.get(String(i.id)), ...i });
       if (ASKED.has(i.status) || i.ranger_asked) run.asked.add(String(i.id));
     }

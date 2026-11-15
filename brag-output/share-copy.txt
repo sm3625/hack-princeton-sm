@@ -1,0 +1,1 @@
+Forest Guardian hears a chainsaw at 22:33, checks it with a drone, and only then asks a ranger whether to send a team. A 55 KB model on the sensor, a signed record for every detection, and an AI incident commander that writes the case file. Built at HackPrinceton, and it runs offline on a laptop.

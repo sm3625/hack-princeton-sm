@@ -87,6 +87,16 @@ class SightingSpec:
 
 
 @dataclass(frozen=True)
+class EarlierIncident:
+    """A finished incident already on the list when the run starts (station/demo_seed.py)."""
+
+    minutes_before: float  # first detection, minutes before the scenario start
+    sound: str
+    node_ids: tuple[int, ...]
+    seen: str = ""  # what the drone camera saw; empty: no flight
+
+
+@dataclass(frozen=True)
 class Scenario:
     name: str
     title: str
@@ -97,6 +107,7 @@ class Scenario:
     weather: list[WeatherChange] = field(default_factory=list)
     sightings: list[SightingSpec] = field(default_factory=list)
     description: str = ""
+    earlier: EarlierIncident | None = None
 
     @property
     def end(self) -> float:
@@ -273,6 +284,21 @@ def _parse(name: str, data: dict, world: World) -> Scenario:
             )
         )
 
+    earlier = None
+    if data.get("earlier"):
+        raw, where = data["earlier"], f"{name} earlier"
+        sound = str(raw.get("sound", "chainsaw")).lower()
+        minutes = float(raw.get("minutes_before", 150))
+        try:
+            ids = tuple(worldmap.node_by_name(world, n).id for n in raw["nodes"])
+        except KeyError as e:
+            raise ScenarioError(f"{where}: {e}") from e
+        if sound not in SOUNDS or sound == "background":
+            raise ScenarioError(f"{where}: sound must be a detectable class")
+        if not ids or len(set(ids)) != len(ids) or not (0 < minutes <= 12 * 60):
+            raise ScenarioError(f"{where}: needs distinct nodes and minutes_before 0..720")
+        earlier = EarlierIncident(minutes, sound, ids, str(raw.get("seen", "")).strip())
+
     speed = float(data.get("speed", 30))
     return Scenario(
         name=name,
@@ -284,6 +310,7 @@ def _parse(name: str, data: dict, world: World) -> Scenario:
         weather=weather,
         sightings=sightings,
         description=str(data.get("description", "")).strip(),
+        earlier=earlier,
     )
 
 

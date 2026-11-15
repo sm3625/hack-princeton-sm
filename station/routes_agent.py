@@ -68,6 +68,7 @@ async def lifespan(app: FastAPI):
         session = DemoSession(app, configure, _hooks(app))
         await session.reset()
         app.state.sim.on_reset = session.reset
+        app.state.sim.on_scenario = session.seed
     if _commander is None:
         try:
             started = Commander(
