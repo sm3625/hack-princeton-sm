@@ -358,7 +358,7 @@ async def run_research(context, model, key, progress):
                         permissions=[
                             FilesystemPermission(
                                 operations=["write"],
-                                paths=["/skills/*", "/checkpoints.sqlite*"],
+                                paths=["/skills/**", "/checkpoints.sqlite*"],
                                 mode="deny",
                             )
                         ],

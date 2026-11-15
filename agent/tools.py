@@ -305,6 +305,18 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         return s.incident_evidence(inc)
 
     @tool
+    def retrieve_incident_history(config: RunnableConfig, limit: int = 3) -> str:
+        """Retrieve up to five relevant prior outcomes from this station, within 90 days.
+        Call when a recurring node/sector pattern could inform triage. History is advisory;
+        do not count its records as current corroboration or treat prior dismissal as truth."""
+        from agent.history import retrieve_history
+
+        inc = s.current(config)
+        if inc is None:
+            return "No active incident."
+        return json.dumps(retrieve_history(s.incidents.all(), inc, s.sim.now(), limit))
+
+    @tool
     def request_site_research(incident_id: str, question: str, config: RunnableConfig) -> str:
         """Request advisory public site context without waiting. Private question text stays local.
         Continue investigating; a distinct wake arrives when research completes."""
@@ -643,6 +655,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
         return f"{tag}: signature valid, record unaltered. clip hash {det.clip_hash}"
 
     all_tools = [
+        retrieve_incident_history,
         get_incident_evidence,
         compare_response_options,
         record_assessment,
@@ -664,6 +677,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
 
 TOOLSETS = {
     "commander": [
+        "retrieve_incident_history",
         "request_site_research", "get_site_research",
         "get_incident_evidence", "compare_response_options", "record_assessment",
         "get_detections",
@@ -674,7 +688,7 @@ TOOLSETS = {
         "set_status",
         "remember",
     ],
-    "triage": ["get_incident_evidence", "get_detections", "get_node_info", "get_weather"],
+    "triage": ["retrieve_incident_history", "get_incident_evidence", "get_detections", "get_node_info", "get_weather"],
     "drone-pilot": ["plan_route", "fly_drone", "get_drone_status"],
     "evidence": ["get_incident_evidence", "verify_signature", "get_detections", "remember"],
 }

@@ -266,11 +266,11 @@ def test_agent_shape(tmp_path):
     h.tick("03:30:00")
     names = {role: sorted(t.name for t in tools) for role, tools in Recording.bound.items()}
     assert names["commander"] == sorted(
-        ["compare_response_options", "record_assessment", "dispatch_rangers", "edit_file", "get_detections", "get_incident_evidence", "get_node_info", "get_weather", "ls",
+        ["retrieve_incident_history", "compare_response_options", "record_assessment", "dispatch_rangers", "edit_file", "get_detections", "get_incident_evidence", "get_node_info", "get_weather", "ls",
          "read_file", "remember", "schedule_check", "set_status", "task", "write_file"]
     )
     # sub-agent tools replace the parent's: no dispatch, no task (no nested delegation)
-    assert names["triage"] == ["get_detections", "get_incident_evidence", "get_node_info", "get_weather", "read_file", "write_file"]
+    assert names["triage"] == ["get_detections", "get_incident_evidence", "get_node_info", "get_weather", "read_file", "retrieve_incident_history", "write_file"]
     assert names["drone-pilot"] == ["fly_drone", "get_drone_status", "plan_route", "read_file"]
     assert names["evidence"] == ["get_detections", "get_incident_evidence", "ls", "read_file", "remember", "verify_signature", "write_file"]
     task = next(t for t in Recording.bound["commander"] if t.name == "task")
