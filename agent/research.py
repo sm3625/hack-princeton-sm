@@ -615,6 +615,8 @@ class ResearchService:
                 self.queue.put_nowait((key, topic, self.model))
                 self.callback(incident_id, "Research requested", False)
             self.persist(incident_id)
+            if self.views[incident_id]["status"] == "cached":
+                self.callback(incident_id, "Cached findings available", False)
             return self.context_view(incident_id)
 
     def work(self):
@@ -667,7 +669,9 @@ class ResearchService:
                     f["retrieved_at"] = time.time()
                 # Fresh narrative survives hourly forecast refreshes and partial provider failures.
                 categories = {f["category"] for f in result["findings"]}
-                retained = [f for f in reusable if f["category"] not in categories]
+                retained = [
+                    f for f in (cached or {}).get("findings", []) if f["category"] not in categories
+                ]
                 result["findings"].extend(retained)
                 if retained:
                     result["sources"] = list(

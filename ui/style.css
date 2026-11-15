@@ -1683,3 +1683,29 @@ li + li > .incident-row::after { left: 38px; }
   .trail-side { position: static; }
   .trail-sheet-body { padding: 14px 14px 24px; }
 }
+
+
+/* ---- decision-trail popup refinements ---- */
+.trail-sheet-body { padding: 20px 24px 32px; }
+.trail-full { grid-template-columns: 300px minmax(0, 1fr); gap: 28px; }
+.trail-side { top: 0; gap: 14px; align-self: start; }
+.trail-outcome-kicker, .trail-trigger, .branch-result-kicker { text-transform: none; letter-spacing: 0; }
+.trail-outcome-kicker { font-size: 12px; font-weight: 650; }
+.trail-trigger { font-size: 12px; font-weight: 650; padding: 3px 9px; border-radius: 999px; }
+.branch-result-kicker { font-size: 12px; }
+.trail-plan { display: grid; gap: 8px; }
+.trail-plan h3 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.trail-plan .plan { max-height: none; padding: 4px 14px; border-radius: 14px; }
+.trail-plan .plan ul { list-style: none; margin: 0; padding: 0; }
+.trail-plan .plan-item { position: relative; padding: 9px 0 9px 28px; font-size: 13.5px; line-height: 1.4; }
+.trail-plan .plan-item + .plan-item { border-top: 1px solid var(--fill-strong); }
+.trail-plan .plan-item::before { content: ""; position: absolute; left: 0; top: 11px; width: 15px; height: 15px; border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px var(--muted); }
+.trail-plan .plan-item.done { color: var(--muted); text-decoration: line-through; }
+.trail-plan .plan-item.done::before { background: var(--accent, var(--blue)); box-shadow: none; }
+.trail-empty .empty { align-self: center; margin: 0; }
+.trail-full .trail-block { padding: 14px 18px 12px; }
+@media (max-width: 760px) {
+  .trail-full { grid-template-columns: 1fr; gap: 18px; }
+  .trail-side { position: static; }
+}

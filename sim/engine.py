@@ -277,17 +277,12 @@ class SimEngine:
     async def _run(self, runner: ScenarioRunner) -> None:
         await runner.run()
         if runner is self.runner:
-            self.clock.pause()
-            # Scheduler latency is not simulated activity. At 60x, a busy local
-            # model can otherwise move the end of a scenario several seconds.
-            self.clock.set_time(runner.scenario.end)
-            if self.on_reset is not None:
-                await self.on_reset()
-                self.weather_model.reset()
-                self.demo.reset()
-                self._publish_drones()
+            # Exhausting scripted inputs does not finish the investigation. Keep
+            # time moving so flights can land and scheduled agent checks can run.
+            # Only an explicit new scenario retires the commander and clears state.
             self.publish(self.clock_message())
-            log.info("scenario %s finished (%d events)", runner.scenario.name, runner.fired)
+            log.info("scenario %s inputs finished (%d events); investigations continue",
+                     runner.scenario.name, runner.fired)
 
     def set_paused(self, paused: bool | None = None) -> dict:
         self.clock.set_paused(not self.clock.paused if paused is None else bool(paused))
@@ -301,7 +296,8 @@ class SimEngine:
 
     @property
     def running(self) -> bool:
-        return self._run_task is not None and not self._run_task.done()
+        return (self._run_task is not None and not self._run_task.done()
+                and self.runner is not None and not self.runner.finished)
 
     def clock_message(self) -> dict:
         return {
@@ -310,6 +306,7 @@ class SimEngine:
             "speed": self.clock.speed,
             "paused": self.clock.paused,
             "running": self.running,
+            "events_complete": bool(self.runner and self.runner.finished),
             "scenario": self.scenario.name if self.scenario else None,
             "run_id": self.run_id,
             "feed": self.feed_kind,

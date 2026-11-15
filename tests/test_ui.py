@@ -206,7 +206,9 @@ def test_deep_link_opens_incident(browser, server):
     )
     page.goto(server.url + "/incident/inc-7")
     expect(page.locator(".detail-title")).to_have_text("Chainsaw near Arroyo Recodo")
-    expect(page.locator("pre.plan")).to_have_text("- [ ] triage")
+    page.get_by_role("button", name="Plan & decision trail").click()
+    expect(page.locator("#trail-dialog .trail-plan-body pre")).to_have_text("- [ ] triage")
+    page.locator("#trail-close").click()
     page.get_by_role("button", name="Back to incidents").click()
     expect(page).to_have_url(server.url + "/")
 

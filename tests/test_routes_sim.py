@@ -109,7 +109,7 @@ def test_start_from_a_clock_time(client):
     assert 0 <= state["sim_time"] - (state["start"] + 4 * 3600 + 10 * 60) < 60
 
 
-def test_scenario_stops_at_its_end(client, tmp_path):
+def test_scenario_inputs_finish_but_clock_continues(client, tmp_path):
     (tmp_path / "short.yaml").write_text('start: "22:00"\nend: "22:00:30"\nevents: []\n')
     client.post("/api/sim/scenario", json={"name": "short", "speed": 60})
     for _ in range(60):
@@ -117,14 +117,17 @@ def test_scenario_stops_at_its_end(client, tmp_path):
         if not state["running"]:
             break
         time.sleep(0.05)
-    assert state["running"] is False and state["paused"] is True
-    assert 0 <= state["sim_time"] - state["end"] <= 1
+    assert state["running"] is False and state["paused"] is False
+    assert state["events_complete"] is True
+    assert state["sim_time"] >= state["end"]
+    time.sleep(0.05)
+    assert client.get("/api/sim/state").json()["sim_time"] > state["sim_time"]
     assert "type" not in state
 
 
 def test_runs_clear_incidents_events_and_old_commander(client, tmp_path):
-    from station.routes_agent import get_commander
     from common.contracts import Detection, SoundClass
+    from station.routes_agent import get_commander
 
     old = get_commander()
     old.on_verified(Detection(node_id=5, seq=919, timestamp=old.sim.now(),
@@ -147,6 +150,38 @@ def test_runs_clear_incidents_events_and_old_commander(client, tmp_path):
         if not client.get("/api/sim/state").json()["running"]:
             break
         time.sleep(0.05)
-    assert client.get("/api/incidents").json()["incidents"] == []
+    assert client.get("/api/incidents").json()["incidents"]
+    assert current.sim.active
+    assert get_commander() is current
+    client.post("/api/sim/scenario", json={"name": "short", "speed": 60})
     assert not current.sim.active
     assert get_commander() is not current
+    assert client.get("/api/incidents").json()["incidents"] == []
+
+
+def test_flight_survives_scenario_end_and_lands(client, tmp_path):
+    from station.routes_agent import get_commander
+
+    (tmp_path / "flight.yaml").write_text('start: "22:00"\nend: "22:00:01"\nevents: []\n')
+    start = client.post("/api/sim/scenario", json={"name": "flight", "speed": 1}).json()
+    engine = engine_mod.get_engine()
+    commander = get_commander()
+    # A ~140-second round trip that necessarily outlasts this one-second scenario.
+    route = engine.plan_route(700, 700)
+    flight, reason = engine.drone.launch(route)
+    assert flight is not None, reason
+    engine.clock.advance(2)
+    for _ in range(30):
+        state = client.get("/api/sim/state").json()
+        if state["events_complete"]:
+            break
+        time.sleep(.05)
+    assert state["events_complete"] and not state["paused"]
+    assert state["run_id"] == start["run_id"]
+    assert commander.sim.active and get_commander() is commander
+    assert engine.drone.status().flying and not engine.drone.cancelled(flight)
+    engine.clock.advance(flight.land - engine.clock.now_f() + 1)
+    assert not engine.drone.status().flying
+    assert engine.drone.status().battery_pct < 100  # landed normally, not reset/recharged
+    assert client.post("/api/sim/pause", json={"paused": True}).json()["paused"]
+    assert not client.post("/api/sim/pause", json={"paused": False}).json()["paused"]

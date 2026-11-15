@@ -30,6 +30,12 @@ description to the researcher. Free-form questions, ranger messages and detectio
 are not sent to search providers. Search queries are generated from that public context.
 `get_site_research(incident_id)` reads findings and their source metadata without raw excerpts.
 
+A small public source pack is gathered first, including a real-world forecast and two focused
+searches. The researcher can follow up within the same overall budget. A final bounded
+submission step prevents a model that keeps searching from silently dropping its findings.
+Gemini research uses the actual `max_output_tokens` field and disables thinking for this
+latency-bounded role; the commander configuration is unchanged.
+
 The researcher reads the bundled read-only skill and uses explicit todo planning. It can
 search at most six times and extract eight pages. Provider calls retry transient failures
 once, within the 90-second overall job deadline. One worker has at most eight waiting jobs.

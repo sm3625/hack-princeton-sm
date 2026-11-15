@@ -838,12 +838,27 @@ function renderTrailDialog() {
   const body = $("trail-body");
   const keep = body.scrollTop;
   $("trail-subtitle").textContent = [inc.title, inc.sector].filter(Boolean).join(" · ");
-  const planEl = inc.planHtml ? (() => { const d = el("div", { class: "plan rendered" }); setSanitizedHtml(d, inc.planHtml); return d; })()
-    : inc.plan ? el("pre", { class: "plan" }, inc.plan) : null;
-  const planBlock = planEl ? el("section", { class: "detail-section trail-plan" }, el("h3", {}, "Plan"), planEl) : null;
-  body.replaceChildren(...(planBlock ? [planBlock] : []), (inc.trace || []).length ? fullTrail(inc) :
-    el('p', {class: 'empty'}, 'No decision trail was recorded for this incident. Older incidents may predate trace recording; new agent activity will appear here.'));
+  const plan = trailPlan(inc);
+  body.replaceChildren((inc.trace || []).length ? fullTrail(inc, plan) :
+    el("div", { class: "trail trail-full trail-empty" }, el("aside", { class: "trail-side" }, plan),
+      el('p', {class: 'empty'}, 'No decision trail was recorded for this incident. Older incidents may predate trace recording; new agent activity will appear here.')));
   body.scrollTop = keep;
+}
+
+// The plan as a checklist: "[ ]" / "[x]" markers become real boxes, and the repeated title is dropped.
+function trailPlan(inc) {
+  if (!inc.planHtml && !inc.plan) return null;
+  const body = el("div", { class: "plan rendered trail-plan-body" });
+  if (inc.planHtml) setSanitizedHtml(body, inc.planHtml);
+  else body.append(el("pre", {}, inc.plan));
+  body.querySelectorAll("h1, h2, h3").forEach((h) => h.remove());
+  body.querySelectorAll("li").forEach((li) => {
+    const m = /^\s*\[( |x|X)\]\s*/.exec(li.textContent);
+    if (!m) return;
+    li.firstChild.textContent = li.firstChild.textContent.replace(/^\s*\[( |x|X)\]\s*/, "");
+    li.classList.add("plan-item", m[1] === " " ? "todo" : "done");
+  });
+  return el("section", { class: "trail-plan", "aria-label": "Plan" }, el("h3", {}, "Plan"), body);
 }
 
 function trailOutcome(inc) {
@@ -852,13 +867,13 @@ function trailOutcome(inc) {
   return el(
     "div",
     { class: `trail-outcome ${cls}` },
-    el("span", { class: "trail-outcome-kicker" }, "Conclusion"),
+    el("span", { class: "trail-outcome-kicker" }, "Where it stands"),
     el("strong", {}, label),
     inc.summary ? el("p", {}, txt(inc.summary)) : null,
   );
 }
 
-function fullTrail(inc) {
+function fullTrail(inc, plan) {
   const trace = inc.trace || [];
   const legend = el(
     "div",
@@ -878,7 +893,7 @@ function fullTrail(inc) {
   return el(
     "div",
     { class: "trail trail-full" },
-    el("aside", { class: "trail-side" }, trailOutcome(inc), legend, facts,
+    el("aside", { class: "trail-side" }, trailOutcome(inc), plan, legend, facts,
       el("p", { class: "muted trail-hint" }, "Each block is one time the agent woke up. Coloured dots show which agent acted; sub-agents work in their own branch and report back. Highlighted steps are decisions; diamonds are milestones.")),
     el("ol", { class: "trail-blocks" }, ...trailBlocks(trace).map(renderBlock)),
   );
@@ -976,7 +991,7 @@ function renderItem(e) {
     el("span", { class: `flow-dot ${a.cls}` }),
     el("div", { class: "flow-body" },
       el("span", { class: "flow-title" }, el("span", { class: `flow-agent ${a.cls}` }, a.label), title),
-      e.summary ? el("span", { class: "flow-text" }, txt(e.summary)) : null),
+      e.summary && txt(e.summary) !== title ? el("span", { class: "flow-text" }, txt(e.summary)) : null),
   );
 }
 
@@ -1164,6 +1179,7 @@ function onClock(m) {
     speed: Number(m.speed) || state.sim.speed,
     paused: !!m.paused,
     running: !!m.running,
+    events_complete: !!m.events_complete,
     scenario: m.scenario ?? state.sim.scenario,
     feed: m.feed || state.sim.feed,
     at: performance.now(),
@@ -1224,7 +1240,7 @@ function renderScenarioOptions() {
 function renderSimControls() {
   const s = state.sim;
   const selected = $("scenario").value;
-  const live = s.running && s.scenario === selected;
+  const live = !!s.scenario && s.scenario === selected;
   const playing = live && !s.paused;
   const play = $("play");
   play.replaceChildren(icon(playing ? "pause" : "play"));
@@ -1235,7 +1251,8 @@ function renderSimControls() {
   const nearest = speeds.reduce((a, b) => (Math.abs(b - s.speed) < Math.abs(a - s.speed) ? b : a));
   if (s.scenario && document.activeElement !== $("speed")) $("speed").value = String(nearest);
   const sub = $("clock-speed");
-  sub.textContent = !s.scenario ? "" : s.paused ? (s.running ? "Paused" : "Ended") : `${nearest}×`;
+  sub.textContent = !s.scenario ? "" : s.paused ? "Paused"
+    : s.events_complete ? `Events complete · ${nearest}×` : `${nearest}×`;
   sub.dataset.kind = s.scenario && !s.paused ? "speed" : "state";
   $("stub").hidden = !(s.scenario && s.feed === "stub");
 }
@@ -1244,7 +1261,7 @@ async function onPlay() {
   const s = state.sim;
   const name = $("scenario").value;
   try {
-    if (name === s.scenario && s.running) {
+    if (name === s.scenario) {
       applySimState(await api("/api/sim/pause", { method: "POST", body: { paused: !s.paused } }));
     } else {
       await startScenario(name);

@@ -385,3 +385,65 @@ async def test_actual_deep_agent_loop_with_fixture_tools(monkeypatch):
     assert result["findings"][0]["source_ids"][0] in {s["id"] for s in result["sources"]}
     assert len(result["sources"]) == 2
     assert not result["partial"]
+
+
+def test_partial_refresh_retains_stale_narrative(tmp_path):
+    async def runner(*args):
+        result = briefing()
+        result["findings"][0]["category"] = "weather"
+        result["partial"] = True
+        return result
+
+    s = service(tmp_path, runner)
+    old = {**briefing(), "created_at": time.time() - 700000, "version": "old"}
+    old["findings"][0]["retrieved_at"] = old["created_at"]
+    with s.db() as conn:
+        conn.execute(
+            "INSERT INTO briefings VALUES (?,?)", (s.site_key + ":logging", json.dumps(old))
+        )
+    try:
+        s.request("a", "logging", "")
+        wait_for(lambda: s.view("a")["status"] == "partial")
+        findings = s.view("a")["briefing"]["findings"]
+        assert {f["category"] for f in findings} == {"weather", "threats"}
+        assert next(f for f in findings if f["category"] == "threats")["stale"]
+        assert not next(f for f in findings if f["category"] == "weather")["stale"]
+    finally:
+        s.close()
+
+
+def test_worker_completion_reassesses_once_with_version(tmp_path, monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+
+    async def runner(*args):
+        entered.set()
+        while not release.is_set():
+            await asyncio.sleep(0.01)
+        return briefing()
+
+    h = Harness(tmp_path)
+    c = h.commander
+    c.research = service(tmp_path, runner, callback=c._research_event)
+    c.services.research = c.research
+    runs = []
+    monkeypatch.setattr(c, "_run", lambda iid, value: runs.append(value))
+    h.hear("Arroyo Recodo", 41, "02:14:05", SoundClass.CHAINSAW, 0.91)
+    inc = c.incidents.all()[0]
+    try:
+        c.research.request(inc.id, inc.family, "public context")
+        assert entered.wait(1)
+        h.tick("02:14:20")
+        assert len(runs) == 1  # research has not blocked the first investigation
+        release.set()
+        wait_for(lambda: c.research.view(inc.id)["status"] == "ready")
+        c.tick()
+        assert len(runs) == 2
+        text = runs[-1]["messages"][0]["content"]
+        assert "research ready" in text and "Ranger says" not in text
+        version = c.research.view(inc.id)["briefing"]["version"]
+        assert version in text and c.research_view(inc.id)["assessment_version"] == version
+        c.tick()
+        assert len(runs) == 2 and not inc.dispatches
+    finally:
+        release.set()
+        c.stop()
