@@ -357,12 +357,18 @@ class Drone:
             out_m, back_m = path_length(out), path_length(back)
             needed = (out_m + back_m) / 1000.0 * self.pct_per_km + HOVER_PCT
             feasible = battery - needed >= self.reserve_pct
-            reason = (
-                ""
-                if feasible
-                else f"needs {needed:.0f}% plus {self.reserve_pct:.0f}% reserve; battery is "
-                f"{battery:.0f}%"
-            )
+            if feasible:
+                reason = ""
+            elif needed + self.reserve_pct > 100.0:
+                reason = (
+                    f"out of range: the round trip uses {needed:.0f}% of the battery and the "
+                    f"{self.reserve_pct:.0f}% reserve must remain, which is more than a full charge"
+                )
+            else:
+                reason = (
+                    f"needs {needed:.0f}% plus {self.reserve_pct:.0f}% reserve; battery is "
+                    f"{battery:.0f}%"
+                )
             return Route(
                 waypoints=[(round(x, 1), round(y, 1)) for x, y in out],
                 distance_m=round(out_m, 1),
