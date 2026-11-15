@@ -242,6 +242,14 @@ def test_default_zero_budget_never_calls_transport():
         photon.send("hello", "key")
 
 
+def test_unlimited_send_allowance_stays_available():
+    sent = []
+    photon = p.Photon(TARGET, "pho_sk_test", None, lambda method, *_: sent.append(method))
+    photon.send("first", "one")
+    photon.send("second", "two")
+    assert sent == ["POST", "POST"] and photon.remaining is None
+
+
 def test_preview_with_credentials_never_constructs_photon(setup, monkeypatch, capsys):
     _, bridge, _, _, _ = setup
     monkeypatch.setenv("PHOTON_API_KEY", "pho_sk_test")

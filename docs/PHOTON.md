@@ -84,6 +84,8 @@ polling runs for the requested duration, at most 720 cycles (one hour at the 5-s
 poll interval is five seconds. Network calls have 15-second timeouts, so an in-progress
 cycle can outlast the duration. Run `make photon` for continuous polling with zero outbound
 send attempts. Ctrl-C stops the worker. Run one worker per conversation.
+With explicit authorization for uncapped sending, use
+`python -m station.photon --live --continuous --unlimited-sends`.
 
 On the Vultr judge deployment, the unit in `deploy/systemd/forest-guardian-photon.service`
 restarts the bridge after failure and starts at boot when enabled. It reads the Photon

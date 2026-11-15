@@ -122,9 +122,10 @@ class Photon:
         self.url = f"https://api.photon.codes/v1/projects/{target.project}/messages"
 
     def send(self, text, identity):
-        if self.remaining <= 0:
-            raise BridgeError("Explicit send allowance exhausted")
-        self.remaining -= 1  # Failures count too. Never retry automatically.
+        if self.remaining is not None:
+            if self.remaining <= 0:
+                raise BridgeError("Explicit send allowance exhausted")
+            self.remaining -= 1  # Failures count too. Never retry automatically.
         return self.transport("POST", self.url, {
             "senderId": self.target.agent, "spaceId": self.target.space,
             "content": {"type": "text", "format": "plain", "text": text},
@@ -216,7 +217,7 @@ class Bridge:
 
     def flush(self):
         for row in self.db.execute("SELECT * FROM outbox WHERE state='queued' ORDER BY rowid"):
-            if self.photon.remaining <= 0:
+            if self.photon.remaining is not None and self.photon.remaining <= 0:
                 break
             if row["code"]:
                 approval = self.db.execute("SELECT * FROM approvals WHERE code=?",
@@ -344,16 +345,19 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", help="Enable Photon reads and ranger decisions")
     parser.add_argument("--continuous", action="store_true", help="Keep polling until stopped (requires --live)")
-    parser.add_argument("--allow-sends", type=int, default=0,
-                        help="Explicit maximum send attempts this invocation (may cost credits)")
+    sends = parser.add_mutually_exclusive_group()
+    sends.add_argument("--allow-sends", type=int, default=0,
+                       help="Explicit maximum send attempts this invocation (may cost credits)")
+    sends.add_argument("--unlimited-sends", action="store_true",
+                       help="Enable outbound texts without a local attempt cap (may cost credits)")
     parser.add_argument("--seconds", type=int, default=600, help="Live duration, maximum 3600")
     parser.add_argument("--poll-seconds", type=int, default=10, help="Minimum 5 seconds")
     parser.add_argument("--db", default="photon.sqlite")
     parser.add_argument("--discover", action="store_true",
                         help="One read-only Photon call: print the IDs from messages you sent the line")
     args = parser.parse_args(argv)
-    if args.allow_sends < 0 or ((args.allow_sends or args.continuous) and not args.live):
-        parser.error("--continuous and --allow-sends require --live; send allowance must be nonnegative")
+    if args.allow_sends < 0 or ((args.allow_sends or args.unlimited_sends or args.continuous) and not args.live):
+        parser.error("Continuous polling and outbound sends require --live; allowance must be nonnegative")
     if not 1 <= args.seconds <= 3600 or args.poll_seconds < 5:
         parser.error("--seconds must be 1..3600; --poll-seconds must be at least 5")
     bridge = None
@@ -394,7 +398,7 @@ def main(argv=None):
             return 0
         # Credentials never activate the bridge by themselves.
         target = Target.from_env()
-        photon = Photon(target, os.getenv("PHOTON_API_KEY", ""), args.allow_sends)
+        photon = Photon(target, os.getenv("PHOTON_API_KEY", ""), None if args.unlimited_sends else args.allow_sends)
         bridge = Bridge(station, photon, args.db)
         deadline = time.monotonic() + args.seconds
         # Enough cycles to cover the requested duration, never more than MAX_CYCLES
@@ -408,7 +412,8 @@ def main(argv=None):
             cycles -= 1
             time.sleep(args.poll_seconds if args.continuous else
                        min(args.poll_seconds, max(0, deadline - time.monotonic())))
-        print(f"Stopped. Unused send allowance: {photon.remaining}. Check dashboard for outcomes.")
+        allowance = "unlimited" if photon.remaining is None else photon.remaining
+        print(f"Stopped. Unused send allowance: {allowance}. Check dashboard for outcomes.")
         return 0
     except BridgeError as exc:
         print(f"Photon bridge stopped: {exc}")
