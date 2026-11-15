@@ -4,9 +4,9 @@
 
 import { svg } from "./util.js";
 
-export async function loadGeo() {
+export async function loadGeo(base = "/ui/geo/") {
   const get = (name) =>
-    fetch(`/ui/geo/${name}`)
+    fetch(`${base}${name}`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null);
   const [block, reserve] = await Promise.all([get("pilot_block.json"), get("reserve.json")]);
@@ -88,7 +88,7 @@ export function geoLabels(block, W, H) {
 }
 
 // Location inset: reserve and park outlines, Tikal, and the pilot block.
-export function renderInset(root, reserve) {
+export function renderInset(root, reserve, { country = "MEXICO", zone = "Laguna del Tigre NP" } = {}) {
   if (!reserve?.reserve?.rings?.length) return false;
   const rings = reserve.reserve.rings;
   const lat0 = reserve.pilot.lat;
@@ -115,18 +115,18 @@ export function renderInset(root, reserve) {
 
   root.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
   root.replaceChildren(
-    svg("text", { class: "ri-country", x: VW * 0.5, y: 5, text: "MEXICO" }),
+    svg("text", { class: "ri-country", x: VW * 0.5, y: 5, text: country }),
     svg("path", { class: "ri-reserve", d: path(rings) }),
     ...(reserve.park?.rings?.length ? [svg("path", { class: "ri-park", d: path(reserve.park.rings) })] : []),
   );
   const parkRing = reserve.park?.rings?.[0];
-  if (parkRing) {
+  if (parkRing && zone) {
     const xs = parkRing.map((p) => px(p[0]));
     const ys = parkRing.map((p) => py(p[1]));
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     const top = Math.min(...ys);
-    root.append(svg("text", { class: "ri-zone", x: cx - 8, y: top + 15, "text-anchor": "middle", text: "Laguna del Tigre NP" }));
+    root.append(svg("text", { class: "ri-zone", x: cx - 8, y: top + 15, "text-anchor": "middle", text: zone }));
   }
   for (const p of reserve.places || []) {
     root.append(

@@ -79,3 +79,9 @@ Last updated: 2026-11-14.
 - Security: seq reserved in `seen_seqs` (replay stays closed after tamper), forged rows capped at 500, `LocalGuard` blocks unknown Host and cross-site writes (`STATION_ALLOWED_HOSTS` to add a LAN name).
 - Not done: roadmap 4 (on hold), 5 (hardware/Renode), slimmer deepagents prompts (not measured), full-night real-model replay.
 - Suite: 508 passed, 1 failed (`test_world_renders_twelve_named_nodes` expects 2 scenarios; `demo.yaml` is new from the other session).
+
+## 2026-11-14 evening: two more maps (Claude session; uncommitted)
+- `southern_cardamom` (Peam Piphot valley, Cambodia) and `gunung_leuser` (Bukit Lawang edge, Sumatra): profile `map:` key, `common/sites.py`, `sites/<map>/{world.yaml,scenarios/}`, real OSM in `ui/geo/<map>/` (`scripts/fetch_osm.py --site`). Run: `DEPLOYMENT=gunung_leuser make dev`.
+- World files can carry terrain, activity zones (per-sound lawful hours) and ranger posts; the commander gets them as "Site notes" in get_incident_evidence, ranger ETA in compare_response_options and dispatches. Map draws them. Default map unchanged.
+- Each new map has `night1` and `demo`. Verified in the browser with the mock model (Leuser demo: real classifier -> incident -> approval card). No real-model run on the new maps.
+- Site picker in the header switches maps live (`PUT /api/sites`): ends the run, rebuilds node runtimes and receiver names, new commander on the map's profile, pages reload. Not persisted across restarts. Multi-drone UI still open.

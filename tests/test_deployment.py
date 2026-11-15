@@ -215,7 +215,8 @@ def test_followup_check_cap(tmp_path):
 
 
 def test_every_profile_runs_the_mock_walkthrough(tmp_path_factory):
-    for name in SHIPPED:
+    # This walkthrough uses Laguna del Tigre node names; other maps: tests/test_sites.py.
+    for name in (n for n in SHIPPED if load_deployment(n).map == "laguna_del_tigre"):
         h = Harness(tmp_path_factory.mktemp(name), deployment=load_deployment(name))
         inc_id = logging_incident(h)
         (card,) = h.of_type("approval")

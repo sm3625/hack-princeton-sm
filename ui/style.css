@@ -1709,3 +1709,51 @@ li + li > .incident-row::after { left: 38px; }
   .trail-full { grid-template-columns: 1fr; gap: 18px; }
   .trail-side { position: static; }
 }
+
+/* Site geography (world.yaml terrain, zones, ranger posts). Quiet by default, labels on zoom. */
+.terrain { fill: var(--text); fill-opacity: 0; pointer-events: none; }
+.terrain.steep { fill-opacity: 0.055; }
+.terrain.ridge { fill-opacity: 0.09; }
+.terrain.swamp { fill: var(--blue); fill-opacity: 0.05; }
+.terrain.river { fill: var(--blue); fill-opacity: 0.035; }
+.zone-fill { fill: var(--amber); fill-opacity: 0.035; pointer-events: none; }
+.zone-edge { fill: none; stroke: var(--amber); stroke-opacity: 0.55; stroke-width: 1.2; stroke-dasharray: 2 4; stroke-linecap: round; }
+.zone-fill.outside_park { fill: var(--muted); fill-opacity: 0.05; }
+.zone-edge.outside_park { stroke: var(--muted); }
+.zone-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--amber-text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  paint-order: stroke;
+  stroke: var(--land);
+  stroke-width: 3px;
+}
+.zone-label.outside_park { fill: var(--muted); }
+.zone-label.shown { opacity: 0.85; }
+.post path { fill: var(--blue); stroke: var(--land); stroke-width: 1.5; }
+.post.boat path { fill: #30b0c7; }
+.post-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  paint-order: stroke;
+  stroke: var(--land);
+  stroke-width: 3px;
+}
+.post-label.shown { opacity: 0.8; }
+
+/* Site picker: gives up width before the clock does. */
+#site { flex: 0 1 220px; min-width: 110px; text-overflow: ellipsis; }
+.bar .clock, .bar .controls { flex-shrink: 0; }
+.bar h1, .brand-text { min-width: 0; }
+.brand-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) {
+  .bar .controls { flex-shrink: 1; flex-wrap: wrap; }
+  #site { flex: 1 1 100%; min-width: 0; }
+}

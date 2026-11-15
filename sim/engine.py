@@ -22,13 +22,13 @@ import numpy as np
 
 from common.contracts import DroneStatus, Route, Weather, World
 from common.deployment import Deployment, load_deployment
+from common.sites import site_map
 from sim import audio as audiolib
 from sim import world as worldmap
 from sim.clock import SimClock
 from sim.demo_feed import DemoFeed
 from sim.drone import Drone, Observation
 from sim.scenario import (
-    SCENARIO_DIR,
     Scenario,
     ScenarioRunner,
     list_scenarios,
@@ -64,17 +64,19 @@ class SimEngine:
         self,
         world: World | None = None,
         publish: Callable[[dict], None] | None = None,
-        scenario_dir: Path = SCENARIO_DIR,
+        scenario_dir: Path | None = None,
         data_dir: Path = audiolib.DATA_DIR,
         deployment: Deployment | None = None,
     ) -> None:
-        self.world = world or worldmap.load()
-        self.scenario_dir = scenario_dir
+        self.deployment = deployment or load_deployment()
+        site = site_map(self.deployment.map)
+        self.world = world or worldmap.load(site.world_file)
+        self.site = site
+        self.scenario_dir = scenario_dir or site.scenario_dir
         self.data_dir = data_dir
         self._target = publish or _bus_publish
         self.clock = SimClock()
         self.weather_model = WeatherModel(self.world, publish=self.publish)
-        self.deployment = deployment or load_deployment()
         self.next_deployment: Deployment | None = None
         # One Drone per profile entry. `self.drone` is the first (None at a site with no drone).
         self.drones = [Drone(self.world, self.clock, spec, did) for did, spec in self.deployment.drone_specs()]
@@ -266,6 +268,31 @@ class SimEngine:
     def _publish_drones(self) -> None:
         for drone in self.drones:
             self.publish(drone.message())
+
+    async def switch_site(self, deployment: Deployment, before_reset=None) -> dict:
+        """Load another map (world, scenarios, drones) and start a fresh, empty run on it.
+
+        before_reset(world) lets the station point its node pipeline and receiver at the new
+        nodes before the demo session builds a new commander."""
+        async with self._control_lock:
+            if self._run_task is not None and not self._run_task.done():
+                self._run_task.cancel()
+            self.clock.set_paused(True)
+            site = site_map(deployment.map)
+            self.site, self.scenario_dir = site, site.scenario_dir
+            self.world = worldmap.load(site.world_file)
+            self.weather_model = WeatherModel(self.world, publish=self.publish)
+            self.deployment, self.next_deployment = deployment, None
+            self.drones = [Drone(self.world, self.clock, spec, did) for did, spec in deployment.drone_specs()]
+            self.drone = self.drones[0] if self.drones else None
+            self.demo = DemoFeed(self.world, self.clock.now, self.publish)
+            self.scenario = self.runner = None
+            if before_reset is not None:
+                await before_reset(self.world)
+            if self.on_reset is not None:
+                await self.on_reset()
+            self.publish({"type": "site_changed", "map": site.key})
+            return self.state()
 
     def apply_next_deployment(self) -> None:
         if self.next_deployment is not None:

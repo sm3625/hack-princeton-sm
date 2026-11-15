@@ -1,0 +1,59 @@
+# Night 1 (Southern Cardamom). Times are station-local. Events after midnight belong to the next day.
+# The south-west monsoon soaks the windward west slopes (A-D) most of the night, then the east (E-H)
+# for a shorter burst. Two real incidents:
+#  - rosewood: chainsaw on the far ridge (E7/F7), heard by two dry nodes and one in the rain. The drone
+#    cannot reach it with its reserve and G8 is no-fly: rangers must climb (steep terrain, long ETA).
+#  - hunting: shots and a motorbike on the old logging road (F4), within drone range.
+# Noise: 15 rain/thunder false alarms on the west slopes, a ranger patrol boat on the river heard by
+# three nodes, hornbill wingbeats read as a chainsaw, and lawful community motorbikes and axes at dawn.
+title: Night 1
+date: 2026-11-14
+start: "22:00"
+end: "06:00"
+speed: 30
+
+weather:
+  - {at: "22:00", sectors: all, rain: false, wind_kph: 6}
+  - {at: "22:30", sectors: "A1:D8", rain: true, wind_kph: 24}
+  - {at: "02:50", sectors: "E1:H8", rain: true, wind_kph: 16}
+  - {at: "03:30", sectors: "A1:D8", rain: false, wind_kph: 8}
+  - {at: "03:45", sectors: "E1:H8", rain: false, wind_kph: 7}
+
+drone:
+  - {sector: E7, see: "two people cutting a felled rosewood into blocks", from: "01:10", until: "02:40"}
+  - {sector: E7, see: "fresh rosewood stump, cut blocks under a tarp, no one in sight", from: "02:40", until: "06:00"}
+  - {sector: F4, see: "two men on a motorbike with a rifle and a bundle of wire snares", from: "04:18", until: "04:40"}
+  - {sector: F4, see: "fresh motorbike tracks heading south, no one in sight", from: "04:40", until: "06:00"}
+
+events:
+  - {at: "22:36:10", node: Prey Krabei, sound: chainsaw, confidence: 0.82, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "22:40:05", node: Kampong Touk, sound: vehicle, confidence: 0.84, duration: 8, source: boat, label: benign, clip: esc50/engine_1.wav, note: patrol boat}
+  - {at: "22:40:30", node: Ou Ampil, sound: vehicle, confidence: 0.86, duration: 8, source: boat, label: benign, clip: esc50/engine_1.wav, note: patrol boat}
+  - {at: "22:41:02", node: Peam Khlong, sound: vehicle, confidence: 0.81, duration: 8, source: boat, label: benign, clip: esc50/engine_1.wav, note: patrol boat}
+  - {at: "22:52:40", node: Ou Sralau, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "23:08:15", node: Prey Krabei, sound: chainsaw, confidence: 0.85, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_3.wav}
+  - {at: "23:27:50", node: Phnom Khmoch, sound: chainsaw, confidence: 0.80, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_4.wav}
+  - {at: "23:44:20", node: Prey Krabei, sound: vehicle, confidence: 0.80, duration: 6, source: thunder, label: false_alarm, clip: esc50/thunderstorm_1.wav}
+  - {at: "00:05:35", node: Ou Sralau, sound: chainsaw, confidence: 0.83, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_5.wav}
+  - {at: "00:21:10", node: Prey Krabei, sound: chainsaw, confidence: 0.86, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "00:47:45", node: Phnom Khmoch, sound: chainsaw, confidence: 0.82, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "01:10:20", node: Veal Thom, sound: chainsaw, confidence: 0.90, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_1.wav}
+  - {at: "01:10:34", node: Kampoul Chhoeu, sound: chainsaw, confidence: 0.87, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_2.wav}
+  - {at: "01:10:51", node: Khnong Phnom, sound: chainsaw, confidence: 0.84, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_3.wav}
+  - {at: "01:24:00", node: Prey Krabei, sound: chainsaw, confidence: 0.84, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_3.wav}
+  - {at: "01:31:40", node: Veal Thom, sound: chainsaw, confidence: 0.92, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_1.wav}
+  - {at: "01:32:05", node: Kampoul Chhoeu, sound: chainsaw, confidence: 0.88, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_3.wav}
+  - {at: "01:58:30", node: Ou Sralau, sound: chainsaw, confidence: 0.82, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_4.wav}
+  - {at: "02:05:15", node: Veal Thom, sound: chainsaw, confidence: 0.93, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_2.wav}
+  - {at: "02:05:40", node: Khnong Phnom, sound: chainsaw, confidence: 0.85, duration: 8, source: chainsaw, label: real, incident: rosewood, clip: esc50/chainsaw_1.wav}
+  - {at: "02:31:50", node: Prey Krabei, sound: chainsaw, confidence: 0.83, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_5.wav}
+  - {at: "03:02:25", node: Stung Proat, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "03:12:10", node: Phnom Khmoch, sound: chainsaw, confidence: 0.80, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "04:19:30", node: Kbal Phlov, sound: gunshot, confidence: 0.93, duration: 3, source: gunshot, label: real, incident: hunting, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "04:19:33", node: Stung Proat, sound: gunshot, confidence: 0.86, duration: 3, source: gunshot, label: real, incident: hunting, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "04:19:35", node: Ou Toch, sound: gunshot, confidence: 0.81, duration: 3, source: gunshot, label: real, incident: hunting, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "04:26:10", node: Kbal Phlov, sound: vehicle, confidence: 0.85, duration: 8, source: motorbike, label: real, incident: hunting, clip: esc50/engine_2.wav}
+  - {at: "04:31:40", node: Ou Ampil, sound: vehicle, confidence: 0.82, duration: 8, source: motorbike, label: real, incident: hunting, clip: esc50/engine_2.wav}
+  - {at: "05:08:15", node: Stung Proat, sound: chainsaw, confidence: 0.80, duration: 5, source: hornbill, label: false_alarm, note: hornbill wingbeats}
+  - {at: "05:21:30", node: Ou Toch, sound: vehicle, confidence: 0.83, duration: 8, source: motorbike, label: benign, clip: esc50/engine_3.wav, note: farmer's motorbike}
+  - {at: "05:36:45", node: Kampong Touk, sound: axe, confidence: 0.82, duration: 5, source: axe, label: benign, note: household wood-cutting}

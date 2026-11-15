@@ -5,7 +5,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from common.deployment import MAX_DRONES
+from common.deployment import MAX_DRONES, DeploymentError, load_deployment
+from common.sites import available_maps, map_profile, map_summaries
 
 router = APIRouter()
 
@@ -46,3 +47,45 @@ async def set_resources(body: Resources, request: Request) -> dict:
         "connectivity": body.connectivity,
     })
     return await deployment(request)
+
+
+@router.get("/api/sites")
+async def sites(request: Request) -> dict:
+    engine = getattr(request.app.state, "sim", None)
+    return {
+        "current": request.app.state.deployment.map,
+        "editable": bool(getattr(engine, "on_reset", None)),
+        "sites": map_summaries(),
+    }
+
+
+class SiteChoice(BaseModel):
+    map: str = Field(pattern=r"^[a-z0-9_]{1,40}$")
+
+
+@router.put("/api/sites")
+async def switch_site(body: SiteChoice, request: Request) -> dict:
+    """Open another map: the current run ends, a fresh run starts on the new map."""
+    app = request.app
+    engine = app.state.sim
+    if engine.on_reset is None:
+        raise HTTPException(409, "Switching maps requires simulator run resets.")
+    if body.map not in available_maps():
+        raise HTTPException(404, "Unknown map.")
+    if body.map == app.state.deployment.map:
+        return await sites(request)
+    try:
+        deployment = load_deployment(map_profile(body.map))
+    except DeploymentError as e:
+        raise HTTPException(500, str(e)) from e
+
+    async def repoint(world) -> None:
+        pipeline = getattr(app.state, "pipeline", None)
+        if pipeline is not None:
+            await pipeline.drain()
+            await pipeline.set_world(world)
+        app.state.receiver.set_world(world)
+
+    await engine.switch_site(deployment, before_reset=repoint)
+    app.state.deployment = deployment  # baseline for resource edits on this map
+    return await sites(request)

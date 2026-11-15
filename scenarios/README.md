@@ -2,6 +2,7 @@
 
 `world.yaml` is the shared map (4 × 4 km, sectors A1–H8, 12 named nodes, no-fly F2 and G6, base in A1).
 Every other `*.yaml` here is a replayable night for the simulator (`sim/scenario.py`).
+Other maps keep their own nights in `sites/<map>/scenarios/` (see docs/DEPLOYMENTS.md).
 
 ## Nights
 

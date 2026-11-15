@@ -11,6 +11,7 @@ import json
 import math
 import re
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,7 @@ from agent.incidents import (
 )
 from common.contracts import ROOT, EventStore, Node, Sim, World
 from common.deployment import NO_AERIAL, Deployment, load_deployment
+from common.sites import ranger_eta, site_notes
 
 AREA_RADIUS_M = 1500.0  # get_detections(sector) covers nodes this close to the sector centre
 MAX_NOTE = 500
@@ -169,6 +171,22 @@ class Services:
             return "No aerial verification: " + observation["content"][:140].rstrip(".") + "."
         return "Camera report (limited coverage): " + observation["content"][:140].rstrip(".") + "."
 
+    def site_lines(self, inc: Incident, found: list) -> list[str]:
+        """Terrain, activity zones and nearest ranger post for the incident (map facts)."""
+        heard: dict[str, tuple[str, set[str]]] = {}
+        for d in found:
+            node = self.world.node(d.node_id)
+            heard.setdefault(node.name, (node.sector, set()))[1].add(sound_name(d.sound))
+        sounds = set().union(*(snd for _, snd in heard.values())) if heard else set()
+        lt = time.localtime(self.sim.now())
+        return site_notes(self.world, inc.sector, inc.x_m, inc.y_m, sounds, lt.tm_hour * 60 + lt.tm_min,
+                          self.deployment.ranger_teams.response_min, heard)
+
+    def ranger_eta(self, inc: Incident, sector: str | None = None) -> dict | None:
+        sec = sector or inc.sector
+        x, y = (inc.x_m, inc.y_m) if sec == inc.sector else self.sector_centre(sec)
+        return ranger_eta(self.world, x, y, sec, self.deployment.ranger_teams.response_min)
+
     def incident_evidence(self, inc: Incident) -> str:
         """Code-counted evidence so a small model does not have to count or search for it."""
         wanted = {(int(n), int(q)) for n, q in inc.records}
@@ -209,6 +227,10 @@ class Services:
                 f"- {node.name} (sector {node.sector}): {len(ds)} record(s), {', '.join(sounds)}, "
                 f"max confidence {max(d.confidence for d in ds):.2f}, past dismissed incidents {past}"
             )
+        site = self.site_lines(inc, found)
+        if site:
+            out.append("Site notes (map facts, not sensor evidence):")
+            out += [f"- {line}" for line in site]
         w = self.sim.weather(inc.sector)
         out.append(f"Weather in {inc.sector}: {'raining' if w.rain else 'dry'}, wind {w.wind_kph:.0f} kph.")
         out.append(f"Valid node names (use only these): {self.node_names()}.")
@@ -322,6 +344,7 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
                                 else "no drone at this site" if route is None else "",
             "observations": inc.observations[-3:], "ranger_updates": inc.ranger_updates[-3:],
             "ranger_outcome": inc.ranger_outcome(), "already_dispatched": bool(inc.dispatches),
+            "ranger_eta": s.ranger_eta(inc),
             "options": ["observe_by_drone", "wait_recheck", "request_ranger_assessment", "propose_dispatch"],
             "limitation": "Camera observations have limited time and coverage; silence is not proof of absence.",
         })
@@ -455,6 +478,9 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             "limitation": s.response_limitations(inc),
             "records": [{"node": s.world.node(n).name, "seq": seq} for n, seq in inc.records],
         }
+        eta = s.ranger_eta(inc, sec)
+        if eta:
+            entry["post"], entry["eta_min"] = eta["post"], eta["eta_min"]
         s.incidents.update(
             inc.id,
             status="dispatched",
@@ -462,7 +488,8 @@ def make_tools(s: Services) -> dict[str, BaseTool]:
             summary=f"Rangers dispatched to {sec}",
             updated_at=now,
         )
-        return f"Rangers dispatched to {sec} at {entry['time']}. Note: {entry['note']}"
+        via = f" from {entry['post']} (about {entry['eta_min']} min)" if eta else ""
+        return f"Rangers dispatched to {sec}{via} at {entry['time']}. Note: {entry['note']}"
 
     @tool
     def set_status(status: Literal["watching", "dismissed", "closed"], reason: str, config: RunnableConfig) -> str:

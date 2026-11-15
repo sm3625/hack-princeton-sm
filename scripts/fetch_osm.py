@@ -1,6 +1,11 @@
 """Fetch OpenStreetMap geography for the pilot block and the reserve inset.
 
-Run by hand, never in tests:  uv run python scripts/fetch_osm.py [--raw-dir DIR] [--only block|reserve]
+Run by hand, never in tests:
+  uv run python scripts/fetch_osm.py [--site MAP] [--raw-dir DIR] [--only block|reserve]
+
+--site picks sites/<MAP>/world.yaml and writes ui/geo/<MAP>/ (default: the Laguna del Tigre map,
+scenarios/world.yaml -> ui/geo/). The world's `site.osm` block names the reserve and park relations
+and the inset places.
 
 Makes two Overpass requests (block features, reserve + park boundaries), converts them to small static
 files that the dashboard loads from its own origin:
@@ -57,6 +62,7 @@ LINE_CLASS = {
     "bridleway": "path",
     "steps": "path",
     "cycleway": "path",
+    "ridge": "ridge",
 }
 AREA_CLASS = {
     "water": "water",
@@ -266,8 +272,14 @@ def element_rings(e: dict) -> tuple[list, list]:
 # ---------- block ----------
 
 
-def load_world() -> dict:
-    return yaml.safe_load(WORLD.read_text())
+def load_world(path: Path = WORLD) -> dict:
+    return yaml.safe_load(path.read_text())
+
+
+def osm_ids(world: dict) -> tuple[int, int | None, list[dict]]:
+    osm = (world.get("site") or {}).get("osm") or {}
+    places = osm.get("places", [{"n": "Tikal", "lat": 17.2220, "lon": -89.6233}])
+    return osm.get("reserve_id", RESERVE_ID), osm.get("park_id", PARK_ID), places
 
 
 def block(raw: Path | None, world: dict) -> dict:
@@ -285,6 +297,7 @@ def block(raw: Path | None, world: dict) -> dict:
   way["landuse"]{bb};
   relation["landuse"]{bb};
   way["highway"]{bb};
+  way["natural"="ridge"]{bb};
   node["place"]["name"]{bb};
   node["natural"~"peak|spring"]["name"]{bb};
 );
@@ -311,7 +324,7 @@ out tags geom;"""
                 }
             )
             continue
-        cls = LINE_CLASS.get(tags.get("waterway") or tags.get("highway") or "")
+        cls = LINE_CLASS.get(tags.get("waterway") or tags.get("highway") or tags.get("natural") or "")
         if cls and el["type"] == "way":
             pts = [proj(p) for p in geom_pts(el.get("geometry", []))]
             for piece in clip_line(pts, box):
@@ -354,14 +367,16 @@ out tags geom;"""
 
 
 def reserve(raw: Path | None, world: dict) -> dict:
+    reserve_id, park_id, places = osm_ids(world)
+    ids = ",".join(str(i) for i in (reserve_id, park_id) if i)
     data = overpass(
-        f"[out:json][timeout:180];\nrelation(id:{RESERVE_ID},{PARK_ID});\nout geom;",
+        f"[out:json][timeout:180];\nrelation(id:{ids});\nout geom;",
         raw / "reserve.json" if raw else None,
     )
     lat0, lon0 = world["origin_lat"], world["origin_lon"]
     out: dict = {"attribution": "(c) OpenStreetMap contributors, ODbL"}
     for el in data["elements"]:
-        key = "reserve" if el["id"] == RESERVE_ID else "park"
+        key = "reserve" if el["id"] == reserve_id else "park"
         outer, _ = element_rings(el)
         rings = []
         for ring in outer:
@@ -369,7 +384,7 @@ def reserve(raw: Path | None, world: dict) -> dict:
             if len(pts) >= 4:
                 rings.append([[round(x, 4), round(y, 4)] for x, y in pts])
         rings.sort(key=lambda r: -len(r))
-        out[key] = {"name": el["tags"].get("name"), "rings": rings}
+        out[key] = {"name": el["tags"].get("name:en") or el["tags"].get("name"), "rings": rings}
         out[key + "_contains_pilot"] = any(pip((lon0, lat0), [tuple(p) for p in r]) for r in rings)
     out["pilot"] = {
         "lat": lat0,
@@ -377,7 +392,7 @@ def reserve(raw: Path | None, world: dict) -> dict:
         "w_m": world["width_m"],
         "h_m": world["height_m"],
     }
-    out["places"] = [{"n": "Tikal", "lat": 17.2220, "lon": -89.6233}]
+    out["places"] = places
     return out
 
 
@@ -385,12 +400,16 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", type=Path, help="cache raw Overpass responses here and reuse them")
     ap.add_argument("--only", choices=["block", "reserve"])
+    ap.add_argument("--site", help="map name under sites/ (default: the Laguna del Tigre map)")
     args = ap.parse_args()
-    world = load_world()
-    OUT.mkdir(parents=True, exist_ok=True)
+    world_file, out = WORLD, OUT
+    if args.site:
+        world_file, out = ROOT / "sites" / args.site / "world.yaml", OUT / args.site
+    world = load_world(world_file)
+    out.mkdir(parents=True, exist_ok=True)
     if args.only != "reserve":
         b = block(args.raw_dir, world)
-        (OUT / "pilot_block.json").write_text(
+        (out / "pilot_block.json").write_text(
             json.dumps(b, separators=(",", ":"), ensure_ascii=False)
         )
         kinds: dict[str, int] = {}
@@ -399,14 +418,14 @@ def main() -> None:
         print("block", kinds, "places", len(b["places"]))
     if args.only != "block":
         r = reserve(args.raw_dir, world)
-        (OUT / "reserve.json").write_text(json.dumps(r, separators=(",", ":"), ensure_ascii=False))
+        (out / "reserve.json").write_text(json.dumps(r, separators=(",", ":"), ensure_ascii=False))
         print(
             "reserve contains pilot:",
             r.get("reserve_contains_pilot"),
             "park:",
             r.get("park_contains_pilot"),
         )
-    for f in OUT.glob("*.json"):
+    for f in out.glob("*.json"):
         print(f.name, f.stat().st_size, "bytes")
 
 

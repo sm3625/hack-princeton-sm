@@ -13,6 +13,55 @@ DEPLOYMENT=no_drone make dev
 | `laguna_del_tigre_pilot` (default) | 1 (10 m/s, 10 km range, 15% reserve) | 1, 45 min | lora |
 | `no_drone` | 0 | 1, 90 min | satellite |
 | `well_resourced` | 3 (two bases, mixed specs) | 4, 20 min | cellular |
+| `southern_cardamom` | 1 (8 m/s, 7 km range, 20% reserve) | 3, 60 min | lora |
+| `gunung_leuser` | 1 (14 m/s, 16 km range) | 2, 40 min | cellular |
+
+## Maps
+
+A profile's `map:` picks the world, scenarios and OpenStreetMap files (`common/sites.py`):
+
+| Map | Where | World / scenarios | OSM files |
+|---|---|---|---|
+| `laguna_del_tigre` (default) | Maya Biosphere Reserve, Guatemala | `scenarios/` | `ui/geo/` |
+| `southern_cardamom` | Peam Piphot valley above Chi Phat, Cambodia | `sites/southern_cardamom/` | `ui/geo/southern_cardamom/` |
+| `gunung_leuser` | Bukit Lawang edge of Gunung Leuser NP, Sumatra | `sites/gunung_leuser/` | `ui/geo/gunung_leuser/` |
+
+```
+DEPLOYMENT=gunung_leuser make dev
+DEPLOYMENT=southern_cardamom make dev
+```
+
+Or pick a map in the dashboard header (site picker, next to the scenario). Switching ends the
+current run, points the node pipeline and receiver at the new map's sensors, starts a fresh
+commander on that map's profile (`laguna_del_tigre_pilot`, `southern_cardamom`, `gunung_leuser`)
+and reloads every open page. `GET /api/sites` lists maps; `PUT /api/sites {"map": ...}` switches
+(only when demo run resets are on, the default). A restart goes back to `DEPLOYMENT`.
+
+A world file can describe the site's geography. All optional; the default map has none, so it
+behaves as before:
+
+```yaml
+site:          {title, region, block, inset_country, inset_zone, osm: {reserve_id, park_id, places},
+                research_queries, research_languages, research_hint}
+ranger_speed_kmh: 3.0
+ranger_posts:  [{name, x_m, y_m, mode: foot|boat|vehicle, speed_kmh}]
+terrain:       [{sectors, kind: steep|ridge|river|swamp, note, ranger_factor}]
+zones:         [{name, sectors, kind, note, expect: {sound: "HH:MM-HH:MM" or null}}]
+```
+
+The commander gets these as "Site notes" in `get_incident_evidence`: terrain at the incident, every
+activity zone a reporting node sits in (with whether each heard sound is normal there at this hour,
+and whether the sound was also heard outside the zone), and the nearest ranger post with a
+terrain-adjusted travel time. `compare_response_options` returns `ranger_eta`; a dispatch records
+the post and ETA. The map shades terrain, outlines zones and marks posts (labels on zoom).
+
+| Site | Plays to its strengths | Works around |
+|---|---|---|
+| Southern Cardamom | Two posts in the block; river boat access to the valley; quick re-checks | Steep ridges (x2.2 travel); cloud-capped summit no-fly (G8, H7); windward-slope monsoon false alarms; drone too short-ranged for the far ridge |
+| Gunung Leuser | Road and phone signal at the boundary; long-range drone over flat lowland | Plantation chainsaws and trucks are lawful by day on the farm side, so the same sound means different things by side and hour; steep poaching hills; village and feeding area no-fly |
+
+Node, post and terrain names are illustrative. OSM coverage in the Cardamom block is sparse.
+Refresh geography with `uv run python scripts/fetch_osm.py --site <map>`.
 
 ## Fields
 

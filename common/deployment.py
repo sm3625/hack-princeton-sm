@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from common.contracts import ROOT
+from common.sites import DEFAULT_MAP, site_map
 
 load_dotenv(ROOT / ".env")
 
@@ -101,12 +102,18 @@ class AgentLimits(_Strict):
 
 class Deployment(_Strict):
     site: Site
+    map: str = DEFAULT_MAP  # world, scenarios and OSM files (common/sites.py)
     drones: Drones = Drones()
     ranger_teams: RangerTeams = RangerTeams()
     connectivity: Literal["lora", "satellite", "cellular"] = "lora"  # informational
     approval: Approval = Approval()
     agent: AgentLimits = AgentLimits()
     name: str = Field(default=DEFAULT_DEPLOYMENT, exclude=True)  # file name, set by the loader
+
+    @model_validator(mode="after")
+    def _map_exists(self) -> Deployment:
+        site_map(self.map)  # ValueError names the available maps
+        return self
 
     @property
     def has_drones(self) -> bool:
@@ -136,6 +143,7 @@ class Deployment(_Strict):
         """Read-only view for GET /api/deployment. Nothing secret lives in a profile."""
         return {
             "name": self.name,
+            "map": self.map,
             "site": self.site.model_dump(),
             "drones": {
                 "count": self.drones.count,

@@ -1,0 +1,22 @@
+# Gunung Leuser NP edge at Bukit Lawang, North Sumatra: forest meets oil palm and villages.
+# Map, terrain, zones and scenarios: sites/gunung_leuser/.
+site:
+  name: Bukit Lawang edge, Gunung Leuser
+  description: Park boundary on the Bohorok river. Road and phone signal on the farm side; steep forest hills on the park side.
+map: gunung_leuser
+drones:
+  count: 1              # one drone until the dashboard draws a fleet (docs/DEPLOYMENTS.md)
+  spec:
+    speed_mps: 14       # lower, calmer valley air than the Cardamom ridges
+    range_km: 16
+    reserve_pct: 15
+    base_x_m: 3300      # road-side post on the boundary
+    base_y_m: 900
+ranger_teams:
+  count: 2
+  response_min: 40
+connectivity: cellular  # village towers reach the boundary; deep forest drops out
+approval:
+  approver: patrol coordinator
+agent:
+  check_interval_min: 30

@@ -16,6 +16,7 @@ from agent.fallbacks import MemoryEventStore
 from agent.llm import ROLES
 from agent.mock import MockChatModel
 from common.contracts import Detection, DroneStatus, Route, SoundClass, Weather, World, load_world
+from common.sites import site_map
 
 NIGHT = int(time.mktime((2026, 11, 14, 0, 0, 0, 0, 0, -1)))  # station-local midnight
 
@@ -91,7 +92,7 @@ class Harness:
     def __init__(
         self, tmp: Path, models: dict | None = None, background: bool = False, deployment=None
     ) -> None:
-        self.world = load_world()
+        self.world = load_world(site_map(deployment.map).world_file) if deployment else load_world()
         self.sim = FakeSim(self.world)
         self.store = MemoryEventStore()
         self.nodes = Nodes(self.world)

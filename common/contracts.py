@@ -122,6 +122,12 @@ class World:
     no_fly: list[str] = field(default_factory=list)  # sector names
     base_x_m: float = 0.0
     base_y_m: float = 0.0
+    # Optional site geography (common/sites.py): shown on the map and quoted in incident evidence.
+    site: dict = field(default_factory=dict)  # {title, region, inset_country, inset_zone}
+    ranger_posts: list[dict] = field(default_factory=list)  # {name, x_m, y_m, mode, speed_kmh}
+    terrain: list[dict] = field(default_factory=list)  # {sectors, kind, note, ranger_factor}
+    zones: list[dict] = field(default_factory=list)  # {name, sectors, kind, note, expect, hours}
+    ranger_speed_kmh: float = 3.0
 
     def node(self, node_id: int) -> Node:
         return next(n for n in self.nodes if n.id == node_id)
@@ -132,9 +138,14 @@ class World:
         return f"{chr(ord('A') + col)}{row + 1}"
 
 
-def load_world(path: Path = WORLD_FILE) -> World:
+def load_world(path: Path | None = None) -> World:
+    """Read a world file; with no path, the map of the active deployment profile."""
     import yaml
 
+    if path is None:
+        from common.sites import active_map
+
+        path = active_map().world_file
     data = yaml.safe_load(path.read_text())
     nodes = [Node(**n) for n in data.pop("nodes")]
     return World(nodes=nodes, **data)

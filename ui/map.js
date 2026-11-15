@@ -104,7 +104,31 @@ export class ForestMap {
       svg("rect", { class: "border", x: 0, y: 0, width: W, height: H, "vector-effect": "non-scaling-stroke" }),
     );
     this.gGeo = svg("g", { class: "geo-slot" });
-    this.gWorld.append(this.gGeo, this.gRain, this.gIncidents, grid);
+    // Site geography from world.yaml (common/sites.py): terrain shading and lawful-activity zones.
+    this.gSite = svg("g", { class: "site-layer", "aria-hidden": "true" });
+    for (const t of this.world.terrain || []) {
+      for (const name of t.sectors) {
+        const r = this.sectorRect(name);
+        this.gSite.append(svg("rect", { class: `terrain ${t.kind}`, x: r.x0, y: H - r.y1, width: S, height: S }));
+      }
+    }
+    for (const z of this.world.zones || []) {
+      const cells = new Set(z.sectors);
+      const d = [];
+      for (const name of z.sectors) {
+        const r = this.sectorRect(name);
+        const c = name.charCodeAt(0);
+        const n = Number(name.slice(1));
+        // Outline only the zone's outer edges.
+        if (!cells.has(`${String.fromCharCode(c)}${n + 1}`)) d.push(`M${r.x0} ${H - r.y1}H${r.x1}`);
+        if (!cells.has(`${String.fromCharCode(c)}${n - 1}`)) d.push(`M${r.x0} ${H - r.y0}H${r.x1}`);
+        if (!cells.has(`${String.fromCharCode(c - 1)}${n}`)) d.push(`M${r.x0} ${H - r.y1}V${H - r.y0}`);
+        if (!cells.has(`${String.fromCharCode(c + 1)}${n}`)) d.push(`M${r.x1} ${H - r.y1}V${H - r.y0}`);
+        this.gSite.append(svg("rect", { class: `zone-fill ${z.kind}`, x: r.x0, y: H - r.y1, width: S, height: S }));
+      }
+      this.gSite.append(svg("path", { class: `zone-edge ${z.kind}`, d: d.join(""), "vector-effect": "non-scaling-stroke" }));
+    }
+    this.gWorld.append(this.gGeo, this.gSite, this.gRain, this.gIncidents, grid);
 
     // Screen-space overlay.
     this.gOverlay = svg("g", { class: "overlay" });
@@ -114,6 +138,28 @@ export class ForestMap {
       const label = svg("text", { class: "nofly-label", "text-anchor": "middle", text: "No-fly" });
       this.gOverlay.append(fill, edge, label);
       return { name, rect: this.sectorRect(name), fill, edge, label };
+    });
+
+    this.zoneLabels = (this.world.zones || []).map((z) => {
+      const xs = z.sectors.map((n) => this.sectorRect(n));
+      const x = xs.reduce((a, r) => a + (r.x0 + r.x1) / 2, 0) / xs.length;
+      const y = Math.max(...xs.map((r) => r.y1));
+      const t = svg("text", { class: `zone-label ${z.kind}`, "text-anchor": "middle", text: z.name });
+      this.gOverlay.append(t);
+      return { x, y, t };
+    });
+    this.gPosts = svg("g", { class: "posts" });
+    this.posts = (this.world.ranger_posts || []).map((p) => {
+      const label = svg("text", { class: "post-label", x: 10, y: 4, text: p.name });
+      const g = svg(
+        "g",
+        { class: `post ${p.mode || "foot"}`, role: "img", "aria-label": `Ranger post: ${p.name}` },
+        svg("title", { text: `${p.name} (${p.mode || "foot"})` }),
+        svg("path", { d: "M0 -7L6 -3.5V2.5C6 5 3 7 0 8C-3 7 -6 5 -6 2.5V-3.5Z" }),
+        label,
+      );
+      this.gPosts.append(g);
+      return { p, g, label };
     });
 
     this.gAxis = svg("g", { class: "axis", "aria-hidden": "true" });
@@ -173,7 +219,7 @@ export class ForestMap {
 
     this.gGeoLabels = svg("g", { class: "geo-labels", "aria-hidden": "true" });
     this.geoLabels = [];
-    this.gOverlay.append(this.gGeoLabels, this.gAxis, this.gSectorLabels, this.planLine, this.trailLine, this.base, this.gNodes, this.droneG);
+    this.gOverlay.append(this.gGeoLabels, this.gAxis, this.gSectorLabels, this.planLine, this.trailLine, this.base, this.gPosts, this.gNodes, this.droneG);
     this.svg.append(this.gWorld, this.gOverlay);
 
     this.calloutText = el("div", { class: "callout-bubble" });
@@ -700,6 +746,16 @@ export class ForestMap {
       z.label.setAttribute("x", x + size.width / 2);
       z.label.setAttribute("y", y + size.height / 2 + 4);
       z.label.classList.toggle("shown", sectorPx >= 110);
+    }
+
+    for (const z of this.zoneLabels) {
+      z.t.setAttribute("x", this.sx(z.x));
+      z.t.setAttribute("y", this.sy(z.y) + 14);
+      z.t.classList.toggle("shown", sectorPx >= 90);
+    }
+    for (const p of this.posts) {
+      p.g.setAttribute("transform", `translate(${this.sx(p.p.x_m)} ${this.sy(p.p.y_m)})`);
+      p.label.classList.toggle("shown", sectorPx >= 110);
     }
 
     const bottom = Math.min(this.sy(0) + 15, h - this.inset - 7);

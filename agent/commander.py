@@ -66,6 +66,7 @@ from common.contracts import ROOT, Detection, EventStore, Sim, World, load_world
 from common.deployment import NO_AERIAL, Deployment, load_deployment
 from station.config import Settings
 
+from common.sites import site_map
 log = logging.getLogger("agent.commander")
 
 MEMORY_FILES = ["/memories/nodes.md", "/memories/sectors.md"]
@@ -531,7 +532,7 @@ class Commander:
     ) -> None:
         self.prefilter = prefilter
         self.deployment = deployment or load_deployment()
-        self.world = world or load_world()
+        self.world = world or load_world(site_map(self.deployment.map).world_file)
         self.store = store if store is not None else MemoryEventStore()
         self.sim = sim if sim is not None else ClockSim(self.world)
         self.publish = publish or BusPublisher()

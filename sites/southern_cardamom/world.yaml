@@ -1,0 +1,66 @@
+# 4 x 4 km pilot block in the Peam Piphot valley, Southern Cardamom National Park (Koh Kong, Cambodia),
+# a few km upstream of Chi Phat. Real OSM geography in ui/geo/southern_cardamom/ (OSM is sparse here).
+# The national park covers the north and east; the south and west are Chi Phat community land.
+# Node, post and terrain names are illustrative local-style names, not real sensor sites.
+#
+# What makes this site different (common/sites.py turns these into incident evidence):
+#  + many small ranger stations patrolling day and night: two posts inside the block
+#  + the river is a road: the valley post reaches the south by boat
+#  - steep ridges in the north and east: rangers move at half speed or worse
+#  - the summit ridge (G8, H7) sits in cloud and blocks the drone's radio link: no-fly
+#  - south-west monsoon: the windward west slopes are soaked for hours (rain false alarms)
+#  - the short-range drone cannot climb to the far ridge with its reserve: rangers must go
+width_m: 4000
+height_m: 4000
+sector_m: 500
+origin_lat: 11.3400
+origin_lon: 103.5450
+base_x_m: 900
+base_y_m: 700
+no_fly: [G8, H7]
+ranger_speed_kmh: 2.0
+site:
+  title: Southern Cardamom National Park
+  region: Koh Kong, Cambodia
+  block: Peam Piphot pilot
+  inset_country: THAILAND
+  inset_zone: Tatai WS
+  osm:
+    reserve_id: 6230213
+    park_id: 6243786
+    places: []  # Chi Phat sits on the pilot marker; Koh Kong collides with the Tatai label
+  research_queries:
+    - "site:wildlifealliance.org Southern Cardamom rangers logging snares"
+    - "Southern Cardamom National Park illegal logging rosewood hunting monsoon"
+  research_languages: English and Khmer
+  research_hint: "Prefer Wildlife Alliance, the Ministry of Environment and Mongabay; use site: filters."
+ranger_posts:
+  - {name: Peam Piphot station, x_m: 900, y_m: 700, mode: boat, speed_kmh: 5}
+  - {name: Stung Proat outpost, x_m: 3300, y_m: 2600, mode: foot}
+terrain:
+  - {sectors: "A1:H2", kind: river, note: "Peam Piphot valley floor, reachable by river boat", ranger_factor: 0.8}
+  - {sectors: ["C6:H8", "G5:H5"], kind: steep, note: "Steep ridge, about 500-900 m, slippery in rain", ranger_factor: 2.2}
+  - {sectors: [G8, H7, H8], kind: ridge, note: "Summit ridge in cloud: no drone link", ranger_factor: 1.3}
+zones:
+  - name: Chi Phat community land
+    sectors: "A1:D3"
+    kind: community
+    expect: {vehicle: "05:00-20:00", axe: "05:30-18:30"}
+    note: "Community farms and ecotourism trails outside the park; motorbikes and household wood-cutting are allowed by day."
+  - name: Old logging road
+    sectors: [E3, E4, F4, G4, G5, H5]
+    kind: road
+    note: "Disused logging track into the park: the usual way timber leaves; no lawful traffic at night."
+nodes:
+  - {id: 1,  name: Phnom Khmoch, x_m: 600, y_m: 3600, lat: 11.3723, lon: 103.5505, sector: B8}
+  - {id: 2,  name: Khnong Phnom, x_m: 1800, y_m: 3400, lat: 11.3705, lon: 103.5615, sector: D7}
+  - {id: 3,  name: Kampoul Chhoeu, x_m: 3000, y_m: 3600, lat: 11.3723, lon: 103.5725, sector: G8}
+  - {id: 4,  name: Ou Sralau, x_m: 700, y_m: 2600, lat: 11.3634, lon: 103.5514, sector: B6}
+  - {id: 5,  name: Veal Thom, x_m: 2200, y_m: 2700, lat: 11.3643, lon: 103.5652, sector: E6}
+  - {id: 6,  name: Stung Proat, x_m: 3400, y_m: 2300, lat: 11.3607, lon: 103.5762, sector: G5}
+  - {id: 7,  name: Prey Krabei, x_m: 400, y_m: 1500, lat: 11.3535, lon: 103.5487, sector: A4}
+  - {id: 8,  name: Ou Toch, x_m: 1700, y_m: 1400, lat: 11.3526, lon: 103.5606, sector: D3}
+  - {id: 9,  name: Kbal Phlov, x_m: 2700, y_m: 1500, lat: 11.3535, lon: 103.5697, sector: F4}
+  - {id: 10, name: Kampong Touk, x_m: 1100, y_m: 500, lat: 11.3445, lon: 103.5551, sector: C2}
+  - {id: 11, name: Ou Ampil, x_m: 2400, y_m: 700, lat: 11.3463, lon: 103.5670, sector: E2}
+  - {id: 12, name: Peam Khlong, x_m: 3600, y_m: 800, lat: 11.3472, lon: 103.5780, sector: H2}

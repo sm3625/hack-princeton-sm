@@ -1487,6 +1487,8 @@ function handle(m) {
       return onScenario(m);
     case "run_reset":
       return resetRunView(m);
+    case "site_changed":
+      return state.world?.map === m.map ? undefined : location.reload();
     case "detection":
       return onDetection(m);
     case "rejected":
@@ -1629,6 +1631,34 @@ resourcesForm.addEventListener("submit", async (event) => {
 
 window.addEventListener("demo-run-reset", loadResources);
 
+// Site picker: each map is a different reserve (sites/<map>/). Switching ends the current run.
+async function loadSites() {
+  const select = $("site");
+  try {
+    const data = await api("/api/sites");
+    if (!data.editable || data.sites.length < 2) return;
+    select.replaceChildren(
+      ...data.sites.map((s) => el("option", { value: s.map, text: s.title, title: s.region })),
+    );
+    select.value = data.current;
+    select.hidden = false;
+  } catch {
+    select.hidden = true;
+  }
+}
+
+$("site").addEventListener("change", async (event) => {
+  const select = event.target;
+  select.disabled = true;
+  try {
+    await api("/api/sites", { method: "PUT", body: { map: select.value } });
+    location.reload();
+  } catch {
+    select.disabled = false;
+    loadSites();
+  }
+});
+
 async function loadWorld() {
   for (;;) {
     try {
@@ -1644,6 +1674,7 @@ async function init() {
   bindControls();
   loadHealth();
   loadResources();
+  loadSites();
   state.world = await loadWorld();
   setConnected(true);
   for (const n of state.world.nodes) {
@@ -1655,9 +1686,11 @@ async function init() {
     showLabels: prefs.get("labels", false) === true,
     onLabelsToggle: (on) => prefs.set("labels", on),
   });
-  loadGeo().then(({ block, reserve }) => {
+  const site = state.world.site || {};
+  applySiteText(site);
+  loadGeo(state.world.geo_url).then(({ block, reserve }) => {
     state.map.setGeo(block);
-    renderInset($("inset-map"), reserve);
+    renderInset($("inset-map"), reserve, site.inset_country ? { country: site.inset_country, zone: site.inset_zone || "" } : undefined);
   });
   setTab(state.tab);
   loadResults();
@@ -1669,6 +1702,20 @@ async function init() {
   setInterval(refreshTimes, 1000);
   setInterval(() => ($("clock-time").textContent = clockText(simNow())), 250);
   document.body.classList.add("ready");
+}
+
+// Header and inset text for maps other than the original (world.yaml `site:`).
+function applySiteText(site) {
+  if (!site.title) return;
+  const sub = document.querySelector(".brand-sub");
+  if (sub) sub.textContent = `${site.title} · ${site.block || "pilot block"}`;
+  const cap = document.querySelector(".reserve-inset figcaption");
+  if (cap) {
+    cap.querySelector("strong").textContent = site.title;
+    cap.querySelector("span").textContent = `${site.region} · 4 × 4 km pilot block`;
+  }
+  document.querySelector(".reserve-inset")?.setAttribute("aria-label", `Pilot block location in ${site.title}`);
+  document.title = `Forest Guardian · ${site.title}`;
 }
 
 init();

@@ -46,7 +46,13 @@ class SpeedRequest(BaseModel):
 
 @router.get("/api/world")
 def world() -> dict:
-    return worldmap.to_json(get_engine().world)
+    engine = get_engine()
+    site = getattr(engine, "site", None)
+    out = worldmap.to_json(engine.world)
+    if site is not None:
+        out["map"] = site.key
+        out["geo_url"] = site.geo_url
+    return out
 
 
 @router.get("/api/sim/state")

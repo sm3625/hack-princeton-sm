@@ -1,0 +1,49 @@
+# Demo (Southern Cardamom): about 2 minutes at 20x. Real ESC-50 / UrbanSound8K clips under data/.
+# Monsoon rain soaks the west slopes; rosewood cutters work the far ridge beyond the drone's reach;
+# a patrol boat runs the river; hunters with snares ride the old logging road.
+title: Demo (2 min)
+date: 2026-11-14
+start: "02:00"
+end: "02:38"
+speed: 20
+
+weather:
+  - {at: "02:00", sectors: all, rain: false, wind_kph: 8}
+  - {at: "02:00", sectors: "A1:D8", rain: true, wind_kph: 26}
+
+drone:
+  - {sector: E7, see: "two people cutting a felled rosewood into blocks", from: "02:00", until: "02:38"}
+  - {sector: F4, see: "two men on a motorbike with a rifle and a bundle of wire snares", from: "02:20", until: "02:38"}
+
+events:
+  # Windward slope in monsoon rain: the classifier hears a chainsaw.
+  - {at: "02:00:40", node: Prey Krabei, sound: chainsaw, confidence: 0.84, duration: 5,
+     source: rain, label: false_alarm, incident: monsoon, clip: ESC-50-master/audio/1-17367-A-10.wav}
+  - {at: "02:01:40", node: Ou Sralau, sound: chainsaw, confidence: 0.81, duration: 5,
+     source: rain, label: false_alarm, incident: monsoon, clip: ESC-50-master/audio/1-21189-A-10.wav}
+
+  # Rosewood on the far ridge, heard by two dry nodes and one in the rain.
+  - {at: "02:03:20", node: Veal Thom, sound: chainsaw, confidence: 0.91, duration: 5,
+     source: chainsaw, label: real, incident: rosewood, clip: ESC-50-master/audio/1-116765-A-41.wav}
+  - {at: "02:03:30", node: Kampoul Chhoeu, sound: chainsaw, confidence: 0.88, duration: 5,
+     source: chainsaw, label: real, incident: rosewood, clip: ESC-50-master/audio/1-19898-A-41.wav}
+  - {at: "02:03:40", node: Khnong Phnom, sound: chainsaw, confidence: 0.86, duration: 5,
+     source: chainsaw, label: real, incident: rosewood, clip: ESC-50-master/audio/1-19898-B-41.wav}
+
+  # Ranger patrol boat on the Peam Piphot.
+  - {at: "02:08:20", node: Ou Ampil, sound: vehicle, confidence: 0.83, duration: 5,
+     source: boat, label: benign, incident: boat, clip: ESC-50-master/audio/1-18527-A-44.wav, note: patrol boat}
+  - {at: "02:08:50", node: Peam Khlong, sound: vehicle, confidence: 0.80, duration: 5,
+     source: boat, label: benign, incident: boat, clip: ESC-50-master/audio/1-18527-B-44.wav, note: patrol boat}
+
+  # The saw again.
+  - {at: "02:11:00", node: Veal Thom, sound: chainsaw, confidence: 0.94, duration: 5,
+     source: chainsaw, label: real, incident: rosewood, clip: ESC-50-master/audio/1-19898-C-41.wav}
+
+  # Hunters on the old logging road: shots, then the motorbike leaving.
+  - {at: "02:20:00", node: Kbal Phlov, sound: gunshot, confidence: 0.93, duration: 3,
+     source: gunshot, label: real, incident: hunting, clip: UrbanSound8K/audio/fold9/106955-6-0-0.wav}
+  - {at: "02:20:04", node: Stung Proat, sound: gunshot, confidence: 0.87, duration: 3,
+     source: gunshot, label: real, incident: hunting, clip: UrbanSound8K/audio/fold3/110622-6-0-0.wav}
+  - {at: "02:23:20", node: Kbal Phlov, sound: vehicle, confidence: 0.84, duration: 5,
+     source: motorbike, label: real, incident: hunting, clip: ESC-50-master/audio/1-22882-A-44.wav}

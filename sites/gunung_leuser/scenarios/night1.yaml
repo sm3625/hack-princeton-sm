@@ -1,0 +1,61 @@
+# Night 1 (Gunung Leuser, Bukit Lawang edge). Times are station-local; after midnight is the next day.
+# A storm sits over the north-west hills before midnight; a dawn shower covers everything.
+# Two real incidents:
+#  - encroachment: a chainsaw crew clears forest at the boundary (E5 farm side, C5/D4 park side) at
+#    01:40, outside the plantation's chainsaw hours, then a vehicle comes for the seedlings.
+#  - poaching: shots in the steep north-west hills (B8/D7); drone can see it, rangers walk far.
+# Noise: plantation harvest trucks at night (lawful in the zone), a lodge motorbike, 10 storm false
+# alarms on the hill nodes, a branch fall read as a gunshot, 4 dawn-rain false alarms, and an early
+# replanting crew's chainsaw inside lawful hours.
+title: Night 1
+date: 2026-11-14
+start: "22:00"
+end: "06:00"
+speed: 30
+
+weather:
+  - {at: "22:00", sectors: all, rain: false, wind_kph: 4}
+  - {at: "23:20", sectors: "A5:D8", rain: true, wind_kph: 18}
+  - {at: "01:05", sectors: "A5:D8", rain: false, wind_kph: 6}
+  - {at: "04:40", sectors: all, rain: true, wind_kph: 12}
+  - {at: "05:25", sectors: all, rain: false, wind_kph: 5}
+
+drone:
+  - {sector: D5, see: "three people clearing forest with a chainsaw on the park side of the boundary", from: "01:38", until: "03:00"}
+  - {sector: E5, see: "stacked oil palm seedlings at a fresh clearing edge, a pickup truck", from: "01:38", until: "03:00"}
+  - {sector: D5, see: "fresh clearing inside the boundary, no one in sight", from: "03:00", until: "06:00"}
+  - {sector: C8, see: "one person with a rifle on a ridge trail, heading west", from: "03:50", until: "04:15"}
+  - {sector: C8, see: "no one in sight; a line of wire snares along the trail", from: "04:15", until: "06:00"}
+
+events:
+  - {at: "22:12:05", node: Batas Timur, sound: vehicle, confidence: 0.86, duration: 8, source: truck, label: benign, clip: esc50/engine_1.wav, note: palm fruit truck}
+  - {at: "22:12:40", node: Kebun Tepi, sound: vehicle, confidence: 0.84, duration: 8, source: truck, label: benign, clip: esc50/engine_1.wav, note: palm fruit truck}
+  - {at: "22:13:20", node: Simpang Tiga, sound: vehicle, confidence: 0.81, duration: 8, source: truck, label: benign, clip: esc50/engine_1.wav, note: palm fruit truck}
+  - {at: "22:35:30", node: Tebing Bohorok, sound: vehicle, confidence: 0.82, duration: 6, source: motorbike, label: benign, clip: esc50/engine_3.wav, note: lodge motorbike}
+  - {at: "23:26:10", node: Bukit Harimau, sound: chainsaw, confidence: 0.83, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "23:34:45", node: Lembah Tupai, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "23:41:20", node: Bukit Harimau, sound: chainsaw, confidence: 0.85, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_3.wav}
+  - {at: "23:52:05", node: Puncak Rotan, sound: vehicle, confidence: 0.80, duration: 6, source: thunder, label: false_alarm, clip: esc50/thunderstorm_1.wav}
+  - {at: "23:58:40", node: Bukit Harimau, sound: chainsaw, confidence: 0.84, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_4.wav}
+  - {at: "00:09:15", node: Lembah Tupai, sound: chainsaw, confidence: 0.82, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_5.wav}
+  - {at: "00:21:50", node: Bukit Harimau, sound: chainsaw, confidence: 0.86, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "00:30:25", node: Batu Kapal, sound: gunshot, confidence: 0.81, duration: 2, source: branch_fall, label: false_alarm, note: branch fall}
+  - {at: "00:36:30", node: Puncak Rotan, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "00:44:05", node: Bukit Harimau, sound: chainsaw, confidence: 0.83, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_3.wav}
+  - {at: "00:57:40", node: Lembah Tupai, sound: chainsaw, confidence: 0.80, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_4.wav}
+  - {at: "01:40:10", node: Pinggir Sawit, sound: chainsaw, confidence: 0.91, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_1.wav}
+  - {at: "01:40:22", node: Sungai Landak, sound: chainsaw, confidence: 0.86, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_2.wav}
+  - {at: "01:40:41", node: Jalur Lama, sound: chainsaw, confidence: 0.84, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_3.wav}
+  - {at: "01:56:30", node: Pinggir Sawit, sound: chainsaw, confidence: 0.93, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_2.wav}
+  - {at: "01:56:55", node: Sungai Landak, sound: chainsaw, confidence: 0.88, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_1.wav}
+  - {at: "02:14:15", node: Pinggir Sawit, sound: chainsaw, confidence: 0.92, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_3.wav}
+  - {at: "02:14:40", node: Jalur Lama, sound: chainsaw, confidence: 0.85, duration: 8, source: chainsaw, label: real, incident: encroachment, clip: esc50/chainsaw_1.wav}
+  - {at: "02:48:20", node: Pinggir Sawit, sound: vehicle, confidence: 0.87, duration: 8, source: truck, label: real, incident: encroachment, clip: esc50/engine_2.wav}
+  - {at: "03:50:05", node: Bukit Harimau, sound: gunshot, confidence: 0.94, duration: 3, source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "03:50:08", node: Puncak Rotan, sound: gunshot, confidence: 0.85, duration: 3, source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "03:58:40", node: Bukit Harimau, sound: gunshot, confidence: 0.91, duration: 3, source: gunshot, label: real, incident: poaching, clip: urbansound8k/gun_shot_1.wav}
+  - {at: "04:46:10", node: Lembah Tupai, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_5.wav}
+  - {at: "04:55:35", node: Batu Kapal, sound: chainsaw, confidence: 0.82, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_1.wav}
+  - {at: "05:04:50", node: Bukit Harimau, sound: chainsaw, confidence: 0.80, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_2.wav}
+  - {at: "05:12:20", node: Batas Utara, sound: chainsaw, confidence: 0.81, duration: 6, source: rain, label: false_alarm, clip: esc50/rain_3.wav}
+  - {at: "05:40:30", node: Batas Timur, sound: chainsaw, confidence: 0.84, duration: 8, source: chainsaw, label: benign, clip: esc50/chainsaw_3.wav, note: early replanting crew}

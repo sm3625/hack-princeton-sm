@@ -148,7 +148,17 @@ def _offset(value, start_tod: int, what: str) -> float:
     return float((_clock_seconds(text) - start_tod) % _DAY)
 
 
-def scenario_path(name: str, directory: Path = SCENARIO_DIR) -> Path:
+def _dir(directory: Path | None) -> Path:
+    """None: the active deployment's map (scenarios/ for the default map)."""
+    if directory is not None:
+        return directory
+    from common.sites import active_map
+
+    return active_map().scenario_dir
+
+
+def scenario_path(name: str, directory: Path | None = None) -> Path:
+    directory = _dir(directory)
     if not NAME_RE.match(name) or name == "world":
         raise UnknownScenario(f"unknown scenario {name!r}")
     path = directory / f"{name}.yaml"
@@ -157,7 +167,8 @@ def scenario_path(name: str, directory: Path = SCENARIO_DIR) -> Path:
     return path
 
 
-def list_scenarios(directory: Path = SCENARIO_DIR, world: World | None = None) -> list[dict]:
+def list_scenarios(directory: Path | None = None, world: World | None = None) -> list[dict]:
+    directory = _dir(directory)
     out = []
     for path in sorted(directory.glob("*.yaml")):
         if path.stem == "world" or not NAME_RE.match(path.stem):
@@ -170,7 +181,7 @@ def list_scenarios(directory: Path = SCENARIO_DIR, world: World | None = None) -
 
 
 def load_scenario(
-    name: str, directory: Path = SCENARIO_DIR, world: World | None = None
+    name: str, directory: Path | None = None, world: World | None = None
 ) -> Scenario:
     world = world or worldmap.load()
     data = yaml.load(scenario_path(name, directory).read_text(), Loader=_Loader) or {}

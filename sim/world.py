@@ -6,15 +6,22 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from common.contracts import WORLD_FILE, Node, World, load_world
+from common.contracts import Node, World, load_world
+from common.sites import active_map, expand_sectors
 
 Rect = tuple[float, float, float, float]  # x0, y0, x1, y1 in metres
 
+SITE_KEYS = ("title", "region", "block", "inset_country", "inset_zone")
 _SECTOR_RE = re.compile(r"^([A-Z])(\d{1,2})$")
 
 
-@lru_cache(maxsize=4)
-def load(path: Path = WORLD_FILE) -> World:
+def load(path: Path | None = None) -> World:
+    """World for a file; with no path, the active deployment's map."""
+    return _load(path or active_map().world_file)
+
+
+@lru_cache(maxsize=8)
+def _load(path: Path) -> World:
     return load_world(path)
 
 
@@ -107,4 +114,16 @@ def to_json(world: World) -> dict:
         ],
         "no_fly": list(world.no_fly),
         "base": {"x_m": world.base_x_m, "y_m": world.base_y_m},
+        "site": {k: v for k, v in world.site.items() if k in SITE_KEYS},
+        "ranger_posts": [
+            {k: p[k] for k in ("name", "x_m", "y_m", "mode") if k in p} for p in world.ranger_posts
+        ],
+        "terrain": [
+            {"kind": t["kind"], "note": t["note"], "sectors": sorted(expand_sectors(t["sectors"]))}
+            for t in world.terrain
+        ],
+        "zones": [
+            {"name": z["name"], "kind": z["kind"], "sectors": sorted(expand_sectors(z["sectors"]))}
+            for z in world.zones
+        ],
     }

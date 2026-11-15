@@ -67,24 +67,32 @@ class Pipeline:
     ) -> None:
         self.engine = engine
         self.classifier = classifier
+        self.receiver, self.clip_dir, self.loss = receiver, clip_dir, loss
         self._loop = loop
         self._now = 0.0  # sim time of the clip being processed (read by the runtimes' clocks)
         # One worker: classification is CPU work, runtimes and the TFLite interpreter are not
         # shared across threads, and clips of one node stay in order.
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="node-runtime")
+        self._build(world)
+
+    def _build(self, world: World) -> None:
         self.runtimes: dict[int, NodeRuntime] = {}
         # What each node heard most recently (sim time, audio), for "listen live" in the UI.
         self.heard: dict[int, deque[tuple[float, np.ndarray]]] = {n.id: deque(maxlen=4) for n in world.nodes}
         for node in world.nodes:
-            link = InProcessLink(receiver.handle, loss=loss)  # delivers on the running loop
+            link = InProcessLink(self.receiver.handle, loss=self.loss)  # delivers on the running loop
             self.runtimes[node.id] = NodeRuntime(
                 node,
-                classifier,
+                self.classifier,
                 load_signing_key(node.id),
-                clip_dir,
+                self.clip_dir,
                 link.send,
                 lambda: self._now,
             )
+
+    async def set_world(self, world: World) -> None:
+        """Another map: rebuild the runtimes on the worker so no queued clip sees half a swap."""
+        await self._loop.run_in_executor(self._pool, self._build, world)
 
     def feed(self, node_id: int, audio: np.ndarray) -> asyncio.Future | None:
         """Sim callback (event-loop thread): hand the clip to the worker, return at once."""

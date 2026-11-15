@@ -1,0 +1,72 @@
+# 4 x 4 km pilot block at Bukit Lawang, on the east edge of Gunung Leuser National Park (Langkat, North
+# Sumatra), where the Bohorok river leaves the forest. Real OSM geography in ui/geo/gunung_leuser/.
+# The park covers the west and north-west (columns A-D, rows 3-8); the east is oil palm and rubber
+# smallholdings, the south the Bukit Lawang village and river. Node names are illustrative.
+#
+# What makes this site different (common/sites.py turns these into incident evidence):
+#  + roads and phone signal on the farm side: a road-side post reaches the boundary fast
+#  + flat lowland air: a longer-range drone covers the whole block
+#  - the boundary is a hard edge with plantations: chainsaws and trucks are lawful there by day,
+#    so the same sound means different things on either side of the line and at different hours
+#  - encroachment happens at night, at the boundary, from the farm side
+#  - steep forested hills in the north-west, where poachers set tiger snares and shoot: slow on foot
+#  - the village and the orangutan feeding area are no-fly (tourists, wildlife disturbance)
+width_m: 4000
+height_m: 4000
+sector_m: 500
+origin_lat: 3.5500
+origin_lon: 98.1060
+base_x_m: 3300
+base_y_m: 900
+no_fly: [D1, C3]
+ranger_speed_kmh: 3.0
+site:
+  title: Gunung Leuser National Park
+  region: North Sumatra, Indonesia
+  block: Bukit Lawang pilot
+  inset_country: SUMATRA
+  osm:
+    reserve_id: 19979673
+    park_id: null
+    places: [{n: Medan, lat: 3.5952, lon: 98.6722}]  # Bukit Lawang is the pilot marker itself
+  research_queries:
+    - "Gunung Leuser National Park illegal logging encroachment oil palm Langkat"
+    - "Leuser tiger poaching snares SMART patrol"
+  research_languages: English and Indonesian
+  research_hint: "Prefer the park authority (BBTNGL), WCS Indonesia, FFI and Mongabay; use site: filters."
+ranger_posts:
+  - {name: Boundary road post, x_m: 3300, y_m: 900, mode: vehicle, speed_kmh: 9}
+  - {name: Bohorok river post, x_m: 1500, y_m: 400, mode: foot}
+terrain:
+  - {sectors: "A6:D8", kind: steep, note: "Steep forested hills, Bukit Barisan foothills", ranger_factor: 1.8}
+  - {sectors: "A1:C2", kind: river, note: "Bohorok river corridor with a riverside trail", ranger_factor: 0.8}
+zones:
+  - name: Oil palm smallholdings
+    sectors: ["E2:H6", "F1:H1"]
+    kind: plantation
+    expect: {vehicle: "04:00-23:00", chainsaw: "05:30-17:30"}
+    note: "Outside the national park: harvest trucks and replanting chainsaws are lawful here; clearing that crosses into the park is not."
+  - name: Bukit Lawang village
+    sectors: [D1, E1, D2]
+    kind: village
+    expect: [vehicle]
+    note: "Village, lodges and the river road; motorbikes run at all hours."
+  - name: Farmland outside the park
+    sectors: "E7:H8"
+    kind: outside_park
+    expect: [vehicle]
+    hours: "05:00-22:00"
+    note: "Outside the national park: a matter for the forestry office and police unless it crosses the boundary."
+nodes:
+  - {id: 1,  name: Bukit Harimau, x_m: 600, y_m: 3500, lat: 3.5814, lon: 98.1114, sector: B8}
+  - {id: 2,  name: Puncak Rotan, x_m: 1700, y_m: 3300, lat: 3.5796, lon: 98.1213, sector: D7}
+  - {id: 3,  name: Batas Utara, x_m: 2900, y_m: 3600, lat: 3.5823, lon: 98.1321, sector: F8}
+  - {id: 4,  name: Lembah Tupai, x_m: 400, y_m: 2400, lat: 3.5716, lon: 98.1096, sector: A5}
+  - {id: 5,  name: Sungai Landak, x_m: 1400, y_m: 2300, lat: 3.5707, lon: 98.1186, sector: C5}
+  - {id: 6,  name: Pinggir Sawit, x_m: 2300, y_m: 2400, lat: 3.5716, lon: 98.1267, sector: E5}
+  - {id: 7,  name: Batu Kapal, x_m: 700, y_m: 1400, lat: 3.5626, lon: 98.1123, sector: B3}
+  - {id: 8,  name: Jalur Lama, x_m: 1700, y_m: 1500, lat: 3.5635, lon: 98.1213, sector: D4}
+  - {id: 9,  name: Batas Timur, x_m: 3100, y_m: 1600, lat: 3.5644, lon: 98.1339, sector: G4}
+  - {id: 10, name: Tebing Bohorok, x_m: 800, y_m: 600, lat: 3.5554, lon: 98.1132, sector: B2}
+  - {id: 11, name: Kebun Tepi, x_m: 2600, y_m: 700, lat: 3.5563, lon: 98.1294, sector: F2}
+  - {id: 12, name: Simpang Tiga, x_m: 3700, y_m: 2700, lat: 3.5743, lon: 98.1393, sector: H6}

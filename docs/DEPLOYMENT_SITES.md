@@ -19,6 +19,9 @@ what happens after an alert:
 - **Integration:** feed decisions into the patrol systems sites already use (SMART, EarthRanger)
   rather than a new dashboard.
 
+Implemented as maps (docs/DEPLOYMENTS.md): Maya Biosphere Reserve (default), Southern Cardamom
+(`southern_cardamom`) and Gunung Leuser (`gunung_leuser`).
+
 ## Candidates, strongest fit first
 
 | Site | Threats | Existing deployment | Why it fits |

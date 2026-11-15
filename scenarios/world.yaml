@@ -10,6 +10,12 @@ origin_lon: -90.3820
 base_x_m: 200
 base_y_m: 200
 no_fly: [F2, G6]
+site:
+  title: Maya Biosphere Reserve
+  region: Petén, Guatemala
+  block: Laguna del Tigre pilot
+  inset_country: MEXICO
+  inset_zone: Laguna del Tigre NP
 nodes:
   - {id: 1,  name: Loma Norte,   x_m: 600, y_m: 3500, lat: 17.2794, lon: -90.3764, sector: B8}
   - {id: 2,  name: Loma Este,    x_m: 1900, y_m: 3300, lat: 17.2776, lon: -90.3641, sector: D7}

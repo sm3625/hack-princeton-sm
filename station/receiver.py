@@ -64,6 +64,13 @@ class Receiver:
         self._publish = publish or bus.publish
         self._loop: asyncio.AbstractEventLoop | None = None
 
+    def set_world(self, world: World) -> None:
+        """Another map: its node names, and keys for any node id not provisioned yet."""
+        from node.keys import ensure_keys
+
+        self.public_keys = dict(ensure_keys(world))
+        self.names = {n.id: n.name for n in world.nodes}
+
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Bus messages from other threads are handed to this loop (asyncio queues are not
         thread-safe)."""

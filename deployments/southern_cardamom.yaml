@@ -1,0 +1,22 @@
+# Southern Cardamom NP, Koh Kong, Cambodia: steep monsoon-soaked ridges, many small ranger stations.
+# Map, terrain, posts and scenarios: sites/southern_cardamom/.
+site:
+  name: Peam Piphot valley, Southern Cardamom
+  description: Steep wet ridges above Chi Phat. Two ranger stations patrol day and night; one short-range drone.
+map: southern_cardamom
+drones:
+  count: 1
+  spec:
+    speed_mps: 8        # gusty ridgelines: slower, more conservative
+    range_km: 7         # small quadcopter; climbing the ridges costs battery
+    reserve_pct: 20
+    base_x_m: 900       # Peam Piphot ranger station
+    base_y_m: 700
+ranger_teams:
+  count: 3              # stations patrol day and night
+  response_min: 60
+connectivity: lora      # ridge repeaters; no mobile signal in the valley
+approval:
+  approver: station chief
+agent:
+  check_interval_min: 20  # heavy rain comes and goes fast; re-check sooner
